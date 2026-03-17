@@ -1,0 +1,54 @@
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Secrets
+*.pem
+*.key
+*.crt
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Database
+*.db
+*.sqlite3
+
+# Node
+node_modules/
+.vite/
+
+# Docker volumes
+pgdata/
+redisdata/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Storage
+backend/storage/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/

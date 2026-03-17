@@ -1,0 +1,48 @@
+{
+  "title": "Relatorio Snapshot",
+  "subtitle": "Paridade export x preview",
+  "period": "2026",
+  "company": "Acme Brasil",
+  "cols": [
+    { "name": "Contrato", "type": "text", "vis": true, "uniq": 12 },
+    { "name": "Fornecedor", "type": "text", "vis": true, "uniq": 4 },
+    { "name": "Categoria", "type": "text", "vis": true, "uniq": 3 },
+    { "name": "Conformidade", "type": "text", "vis": true, "uniq": 2 },
+    { "name": "Mes", "type": "date", "vis": true, "uniq": 6 },
+    { "name": "Valor Estimado", "type": "number", "vis": true, "uniq": 12 },
+    { "name": "Valor Negociado", "type": "number", "vis": true, "uniq": 12 },
+    { "name": "Saving", "type": "number", "vis": true, "uniq": 12 },
+    { "name": "Score", "type": "number", "vis": true, "uniq": 8 }
+  ],
+  "rows": [
+    { "cells": ["CTR-001","Alpha","Tecnologia","Sim","01/2026","120000","98000","22000","88"] },
+    { "cells": ["CTR-002","Beta","Tecnologia","Não","02/2026","98000","86000","12000","77"] },
+    { "cells": ["CTR-003","Gamma","Facilities","Sim","03/2026","210000","172000","38000","92"] },
+    { "cells": ["CTR-004","Delta","Facilities","Não","04/2026","154000","133000","21000","65"] },
+    { "cells": ["CTR-005","Alpha","Energia","Sim","05/2026","310000","244000","66000","95"] },
+    { "cells": ["CTR-006","Gamma","Energia","Sim","06/2026","174000","150000","24000","84"] },
+    { "cells": ["CTR-007","Delta","Tecnologia","Não","01/2026","111000","102000","9000","70"] },
+    { "cells": ["CTR-008","Beta","Facilities","Sim","02/2026","88000","76000","12000","73"] },
+    { "cells": ["CTR-009","Alpha","Energia","Sim","03/2026","265000","208000","57000","97"] },
+    { "cells": ["CTR-010","Gamma","Tecnologia","Não","04/2026","94000","86000","8000","68"] },
+    { "cells": ["CTR-011","Delta","Energia","Sim","05/2026","188000","162000","26000","82"] },
+    { "cells": ["CTR-012","Beta","Facilities","Não","06/2026","132000","121000","11000","74"] }
+  ],
+  "kpis": [
+    { "label": "Total Registros", "col": "", "fmt": "count", "icon": "📋", "color": "#3b82f6" },
+    { "label": "Valor Estimado", "col": "5", "fmt": "sum", "icon": "💰", "color": "#16a34a" },
+    { "label": "Top Fornecedor", "col": "1", "fmt": "topval", "icon": "🏆", "color": "#f59e0b" }
+  ],
+  "colors": { "primary": "#1a3a5c", "secondary": "#2e5c8a", "accent": "#4ade80", "bg": "#eef1f5", "text": "#1e293b" },
+  "sections": { "saving": true, "kpi": true, "charts": true, "summary": true, "table": true, "filters": true, "footer": false },
+  "saving": { "label": "Saving Total", "savingCol": "7", "v1Col": "5", "v1Label": "Valor Estimado", "v2Col": "6", "v2Label": "Valor Negociado" },
+  "charts": {
+    "g1": { "on": true, "title": "Distribuicao por Conformidade", "type": "nightingale", "col": "3", "h": 260 },
+    "g2": { "on": true, "title": "Contratos por Categoria", "type": "radar", "col": "2", "h": 260 },
+    "g3": { "on": true, "title": "Evolucao Mensal", "type": "area", "dateCol": "4", "v1Col": "5", "v2Col": "6", "h": 300 },
+    "g4": { "on": true, "title": "Top Fornecedor", "type": "treemap", "labelCol": "1", "valCol": "5", "n": 8, "h": 360 }
+  },
+  "groupCol": "3",
+  "footer": "Relatorio gerado pelo Report Studio",
+  "exportOptions": { "strictParity": true }
+}
