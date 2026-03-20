@@ -61,172 +61,38 @@ def _extract_subscription_price_id(subscription_obj) -> str:
 
 async def _sync_session_subscription(db: AsyncSession, user: User, session_id: str):
     session = retrieve_checkout_session(session_id)
-    customer_id = session.get("customer")
-    subscription = session.get("subscription")
-    if not customer_id or not subscription:
-        raise HTTPException(status_code=400, detail="Sessão do Stripe não possui customer/subscription.")
 
+    # 🔥 CORREÇÃO PRINCIPAL AQUI
+    customer = session.get("customer")
+    customer_id = customer.id if hasattr(customer, "id") else customer
+
+    subscription = session.get("subscription")
+
+    if not customer_id or not subscription:
+        raise HTTPException(
+            status_code=400,
+            detail="Sessão do Stripe não possui customer/subscription."
+        )
+
+    # 🔥 GARANTE QUE subscription É OBJETO COMPLETO
     if isinstance(subscription, str):
         subscription = stripe.Subscription.retrieve(subscription)
 
+    # 🔥 EXTRAÇÃO DO PRICE
     price_id = _extract_subscription_price_id(subscription)
+
+    # 🔥 ATIVAÇÃO DA ASSINATURA
     await activate_user_subscription(
         db=db,
         user=user,
-        stripe_customer_id=customer_id,
+        stripe_customer_id=customer_id,  # ✅ agora sempre string
         stripe_subscription_id=subscription["id"],
         price_id=price_id,
         status=subscription.get("status", "active"),
         current_period_end=subscription.get("current_period_end"),
     )
+
     return session, subscription
-
-
-@router.get("/public-config")
-async def public_config():
-    return {
-        "publishable_key": settings.STRIPE_PUBLIC_KEY,
-        "embedded_checkout_enabled": bool(
-            settings.STRIPE_PUBLIC_KEY and settings.STRIPE_PUBLIC_KEY != "pk_test_placeholder"
-        ),
-    }
-
-
-@router.post("/create-checkout-session")
-async def create_checkout_session_endpoint(
-    data: CheckoutSessionRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    plan_name = _resolve_plan_name(data)
-    price_id = get_price_id_for_plan(plan_name)
-    session = await create_checkout_session(current_user.id, price_id, db)
-    return {"checkout_url": session.url}
-
-
-@router.post("/checkout")
-async def create_checkout_session_compat(
-    data: CheckoutSessionRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    return await create_checkout_session_endpoint(data, current_user, db)
-
-
-@router.get("/confirm-session")
-async def confirm_checkout_session(
-    session_id: str = Query(...),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    session, subscription = await _sync_session_subscription(db, current_user, session_id)
-    return {
-        "message": "Assinatura ativada com sucesso.",
-        "customer_id": session.get("customer"),
-        "subscription_id": subscription.get("id"),
-        "plan": current_user.plan,
-        "reports_limit": current_user.reports_limit,
-    }
-
-
-@router.post("/customer-portal")
-async def customer_portal(
-    data: CustomerPortalRequest,
-    current_user: User = Depends(get_current_user),
-):
-    if data.user_id and data.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Você não pode abrir o portal de outro usuário.")
-    if not current_user.stripe_customer_id:
-        raise HTTPException(status_code=400, detail="Usuário sem customer_id no Stripe.")
-    portal = create_customer_portal(current_user.stripe_customer_id)
-    return {"portal_url": portal.url}
-
-
-@router.post("/portal")
-async def customer_portal_compat(
-    data: CustomerPortalRequest,
-    current_user: User = Depends(get_current_user),
-):
-    return await customer_portal(data, current_user)
-
-
-@router.get("/me", response_model=BillingMeResponse)
-async def billing_me(current_user: User = Depends(get_current_user)):
-    return BillingMeResponse(
-        current_plan=current_user.plan,
-        reports_limit=current_user.reports_limit or current_user.plan_limit,
-        reports_used=current_user.reports_used,
-        subscription_status=current_user.subscription_status,
-        next_billing_date=current_user.plan_expires_at,
-    )
-
-
-@router.get("/status")
-async def billing_status_compat(current_user: User = Depends(get_current_user)):
-    return {
-        "plan": current_user.plan,
-        "subscription_status": current_user.subscription_status,
-        "plan_expires_at": current_user.plan_expires_at,
-        "reports_this_month": current_user.reports_used,
-        "plan_limit": current_user.reports_limit or current_user.plan_limit,
-        "can_create_report": current_user.can_create_report,
-    }
-
-
-async def _handle_checkout_completed(db: AsyncSession, session_obj: dict):
-    user = None
-    user_id = (session_obj.get("metadata") or {}).get("user_id")
-    if user_id:
-        result = await db.execute(select(User).where(User.id == int(user_id)))
-        user = result.scalar_one_or_none()
-
-    customer_id = session_obj.get("customer")
-    if not user and customer_id:
-        user = await find_user_for_customer(db, customer_id)
-
-    if not user:
-        return
-
-    session_id = session_obj.get("id")
-    if not session_id:
-        return
-
-    await _sync_session_subscription(db, user, session_id)
-
-
-async def _handle_invoice_payment_succeeded(db: AsyncSession, invoice: dict):
-    customer_id = invoice.get("customer")
-    subscription_id = invoice.get("subscription")
-    user = await find_user_for_customer(db, customer_id)
-    if not user:
-        return
-
-    line_items = invoice.get("lines", {}).get("data", [])
-    price_id = ""
-    if line_items:
-        price_id = line_items[0].get("price", {}).get("id", "")
-    if not price_id and subscription_id:
-        subscription = stripe.Subscription.retrieve(subscription_id)
-        price_id = _extract_subscription_price_id(subscription)
-
-    await activate_user_subscription(
-        db=db,
-        user=user,
-        stripe_customer_id=customer_id,
-        stripe_subscription_id=subscription_id,
-        price_id=price_id,
-        status="active",
-        current_period_end=invoice.get("period_end"),
-    )
-    await record_payment(
-        db=db,
-        user_id=user.id,
-        amount=invoice.get("amount_paid", 0),
-        currency=invoice.get("currency", "brl"),
-        stripe_invoice_id=invoice.get("id"),
-        status="paid",
-    )
-
 
 async def _handle_invoice_payment_failed(db: AsyncSession, invoice: dict):
     customer_id = invoice.get("customer")
