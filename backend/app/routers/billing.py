@@ -19,6 +19,7 @@ from app.services.stripe_service import (
     create_customer_portal,
     deactivate_user_subscription,
     find_user_for_customer,
+    get_or_create_customer,
     get_plan_config_by_price,
     get_price_id_for_plan,
     record_payment,
@@ -93,6 +94,57 @@ async def _sync_session_subscription(db: AsyncSession, user: User, session_id: s
     )
 
     return session, subscription
+
+@router.post("/create-checkout-session")
+async def create_stripe_checkout_session(
+    data: CheckoutSessionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    plan_name = _resolve_plan_name(data)
+
+    try:
+        price_id = get_price_id_for_plan(plan_name)
+        customer_id = await get_or_create_customer(db, current_user)
+        session = stripe.checkout.Session.create(
+            customer=customer_id,
+            mode="subscription",
+            payment_method_types=["card"],
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=f"{settings.APP_URL}/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{settings.APP_URL}/pricing",
+            metadata={
+                "user_id": str(current_user.id),
+                "plan_name": plan_name,
+            },
+        )
+    except HTTPException:
+        raise
+    except stripe.error.StripeError as exc:
+        message = getattr(exc, "user_message", None) or str(exc)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Erro ao criar checkout na Stripe: {message}",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Erro interno ao criar sessão de checkout.",
+        ) from exc
+
+    if not getattr(session, "url", None):
+        raise HTTPException(
+            status_code=500,
+            detail="Stripe não retornou URL de checkout.",
+        )
+
+    return {"checkout_url": session.url}
+
+
+@router.get("/public-config")
+async def get_public_billing_config():
+    return {"publishable_key": settings.STRIPE_PUBLIC_KEY}
+
 
 async def _handle_invoice_payment_failed(db: AsyncSession, invoice: dict):
     customer_id = invoice.get("customer")
