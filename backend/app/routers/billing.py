@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 from typing import Optional
 
 import stripe
@@ -27,6 +28,7 @@ from app.services.stripe_service import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class CheckoutSessionRequest(BaseModel):
@@ -206,29 +208,109 @@ async def _handle_subscription_deleted(db: AsyncSession, subscription: dict):
     )
 
 
+async def get_user_by_stripe_customer(db: AsyncSession, customer_id: str) -> Optional[User]:
+    return await find_user_for_customer(db, customer_id)
+
+
+async def handle_invoice_payment_succeeded(event, db: AsyncSession):
+    try:
+        invoice = event["data"]["object"]
+        customer_id = invoice.get("customer")
+
+        if customer_id is None:
+            logger.warning("Stripe invoice.payment_succeeded sem customer_id.")
+            return
+
+        user = await get_user_by_stripe_customer(db, customer_id)
+        if not user:
+            logger.warning(
+                "Stripe invoice.payment_succeeded sem usuario para customer_id=%s.",
+                customer_id,
+            )
+            return
+
+        subscription_id = invoice.get("subscription") or user.stripe_subscription_id
+        lines = (invoice.get("lines") or {}).get("data", [])
+        price_id = None
+        current_period_end = None
+        if lines:
+            price_id = ((lines[0] or {}).get("price") or {}).get("id")
+            period = (lines[0] or {}).get("period") or {}
+            current_period_end = period.get("end")
+
+        if price_id and subscription_id:
+            await activate_user_subscription(
+                db=db,
+                user=user,
+                stripe_customer_id=customer_id,
+                stripe_subscription_id=subscription_id,
+                price_id=price_id,
+                status="active",
+                current_period_end=current_period_end,
+            )
+        else:
+            user.subscription_status = "active"
+            user.stripe_customer_id = customer_id
+            if subscription_id:
+                user.stripe_subscription_id = subscription_id
+
+            stmt = select(Subscription).where(Subscription.user_id == user.id)
+            if subscription_id:
+                stmt = select(Subscription).where(Subscription.stripe_subscription_id == subscription_id)
+            result = await db.execute(stmt)
+            subscription = result.scalar_one_or_none()
+            if subscription:
+                subscription.status = "active"
+                if subscription_id:
+                    subscription.stripe_subscription_id = subscription_id
+                subscription.stripe_customer_id = customer_id
+
+            await db.flush()
+
+        await record_payment(
+            db=db,
+            user_id=user.id,
+            amount=invoice.get("amount_paid", invoice.get("amount_due", 0)),
+            currency=invoice.get("currency", "brl"),
+            stripe_invoice_id=invoice.get("id"),
+            status="paid",
+        )
+    except Exception:
+        logger.exception("Erro ao processar invoice.payment_succeeded.")
+        await db.rollback()
+
+
+async def _handle_invoice_payment_succeeded(db: AsyncSession, invoice: dict):
+    await handle_invoice_payment_succeeded({"data": {"object": invoice}}, db)
+
+
 @router.post("/webhook")
 async def stripe_webhook(
     request: Request,
     stripe_signature: Optional[str] = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
-    payload = await request.body()
-    event = construct_webhook_event(payload, stripe_signature)
-    event_type = event["type"]
-    data = event["data"]["object"]
+    try:
+        payload = await request.body()
+        event = construct_webhook_event(payload, stripe_signature)
+        event_type = event["type"]
+        data = event["data"]["object"]
 
-    if event_type == "checkout.session.completed":
-        await _handle_checkout_completed(db, data)
-    elif event_type == "invoice.payment_succeeded":
-        await _handle_invoice_payment_succeeded(db, data)
-    elif event_type == "invoice.payment_failed":
-        await _handle_invoice_payment_failed(db, data)
-    elif event_type == "customer.subscription.updated":
-        await _handle_subscription_updated(db, data)
-    elif event_type == "customer.subscription.deleted":
-        await _handle_subscription_deleted(db, data)
+        if event_type == "checkout.session.completed":
+            await _handle_checkout_completed(db, data)
+        elif event_type == "invoice.payment_succeeded":
+            await handle_invoice_payment_succeeded(event, db)
+        elif event_type == "invoice.payment_failed":
+            await _handle_invoice_payment_failed(db, data)
+        elif event_type == "customer.subscription.updated":
+            await _handle_subscription_updated(db, data)
+        elif event_type == "customer.subscription.deleted":
+            await _handle_subscription_deleted(db, data)
+    except Exception:
+        logger.exception("Erro ao processar webhook Stripe.")
+        await db.rollback()
 
-    return {"received": True, "event_type": event_type}
+    return {"status": "success"}
 
 
 @router.get("/subscriptions")
