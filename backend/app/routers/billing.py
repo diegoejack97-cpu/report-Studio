@@ -20,6 +20,7 @@ from app.services.stripe_service import (
     create_customer_portal,
     deactivate_user_subscription,
     find_user_for_customer,
+    get_user_by_id,
     get_or_create_customer,
     get_plan_config_by_price,
     get_price_id_for_plan,
@@ -212,6 +213,59 @@ async def get_user_by_stripe_customer(db: AsyncSession, customer_id: str) -> Opt
     return await find_user_for_customer(db, customer_id)
 
 
+async def handle_checkout_completed(session: dict, db: AsyncSession):
+    try:
+        customer_id = session.get("customer")
+        user_id = (session.get("metadata") or {}).get("user_id")
+        plan_name = (session.get("metadata") or {}).get("plan_name", "pro")
+        plan_value = plan_name if plan_name in PlanType._value2member_map_ else PlanType.PRO.value
+
+        if not user_id:
+            logger.warning("Stripe checkout.session.completed sem metadata.user_id.")
+            return
+
+        try:
+            user = await get_user_by_id(db, int(user_id))
+        except (TypeError, ValueError):
+            logger.warning(
+                "Stripe checkout.session.completed com metadata.user_id invalido: %s.",
+                user_id,
+            )
+            return
+        except HTTPException:
+            logger.warning(
+                "Stripe checkout.session.completed sem usuario para user_id=%s.",
+                user_id,
+            )
+            return
+
+        if not user:
+            logger.warning(
+                "Stripe checkout.session.completed sem usuario para user_id=%s.",
+                user_id,
+            )
+            return
+
+        if customer_id and not user.stripe_customer_id:
+            user.stripe_customer_id = customer_id
+
+        subscription_id = session.get("subscription")
+        user.subscription_status = "active"
+        user.is_active = True
+        user.plan = PlanType(plan_value)
+        if subscription_id:
+            user.stripe_subscription_id = subscription_id
+
+        await db.commit()
+    except Exception:
+        logger.exception("Erro ao processar checkout.session.completed.")
+        await db.rollback()
+
+
+async def _handle_checkout_completed(db: AsyncSession, session: dict):
+    await handle_checkout_completed(session, db)
+
+
 async def handle_invoice_payment_succeeded(event, db: AsyncSession):
     try:
         invoice = event["data"]["object"]
@@ -228,6 +282,11 @@ async def handle_invoice_payment_succeeded(event, db: AsyncSession):
                 customer_id,
             )
             return
+
+        user.subscription_status = "active"
+        user.is_active = True
+        if not user.stripe_customer_id:
+            user.stripe_customer_id = customer_id
 
         subscription_id = invoice.get("subscription") or user.stripe_subscription_id
         lines = (invoice.get("lines") or {}).get("data", [])
@@ -249,8 +308,6 @@ async def handle_invoice_payment_succeeded(event, db: AsyncSession):
                 current_period_end=current_period_end,
             )
         else:
-            user.subscription_status = "active"
-            user.stripe_customer_id = customer_id
             if subscription_id:
                 user.stripe_subscription_id = subscription_id
 
@@ -275,6 +332,7 @@ async def handle_invoice_payment_succeeded(event, db: AsyncSession):
             stripe_invoice_id=invoice.get("id"),
             status="paid",
         )
+        await db.commit()
     except Exception:
         logger.exception("Erro ao processar invoice.payment_succeeded.")
         await db.rollback()
