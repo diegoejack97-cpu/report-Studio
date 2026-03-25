@@ -2,10 +2,13 @@ import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 
 export default function BillingSuccessPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const token = useAuthStore(s => s.token)
+  const refreshUser = useAuthStore(s => s.refreshUser)
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id')
@@ -17,10 +20,18 @@ export default function BillingSuccessPage() {
 
     let canceled = false
     api.get(`/billing/confirm-session?session_id=${encodeURIComponent(sessionId)}`)
-      .then(() => {
+      .then(async ({ data }) => {
         if (canceled) return
-        toast.success('Assinatura ativada com sucesso.')
-        navigate('/dashboard', { replace: true })
+        if (token) {
+          await refreshUser()
+          if (canceled) return
+          toast.success('Assinatura ativada com sucesso.')
+          navigate('/dashboard?upgraded=true', { replace: true })
+          return
+        }
+
+        toast.success('Pagamento confirmado. Faça login para acessar seu plano.')
+        navigate(`/login?upgraded=true&email=${encodeURIComponent(data.email || '')}`, { replace: true })
       })
       .catch(err => {
         if (canceled) return
@@ -31,7 +42,7 @@ export default function BillingSuccessPage() {
     return () => {
       canceled = true
     }
-  }, [navigate, searchParams])
+  }, [navigate, refreshUser, searchParams, token])
 
   return (
     <div className="min-h-screen bg-surface-0 flex items-center justify-center px-4">

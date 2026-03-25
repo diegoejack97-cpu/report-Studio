@@ -46,7 +46,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/billing/success" element={<PrivateRoute><BillingSuccessPage /></PrivateRoute>} />
+        <Route path="/success" element={<BillingSuccessPage />} />
+        <Route path="/billing/success" element={<BillingSuccessPage />} />
         <Route path="/login"    element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route path="/register" element={<PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>} />
         <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
