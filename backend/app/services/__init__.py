@@ -1,3 +1,12 @@
+from app.services.email_events import (
+    send_limit_reached_email,
+    send_payment_failed_email,
+    send_payment_success_email,
+    send_processing_error_email,
+    send_report_ready_email,
+    send_welcome_email,
+)
+from app.services.email_service import send_email
 from app.services.stripe_service import (
     PLAN_CATALOG,
     activate_user_subscription,
@@ -25,5 +34,12 @@ __all__ = [
     "get_price_id_for_plan",
     "record_payment",
     "retrieve_checkout_session",
+    "send_email",
+    "send_limit_reached_email",
+    "send_payment_failed_email",
+    "send_payment_success_email",
+    "send_processing_error_email",
+    "send_report_ready_email",
+    "send_welcome_email",
     "upsert_subscription_record",
 ]

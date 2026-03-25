@@ -1,20 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+import logging
+from datetime import datetime, timezone
+from typing import Any, Optional
+
+import aiofiles
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, FileResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel
-from typing import Optional, Any
-from datetime import datetime, timezone
-import json, os, aiofiles
+from sqlalchemy.ext.asyncio import AsyncSession
+import json, os
 
+from app.core.background import run_async_task
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.middleware.plan_limit import check_plan_limit, reset_report_usage_if_needed
 from app.models.user import User
 from app.models.report import Report
+from app.services.email_events import (
+    send_limit_reached_email,
+    send_processing_error_email,
+    send_report_ready_email,
+)
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class ReportCreate(BaseModel):
@@ -68,27 +78,40 @@ async def list_reports(
 @router.post("/", response_model=ReportDetail, status_code=201)
 async def create_report(
     data: ReportCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    reset_report_usage_if_needed(current_user)
-    check_plan_limit(current_user)
+    try:
+        reset_report_usage_if_needed(current_user)
+        check_plan_limit(current_user)
 
-    report = Report(
-        user_id=current_user.id,
-        title=data.title,
-        description=data.description,
-        config=data.config,
-        row_count=data.row_count,
-        col_count=data.col_count,
-    )
-    db.add(report)
-    current_user.reports_used += 1
-    current_user.reports_this_month += 1
-    current_user.reports_total += 1
-    await db.flush()
-    await db.refresh(report)
-    return report
+        report = Report(
+            user_id=current_user.id,
+            title=data.title,
+            description=data.description,
+            config=data.config,
+            row_count=data.row_count,
+            col_count=data.col_count,
+        )
+        db.add(report)
+        current_user.reports_used += 1
+        current_user.reports_this_month += 1
+        current_user.reports_total += 1
+        await db.flush()
+        await db.refresh(report)
+        return report
+    except HTTPException as exc:
+        if exc.status_code == 402:
+            background_tasks.add_task(run_async_task, send_limit_reached_email(current_user))
+        raise
+    except Exception as exc:
+        logger.exception("Erro ao criar relatorio para user_id=%s.", current_user.id)
+        background_tasks.add_task(
+            run_async_task,
+            send_processing_error_email(current_user, str(exc)),
+        )
+        raise
 
 
 @router.get("/{report_id}", response_model=ReportDetail)
@@ -132,14 +155,29 @@ async def delete_report(
 @router.post("/{report_id}/export")
 async def export_report(
     report_id: int,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Increment export count and return the report config for client-side HTML generation."""
-    report = await _get_own_report(report_id, current_user.id, db)
-    report.export_count += 1
-    await db.flush()
-    return {"report_id": report.id, "config": report.config, "title": report.title}
+    try:
+        report = await _get_own_report(report_id, current_user.id, db)
+        report.export_count += 1
+        await db.flush()
+        background_tasks.add_task(run_async_task, send_report_ready_email(current_user, report.title))
+        return {"report_id": report.id, "config": report.config, "title": report.title}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Erro ao exportar relatorio report_id=%s para user_id=%s.",
+            report_id,
+            current_user.id,
+        )
+        background_tasks.add_task(
+            run_async_task,
+            send_processing_error_email(current_user, str(exc)),
+        )
+        raise
 
 
 async def _get_own_report(report_id: int, user_id: int, db: AsyncSession) -> Report:

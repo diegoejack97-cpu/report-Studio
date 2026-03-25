@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASS: str = ""
+    RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "noreply@reportstudio.com"
 
     STORAGE_PATH: str = "/app/storage"

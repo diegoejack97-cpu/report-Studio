@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
@@ -7,8 +7,10 @@ import stripe
 
 from app.core.database import get_db
 from app.core.auth import hash_password, verify_password, create_access_token, get_current_user
+from app.core.background import run_async_task
 from app.core.config import settings
 from app.models.user import User, PlanType
+from app.services.email_events import send_welcome_email
 
 router = APIRouter()
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -100,7 +102,11 @@ async def _sync_existing_stripe_subscription(user: User, db: AsyncSession):
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(
+    data: RegisterRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
     # Check if email already exists
     result = await db.execute(select(User).where(User.email == data.email.lower()))
     if result.scalar_one_or_none():
@@ -123,6 +129,7 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     await db.flush()
     await _sync_existing_stripe_subscription(user, db)
     await db.refresh(user)
+    background_tasks.add_task(run_async_task, send_welcome_email(user))
 
     token = create_access_token({"sub": str(user.id)})
     return TokenResponse(

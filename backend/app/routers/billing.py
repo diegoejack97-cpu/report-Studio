@@ -3,11 +3,12 @@ import logging
 from typing import Optional
 
 import stripe
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.background import run_async_task
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.auth import get_current_user
@@ -26,6 +27,10 @@ from app.services.stripe_service import (
     get_price_id_for_plan,
     record_payment,
     retrieve_checkout_session,
+)
+from app.services.email_events import (
+    send_payment_failed_email,
+    send_payment_success_email,
 )
 
 router = APIRouter()
@@ -149,7 +154,11 @@ async def get_public_billing_config():
     return {"publishable_key": settings.STRIPE_PUBLIC_KEY}
 
 
-async def _handle_invoice_payment_failed(db: AsyncSession, invoice: dict):
+async def _handle_invoice_payment_failed(
+    db: AsyncSession,
+    invoice: dict,
+    background_tasks: BackgroundTasks | None = None,
+):
     customer_id = invoice.get("customer")
     user = await find_user_for_customer(db, customer_id)
     if not user:
@@ -165,6 +174,8 @@ async def _handle_invoice_payment_failed(db: AsyncSession, invoice: dict):
         stripe_invoice_id=invoice.get("id"),
         status="failed",
     )
+    if background_tasks is not None:
+        background_tasks.add_task(run_async_task, send_payment_failed_email(user))
 
 
 async def _handle_subscription_updated(db: AsyncSession, subscription: dict):
@@ -266,7 +277,11 @@ async def _handle_checkout_completed(db: AsyncSession, session: dict):
     await handle_checkout_completed(session, db)
 
 
-async def handle_invoice_payment_succeeded(event, db: AsyncSession):
+async def handle_invoice_payment_succeeded(
+    event,
+    db: AsyncSession,
+    background_tasks: BackgroundTasks | None = None,
+):
     try:
         invoice = event["data"]["object"]
         customer_id = invoice.get("customer")
@@ -333,18 +348,29 @@ async def handle_invoice_payment_succeeded(event, db: AsyncSession):
             status="paid",
         )
         await db.commit()
+        if background_tasks is not None:
+            background_tasks.add_task(run_async_task, send_payment_success_email(user))
     except Exception:
         logger.exception("Erro ao processar invoice.payment_succeeded.")
         await db.rollback()
 
 
-async def _handle_invoice_payment_succeeded(db: AsyncSession, invoice: dict):
-    await handle_invoice_payment_succeeded({"data": {"object": invoice}}, db)
+async def _handle_invoice_payment_succeeded(
+    db: AsyncSession,
+    invoice: dict,
+    background_tasks: BackgroundTasks | None = None,
+):
+    await handle_invoice_payment_succeeded(
+        {"data": {"object": invoice}},
+        db,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post("/webhook")
 async def stripe_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     stripe_signature: Optional[str] = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
@@ -357,9 +383,9 @@ async def stripe_webhook(
         if event_type == "checkout.session.completed":
             await _handle_checkout_completed(db, data)
         elif event_type == "invoice.payment_succeeded":
-            await handle_invoice_payment_succeeded(event, db)
+            await handle_invoice_payment_succeeded(event, db, background_tasks=background_tasks)
         elif event_type == "invoice.payment_failed":
-            await _handle_invoice_payment_failed(db, data)
+            await _handle_invoice_payment_failed(db, data, background_tasks=background_tasks)
         elif event_type == "customer.subscription.updated":
             await _handle_subscription_updated(db, data)
         elif event_type == "customer.subscription.deleted":
