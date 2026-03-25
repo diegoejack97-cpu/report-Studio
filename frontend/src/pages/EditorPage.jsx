@@ -37,7 +37,7 @@ const DEFAULT_STATE = {
     g4: { on: true, title: 'Top 10 por Valor', type: 'hbar', labelCol: '', valCol: '', n: 10, h: 360 },
   },
   groupCol: '',
-  footer: 'Relatório gerado pelo Report Studio · Uso interno',
+  footer: 'Relatório gerado pelo Report Flow · Uso interno',
   exportOptions: { strictParity: true, themeMode: 'follow' },
 }
 

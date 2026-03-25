@@ -43,6 +43,6 @@
     "g4": { "on": true, "title": "Top Fornecedor", "type": "treemap", "labelCol": "1", "valCol": "5", "n": 8, "h": 360 }
   },
   "groupCol": "3",
-  "footer": "Relatorio gerado pelo Report Studio",
+  "footer": "Relatorio gerado pelo Report Flow",
   "exportOptions": { "strictParity": true }
 }

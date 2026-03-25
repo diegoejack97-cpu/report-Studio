@@ -753,7 +753,7 @@ export default function ReportPreview({ state }) {
         {/* Footer */}
         {sections.footer!==false&&(
           <div className="rounded-2xl px-5 py-3 text-center text-xs" style={{background:p1,color:'rgba(255,255,255,.5)'}}>
-            {state.footer||'Relatório gerado pelo Report Studio'} · {new Date().toLocaleDateString('pt-BR')}
+            {state.footer||'Relatório gerado pelo Report Flow'} · {new Date().toLocaleDateString('pt-BR')}
           </div>
         )}
 

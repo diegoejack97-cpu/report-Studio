@@ -7,7 +7,7 @@ RUN npm install
 COPY . .
 
 ARG VITE_API_URL=http://localhost:8000
-ARG VITE_APP_NAME="Report Studio"
+ARG VITE_APP_NAME="Report Flow"
 ARG VITE_STRIPE_PUBLIC_KEY=pk_test_placeholder
 
 ENV VITE_API_URL=$VITE_API_URL

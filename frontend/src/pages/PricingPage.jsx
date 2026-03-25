@@ -115,7 +115,7 @@ export default function PricingPage() {
     }
 
     if (!plan.self_service) {
-      const subject = encodeURIComponent(`Plano ${plan.name} - Report Studio`)
+      const subject = encodeURIComponent(`Plano ${plan.name} - Report Flow`)
       window.location.href = `mailto:sales@reportstudio.com?subject=${subject}`
       return
     }

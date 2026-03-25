@@ -9,10 +9,10 @@ async def send_welcome_email(user):
     try:
         await _send_user_email(
             user=user,
-            subject="Bem-vindo ao Report Studio",
+            subject="Bem-vindo ao Report Flow",
             body=(
                 f"Ola, {_display_name(user)}!\n\n"
-                "Sua conta foi criada com sucesso no Report Studio.\n"
+                "Sua conta foi criada com sucesso no Report Flow.\n"
                 "Agora voce ja pode acessar a plataforma e comecar a criar seus relatorios.\n\n"
                 "Se precisar de ajuda, responda este email."
             ),
@@ -30,7 +30,7 @@ async def send_payment_success_email(user):
                 f"Ola, {_display_name(user)}!\n\n"
                 "Recebemos a confirmacao do seu pagamento com sucesso.\n"
                 "Seu plano ja esta ativo e pronto para uso.\n\n"
-                "Obrigado por continuar com o Report Studio."
+                "Obrigado por continuar com o Report Flow."
             ),
         )
     except Exception:
@@ -62,7 +62,7 @@ async def send_report_ready_email(user, report_name):
                 f"Ola, {_display_name(user)}!\n\n"
                 f'O relatorio "{report_name}" foi gerado com sucesso e esta pronto para uso.\n'
                 "Voce ja pode acessar a plataforma para visualizar ou exportar o resultado.\n\n"
-                "Obrigado por usar o Report Studio."
+                "Obrigado por usar o Report Flow."
             ),
         )
     except Exception:

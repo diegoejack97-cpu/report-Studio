@@ -78,7 +78,7 @@ export default function LandingPage() {
               <div className="w-3 h-3 rounded-full bg-amber-500/70" />
               <div className="w-3 h-3 rounded-full bg-green-500/70" />
               <div className="flex-1 mx-4 py-1 px-3 rounded bg-surface-1 text-ink-600 text-xs text-center">
-                reportstudio.app/editor
+                reportflow.app/editor
               </div>
             </div>
             {/* App screenshot placeholder */}
@@ -175,7 +175,7 @@ export default function LandingPage() {
       <footer className="py-10 px-4 text-center text-ink-600 text-sm">
         <div className="flex items-center justify-center gap-1 mb-2">
           <span className="text-brand-400 font-bold text-base">✦</span>
-          <span className="font-semibold text-ink-300">Report Studio</span>
+          <span className="font-semibold text-ink-300">Report Flow</span>
         </div>
         <p>© {new Date().getFullYear()} · Relatórios profissionais para equipes de procurement</p>
       </footer>

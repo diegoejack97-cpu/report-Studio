@@ -586,7 +586,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss }) {
       subtitle: wdata.subtitle || '',
       period:  wdata.period  || '',
       company: wdata.company || '',
-      footer:  'Relatório gerado pelo Report Studio · Uso interno',
+      footer:  'Relatório gerado pelo Report Flow · Uso interno',
 
       saving: {
         label:     wdata.label     || 'Saving Total',

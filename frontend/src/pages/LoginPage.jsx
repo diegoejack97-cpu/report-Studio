@@ -52,7 +52,7 @@ export default function LoginPage() {
         className="w-full max-w-sm"
       >
         <Link to="/" className="flex items-center gap-2 justify-center mb-8 text-white font-bold text-lg">
-          <span className="text-brand-400 text-xl">✦</span> Report Studio
+          <span className="text-brand-400 text-xl">✦</span> Report Flow
         </Link>
 
         <div className="card p-6">

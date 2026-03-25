@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Report Studio API starting...")
+    logger.info("Report Flow API starting...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await ensure_schema(engine)
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 app = FastAPI(
-    title="Report Studio API",
+    title="Report Flow API",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/api/docs",
