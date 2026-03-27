@@ -75,13 +75,6 @@ export default function RegisterPage() {
     }
   }, [emailFromQuery])
 
-  const persistAuthSilently = (token, user) => {
-    localStorage.setItem('rs-auth', JSON.stringify({
-      state: { token, user },
-      version: 0,
-    }))
-  }
-
   const update = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const submit = async e => {
@@ -111,7 +104,7 @@ export default function RegisterPage() {
           throw new Error('Checkout não retornou URL')
         }
 
-        persistAuthSilently(data.access_token, data.user)
+        setAuth(data.access_token, data.user)
         toast.success(`Conta criada! Abrindo pagamento do plano ${planCopy?.name || 'selecionado'}.`)
         window.location.assign(checkoutUrl)
         return
