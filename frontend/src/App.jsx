@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
 
 import LandingPage    from './pages/LandingPage'
@@ -10,8 +11,54 @@ import PricingPage    from './pages/PricingPage'
 import ProfilePage    from './pages/ProfilePage'
 import BillingSuccessPage from './pages/BillingSuccessPage'
 
-function PrivateRoute({ children }) {
+function AuthBootstrap() {
+  const hasHydrated = useAuthStore(s => s.hasHydrated)
   const token = useAuthStore(s => s.token)
+  const refreshUser = useAuthStore(s => s.refreshUser)
+
+  useEffect(() => {
+    if (!hasHydrated || !token) return
+
+    let canceled = false
+
+    const syncUser = async () => {
+      if (canceled) return
+      try {
+        await refreshUser()
+      } catch {
+        // refreshUser already handles logout on auth failure
+      }
+    }
+
+    syncUser()
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncUser()
+      }
+    }
+
+    const handleFocus = () => {
+      syncUser()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      canceled = true
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [hasHydrated, token, refreshUser])
+
+  return null
+}
+
+function PrivateRoute({ children }) {
+  const hasHydrated = useAuthStore(s => s.hasHydrated)
+  const token = useAuthStore(s => s.token)
+  if (!hasHydrated) return null
   return token ? children : <Navigate to="/login" replace />
 }
 
@@ -32,9 +79,11 @@ function resolvePublicRedirect(search) {
 }
 
 function PublicOnlyRoute({ children }) {
+  const hasHydrated = useAuthStore(s => s.hasHydrated)
   const token = useAuthStore(s => s.token)
   const location = useLocation()
 
+  if (!hasHydrated) return null
   if (!token) return children
 
   return <Navigate to={resolvePublicRedirect(location.search)} replace />
@@ -43,6 +92,7 @@ function PublicOnlyRoute({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <AuthBootstrap />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/pricing" element={<PricingPage />} />

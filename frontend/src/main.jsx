@@ -5,9 +5,11 @@ import { Toaster } from 'react-hot-toast'
 import App from './App'
 import './index.css'
 import { useThemeStore } from './store/themeStore'
+import { initAuthSync } from './store/authStore'
 
 // Aplica tema salvo ANTES do primeiro render
 useThemeStore.getState().init()
+initAuthSync()
 
 const qc = new QueryClient()
 

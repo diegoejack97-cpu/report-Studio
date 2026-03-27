@@ -7,10 +7,13 @@ import { useAuthStore } from '@/store/authStore'
 export default function BillingSuccessPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const hasHydrated = useAuthStore(s => s.hasHydrated)
   const token = useAuthStore(s => s.token)
   const refreshUser = useAuthStore(s => s.refreshUser)
 
   useEffect(() => {
+    if (!hasHydrated) return
+
     const sessionId = searchParams.get('session_id')
     if (!sessionId) {
       toast.error('Sessão de checkout não encontrada.')
@@ -42,7 +45,7 @@ export default function BillingSuccessPage() {
     return () => {
       canceled = true
     }
-  }, [navigate, refreshUser, searchParams, token])
+  }, [hasHydrated, navigate, refreshUser, searchParams, token])
 
   return (
     <div className="min-h-screen bg-surface-0 flex items-center justify-center px-4">
