@@ -32,11 +32,15 @@ class UserOut(BaseModel):
     email: str
     full_name: str
     plan: str
+    stripe_price_id: str | None = None
     reports_this_month: int
     reports_total: int
     plan_limit: int
     can_create_report: bool
     subscription_status: str
+    cancel_at_period_end: bool
+    pending_price_id: str | None = None
+    current_period_end: datetime | None = None
     created_at: datetime
 
     class Config:
@@ -139,11 +143,15 @@ async def register(
             email=user.email,
             full_name=user.full_name,
             plan=user.plan,
+            stripe_price_id=user.stripe_price_id,
             reports_this_month=user.reports_this_month,
             reports_total=user.reports_total,
             plan_limit=user.plan_limit,
             can_create_report=user.can_create_report,
             subscription_status=user.subscription_status,
+            cancel_at_period_end=user.cancel_at_period_end,
+            pending_price_id=user.pending_price_id,
+            current_period_end=user.current_period_end,
             created_at=user.created_at,
         ),
     )
@@ -171,11 +179,15 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
             email=user.email,
             full_name=user.full_name,
             plan=user.plan,
+            stripe_price_id=user.stripe_price_id,
             reports_this_month=user.reports_this_month,
             reports_total=user.reports_total,
             plan_limit=user.plan_limit,
             can_create_report=user.can_create_report,
             subscription_status=user.subscription_status,
+            cancel_at_period_end=user.cancel_at_period_end,
+            pending_price_id=user.pending_price_id,
+            current_period_end=user.current_period_end,
             created_at=user.created_at,
         ),
     )
@@ -188,10 +200,14 @@ async def me(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         full_name=current_user.full_name,
         plan=current_user.plan,
+        stripe_price_id=current_user.stripe_price_id,
         reports_this_month=current_user.reports_this_month,
         reports_total=current_user.reports_total,
         plan_limit=current_user.plan_limit,
         can_create_report=current_user.can_create_report,
         subscription_status=current_user.subscription_status,
+        cancel_at_period_end=current_user.cancel_at_period_end,
+        pending_price_id=current_user.pending_price_id,
+        current_period_end=current_user.current_period_end,
         created_at=current_user.created_at,
     )

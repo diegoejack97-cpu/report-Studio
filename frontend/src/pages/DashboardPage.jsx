@@ -101,12 +101,10 @@ export default function DashboardPage() {
 
             <p className="text-center text-xs text-ink-500 mb-4">relatórios este mês</p>
 
-            {user?.plan === 'free' && (
-              <Link to="/pricing" className="block w-full text-center py-2 px-3 rounded-lg bg-brand-900/40 border border-brand-700/40 text-brand-300 text-xs font-semibold hover:bg-brand-800/40 transition-colors">
-                <Crown className="w-3 h-3 inline mr-1" />
-                Fazer upgrade
-              </Link>
-            )}
+            <Link to={user?.plan === 'free' ? '/pricing' : '/billing'} className="block w-full text-center py-2 px-3 rounded-lg bg-brand-900/40 border border-brand-700/40 text-brand-300 text-xs font-semibold hover:bg-brand-800/40 transition-colors">
+              <Crown className="w-3 h-3 inline mr-1" />
+              {user?.plan === 'free' ? 'Fazer upgrade' : 'Gerenciar upgrade ou downgrade'}
+            </Link>
           </motion.div>
 
           {/* Reports grid */}

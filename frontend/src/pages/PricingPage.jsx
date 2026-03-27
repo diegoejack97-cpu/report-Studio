@@ -9,6 +9,16 @@ import { useAuthStore } from '@/store/authStore'
 import Navbar from '@/components/layout/Navbar'
 import EmbeddedCheckoutModal from '@/components/billing/EmbeddedCheckoutModal'
 
+const PLAN_RANK = {
+  free: 0,
+  starter: 1,
+  individual_lite: 1,
+  pro: 2,
+  individual_pro: 2,
+  business: 3,
+  individual_plus: 3,
+}
+
 export default function PricingPage() {
   const { token, user } = useAuthStore()
   const [searchParams] = useSearchParams()
@@ -95,6 +105,19 @@ export default function PricingPage() {
     setEmbeddedCheckoutData(null)
   }, [embeddedCheckoutLoading])
 
+  const openBillingPortal = useCallback(async () => {
+    try {
+      const { data } = await api.post('/billing/portal', { return_url: window.location.href })
+      if (!data?.portal_url) {
+        toast.error('Portal de faturamento indisponível no momento')
+        return
+      }
+      window.location.assign(data.portal_url)
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Erro ao abrir portal de faturamento')
+    }
+  }, [])
+
   const plansBySegment = plans.reduce((acc, plan) => {
     const key = plan.segment || 'individual'
     if (!acc[key]) acc[key] = []
@@ -108,8 +131,24 @@ export default function PricingPage() {
     return Array.isArray(plan.current_plan_ids) && plan.current_plan_ids.includes(user.plan)
   }
 
+  const getPlanRank = plan => PLAN_RANK[plan.id] ?? 0
+  const currentPlanRank = PLAN_RANK[user?.plan] ?? 0
+
+  const getPlanActionLabel = plan => {
+    if (isCurrentPlan(plan)) return 'Plano atual'
+    if (!token) return plan.id === 'free' ? 'Começar grátis' : 'Criar conta e continuar'
+    if (plan.id === 'free' && currentPlanRank > 0) return 'Fazer downgrade'
+    if (getPlanRank(plan) > currentPlanRank) return 'Fazer upgrade'
+    if (getPlanRank(plan) < currentPlanRank) return 'Fazer downgrade'
+    return plan.cta || 'Selecionar plano'
+  }
+
   const handlePlan = plan => {
     if (plan.id === 'free') {
+      if (token && currentPlanRank > 0) {
+        openBillingPortal()
+        return
+      }
       window.location.assign(token ? '/dashboard' : '/register')
       return
     }
@@ -127,6 +166,12 @@ export default function PricingPage() {
 
     if (!token) {
       window.location.assign(`/register?plan=${encodeURIComponent(plan.id)}`)
+      return
+    }
+
+    if (getPlanRank(plan) < currentPlanRank) {
+      toast('Para downgrade, use o portal de faturamento.')
+      openBillingPortal()
       return
     }
 
@@ -155,13 +200,19 @@ export default function PricingPage() {
       return
     }
 
+    if (getPlanRank(plan) < currentPlanRank) {
+      toast('Para downgrade, use o portal de faturamento.')
+      openBillingPortal()
+      return
+    }
+
     if (billingConfig?.embedded_checkout_enabled) {
       startEmbeddedCheckout(plan)
       return
     }
 
     startHostedCheckout(plan.id)
-  }, [token, plans, searchParams, processingPlanId, startHostedCheckout, startEmbeddedCheckout, billingConfig])
+  }, [token, plans, searchParams, processingPlanId, startHostedCheckout, startEmbeddedCheckout, billingConfig, currentPlanRank, openBillingPortal])
 
   return (
     <div className="min-h-screen bg-surface-0">
@@ -268,7 +319,7 @@ export default function PricingPage() {
                               ? 'Abrindo checkout...'
                               : embeddedCheckoutLoading && embeddedCheckoutPlan?.id === plan.id
                                 ? 'Preparando pagamento...'
-                                : plan.cta}
+                                : getPlanActionLabel(plan)}
                           {(!isCurrent || !plan.self_service) && <ArrowRight className="w-3.5 h-3.5" />}
                         </button>
                       </motion.div>

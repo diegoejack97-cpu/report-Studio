@@ -20,6 +20,15 @@ const PLAN_COLORS = {
   pro: 'text-violet-400',
   business: 'text-amber-400',
 }
+const PLAN_RANK = {
+  free: 0,
+  starter: 1,
+  individual_lite: 1,
+  pro: 2,
+  individual_pro: 2,
+  business: 3,
+  individual_plus: 3,
+}
 
 export default function ProfilePage() {
   const { user, refreshUser, logout } = useAuthStore()
@@ -53,7 +62,7 @@ export default function ProfilePage() {
   })
 
   const checkoutMut = useMutation({
-    mutationFn: plan => api.post('/billing/checkout', { plan, success_url: `${window.location.origin}/dashboard`, cancel_url: window.location.href }),
+    mutationFn: plan => api.post('/billing/checkout', { plan, success_url: `${window.location.origin}/billing/success`, cancel_url: window.location.href }),
     onSuccess: data => { window.location.href = data.data.checkout_url },
     onError: err => toast.error(err.response?.data?.detail || 'Erro ao abrir checkout'),
   })
@@ -68,6 +77,30 @@ export default function ProfilePage() {
     }
     profileMut.mutate(payload)
     setCurPw(''); setNewPw('')
+  }
+
+  const currentPlanRank = PLAN_RANK[user?.plan] ?? 0
+  const getPlanRank = plan => PLAN_RANK[plan.id] ?? 0
+  const isCurrentPlan = plan => plan.id === user?.plan || plan.current_plan_ids?.includes(user?.plan)
+  const getPlanActionLabel = plan => {
+    const isCurrent = isCurrentPlan(plan)
+    if (isCurrent) return 'Plano atual'
+    if (getPlanRank(plan) > currentPlanRank) return `Fazer upgrade para ${plan.name}`
+    if (getPlanRank(plan) < currentPlanRank) return `Fazer downgrade para ${plan.name}`
+    return `Assinar ${plan.name}`
+  }
+
+  const handlePlanAction = plan => {
+    const isCurrent = isCurrentPlan(plan)
+    if (isCurrent) return
+
+    if (getPlanRank(plan) < currentPlanRank) {
+      toast('O downgrade é feito pelo portal de faturamento.')
+      portalMut.mutate()
+      return
+    }
+
+    checkoutMut.mutate(plan.id)
   }
 
   return (
@@ -184,21 +217,26 @@ export default function ProfilePage() {
                 </div>
 
                 {user?.plan !== 'free' && (
-                  <button
-                    onClick={() => portalMut.mutate()}
-                    disabled={portalMut.isPending}
-                    className="mt-4 btn-outline text-sm flex items-center gap-2"
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    {portalMut.isPending ? 'Abrindo...' : 'Gerenciar assinatura / cancelar'}
-                  </button>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link to="/billing" className="btn-primary text-sm">
+                      Comparar upgrade e downgrade
+                    </Link>
+                    <button
+                      onClick={() => portalMut.mutate()}
+                      disabled={portalMut.isPending}
+                      className="btn-outline text-sm flex items-center gap-2"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      {portalMut.isPending ? 'Abrindo...' : 'Gerenciar assinatura / cancelar'}
+                    </button>
+                  </div>
                 )}
               </div>
 
               {/* Plan cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {plans.filter(p => p.self_service && p.id !== 'free').map(plan => {
-                  const isCurrent = plan.current_plan_ids?.includes(user?.plan)
+                  const isCurrent = isCurrentPlan(plan)
                   return (
                     <div key={plan.id} className={`card p-4 ${isCurrent ? 'border-brand-600' : ''}`}>
                       <div className="flex items-center justify-between mb-3">
@@ -216,11 +254,11 @@ export default function ProfilePage() {
                         ))}
                       </ul>
                       <button
-                        onClick={() => !isCurrent && checkoutMut.mutate(plan.id)}
-                        disabled={isCurrent || checkoutMut.isPending}
+                        onClick={() => handlePlanAction(plan)}
+                        disabled={isCurrent || checkoutMut.isPending || portalMut.isPending}
                         className={`w-full py-2 rounded-lg text-sm font-semibold transition-all ${isCurrent ? 'bg-surface-3 text-ink-500 cursor-default' : 'bg-brand-600 hover:bg-brand-500 text-white active:scale-95'}`}
                       >
-                        {isCurrent ? '✓ Plano atual' : `Assinar ${plan.name}`}
+                        {isCurrent ? '✓ Plano atual' : getPlanActionLabel(plan)}
                       </button>
                     </div>
                   )

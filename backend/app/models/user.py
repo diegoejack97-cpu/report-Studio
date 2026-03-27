@@ -30,7 +30,11 @@ class User(Base):
     stripe_customer_id: Mapped[str] = mapped_column(String(255), nullable=True)
     subscription_id: Mapped[int] = mapped_column(Integer, nullable=True)
     stripe_subscription_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    stripe_price_id: Mapped[str] = mapped_column(String(255), nullable=True)
     subscription_status: Mapped[str] = mapped_column(String(50), default="inactive")
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
+    pending_price_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    current_period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     plan_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Usage

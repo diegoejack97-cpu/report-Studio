@@ -9,6 +9,7 @@ export default function BillingSuccessPage() {
   const [searchParams] = useSearchParams()
   const hasHydrated = useAuthStore(s => s.hasHydrated)
   const token = useAuthStore(s => s.token)
+  const setAuth = useAuthStore(s => s.setAuth)
   const refreshUser = useAuthStore(s => s.refreshUser)
 
   useEffect(() => {
@@ -22,10 +23,25 @@ export default function BillingSuccessPage() {
     }
 
     let canceled = false
+    let activeToken = token
+
+    if (!activeToken) {
+      try {
+        const stored = localStorage.getItem('rs-auth')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed?.state?.token) {
+            activeToken = parsed.state.token
+            setAuth(parsed.state.token, parsed.state.user || null)
+          }
+        }
+      } catch {}
+    }
+
     api.get(`/billing/confirm-session?session_id=${encodeURIComponent(sessionId)}`)
       .then(async ({ data }) => {
         if (canceled) return
-        if (token) {
+        if (activeToken) {
           await refreshUser()
           if (canceled) return
           toast.success('Assinatura ativada com sucesso.')
@@ -45,7 +61,7 @@ export default function BillingSuccessPage() {
     return () => {
       canceled = true
     }
-  }, [hasHydrated, navigate, refreshUser, searchParams, token])
+  }, [hasHydrated, navigate, refreshUser, searchParams, setAuth, token])
 
   return (
     <div className="min-h-screen bg-surface-0 flex items-center justify-center px-4">

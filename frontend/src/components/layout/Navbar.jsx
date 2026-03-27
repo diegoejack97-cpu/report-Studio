@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
-import { LogOut, LayoutDashboard, Sun, Moon } from 'lucide-react'
+import { LogOut, LayoutDashboard, Sun, Moon, CreditCard } from 'lucide-react'
 
 export default function Navbar() {
   const { token, logout } = useAuthStore()
@@ -28,6 +28,10 @@ export default function Navbar() {
             <Link to="/dashboard" className="btn-ghost flex items-center gap-1.5">
               <LayoutDashboard className="w-4 h-4" />
               <span className="hidden sm:block">Dashboard</span>
+            </Link>
+            <Link to="/billing" className="btn-ghost flex items-center gap-1.5">
+              <CreditCard className="w-4 h-4" />
+              <span className="hidden sm:block">Billing</span>
             </Link>
             <button onClick={logout} className="btn-ghost" style={{ color: 'var(--tm)' }}>
               <LogOut className="w-4 h-4" />

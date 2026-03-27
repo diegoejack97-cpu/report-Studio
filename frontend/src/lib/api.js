@@ -5,8 +5,26 @@ const api = axios.create({
   timeout: 30_000,
 })
 
+export function setApiAuthToken(token) {
+  if (token) {
+    api.defaults.headers.common.Authorization = `Bearer ${token}`
+    return
+  }
+
+  delete api.defaults.headers.common.Authorization
+}
+
 // Attach JWT token
 api.interceptors.request.use(config => {
+  if (config.headers?.Authorization) {
+    return config
+  }
+
+  if (api.defaults.headers.common.Authorization) {
+    config.headers.Authorization = api.defaults.headers.common.Authorization
+    return config
+  }
+
   const stored = localStorage.getItem('rs-auth')
   if (stored) {
     try {
@@ -24,6 +42,8 @@ api.interceptors.response.use(
   r => r,
   err => {
     if (err.response?.status === 401) {
+      setApiAuthToken(null)
+      localStorage.removeItem('rs-last-activity')
       localStorage.removeItem('rs-auth')
       window.location.href = '/login'
     }

@@ -165,6 +165,11 @@ PLANS_CATALOG: list[PlanCatalogItem] = [
 
 
 def serialize_plan(plan: PlanCatalogItem) -> dict:
+    stripe_price_id = None
+    if plan.self_service:
+        from app.services.stripe_service import get_price_id_for_plan
+        stripe_price_id = get_price_id_for_plan(plan.id)
+
     return {
         "id": plan.id,
         "name": plan.name,
@@ -179,4 +184,5 @@ def serialize_plan(plan: PlanCatalogItem) -> dict:
         "highlighted": plan.highlighted,
         "self_service": plan.self_service,
         "current_plan_ids": plan.current_plan_ids,
+        "stripe_price_id": stripe_price_id,
     }
