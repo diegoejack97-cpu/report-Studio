@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
+import { buildAppUrl } from '@/lib/appUrl'
 import toast from 'react-hot-toast'
 
 const PLAN_COPY = {
@@ -85,7 +86,12 @@ export default function RegisterPage() {
       const { data } = await api.post('/auth/register', form)
 
       if (selectedPlan) {
-        const payload = { plan: selectedPlan, plan_name: selectedPlan }
+        const payload = {
+          plan: selectedPlan,
+          plan_name: selectedPlan,
+          success_url: buildAppUrl('/billing/success'),
+          cancel_url: buildAppUrl(`/register?plan=${encodeURIComponent(selectedPlan)}`),
+        }
         const headers = { Authorization: `Bearer ${data.access_token}` }
         let checkoutResponse
 

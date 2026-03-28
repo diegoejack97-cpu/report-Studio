@@ -41,6 +41,18 @@ class Settings(BaseSettings):
     PLAN_PRO_LIMIT: int = 30
     PLAN_BUSINESS_LIMIT: int = 80
 
+    def get_public_app_url(self) -> str:
+        fallback = "https://report-studio-zeta.vercel.app"
+        value = (self.APP_URL or "").strip().rstrip("/")
+        if not value:
+            return fallback
+
+        lowered = value.lower()
+        if "localhost" in lowered or "127.0.0.1" in lowered:
+            return fallback
+
+        return value
+
     def get_cors_origins(self) -> List[str]:
         return [x.strip() for x in self.CORS_ORIGINS.split(",") if x.strip()]
 

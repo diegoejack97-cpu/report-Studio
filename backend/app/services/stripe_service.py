@@ -161,8 +161,8 @@ async def create_checkout_session(
             mode="subscription",
             payment_method_types=["card"],
             line_items=[{"price": price_id, "quantity": 1}],
-            success_url=success_url or f"{settings.APP_URL}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=cancel_url or f"{settings.APP_URL}/pricing",
+            success_url=success_url or f"{settings.get_public_app_url()}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=cancel_url or f"{settings.get_public_app_url()}/pricing",
             metadata={"user_id": str(user.id), "user_email": user.email},
             client_reference_id=str(user.id),
             billing_address_collection="auto",
@@ -185,7 +185,7 @@ def create_customer_portal(customer_id: str, return_url: Optional[str] = None):
     try:
         return stripe.billing_portal.Session.create(
             customer=customer_id,
-            return_url=return_url or f"{settings.APP_URL}/dashboard",
+            return_url=return_url or f"{settings.get_public_app_url()}/dashboard",
         )
     except stripe.error.StripeError as exc:
         message = getattr(exc, "user_message", None) or str(exc)

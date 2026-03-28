@@ -94,7 +94,7 @@ def _extract_subscription_price_id(subscription_obj) -> str:
 
 
 def _build_success_url(value: Optional[str]) -> str:
-    base_url = (value or f"{settings.APP_URL}/billing/success").strip()
+    base_url = (value or f"{settings.get_public_app_url()}/billing/success").strip()
     separator = "&" if "?" in base_url else "?"
     if "session_id=" in base_url:
         return base_url
@@ -102,7 +102,7 @@ def _build_success_url(value: Optional[str]) -> str:
 
 
 def _build_cancel_url(value: Optional[str]) -> str:
-    return (value or f"{settings.APP_URL}/pricing").strip()
+    return (value or f"{settings.get_public_app_url()}/pricing").strip()
 
 
 def _serialize_billing(user: User) -> BillingMeResponse:
