@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle2, CreditCard, RefreshCcw, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { buildAppUrl } from '@/lib/appUrl'
 import { useAuthStore } from '@/store/authStore'
 import Navbar from '@/components/layout/Navbar'
 
@@ -45,8 +46,8 @@ export default function BillingPage() {
   const checkoutMut = useMutation({
     mutationFn: pricePlanId => api.post('/billing/create-checkout-session', {
       plan: pricePlanId,
-      success_url: `${window.location.origin}/billing/success`,
-      cancel_url: `${window.location.origin}/billing`,
+      success_url: buildAppUrl('/billing/success'),
+      cancel_url: buildAppUrl('/billing'),
     }),
     onSuccess: ({ data }) => {
       window.location.assign(data.checkout_url)

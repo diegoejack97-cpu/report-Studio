@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { buildAppUrl } from '@/lib/appUrl'
 import { useAuthStore } from '@/store/authStore'
 
 export default function BillingSuccessPage() {
@@ -45,12 +46,12 @@ export default function BillingSuccessPage() {
           await refreshUser()
           if (canceled) return
           toast.success('Assinatura ativada com sucesso.')
-          navigate('/dashboard?upgraded=true', { replace: true })
+          window.location.assign(buildAppUrl('/dashboard?upgraded=true'))
           return
         }
 
-        toast.success('Pagamento confirmado. Faça login para acessar seu plano.')
-        navigate(`/login?upgraded=true&email=${encodeURIComponent(data.email || '')}`, { replace: true })
+        toast.success('Pagamento confirmado. Redirecionando para seu dashboard.')
+        window.location.assign(buildAppUrl('/dashboard?upgraded=true'))
       })
       .catch(err => {
         if (canceled) return

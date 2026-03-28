@@ -5,6 +5,7 @@ import { CheckCircle2, ArrowRight } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { buildAppUrl } from '@/lib/appUrl'
 import { useAuthStore } from '@/store/authStore'
 import Navbar from '@/components/layout/Navbar'
 import EmbeddedCheckoutModal from '@/components/billing/EmbeddedCheckoutModal'
@@ -41,8 +42,8 @@ export default function PricingPage() {
   const startHostedCheckout = useCallback(async (planId) => {
     const payload = {
       plan: planId,
-      success_url: `${window.location.origin}/billing/success`,
-      cancel_url: `${window.location.origin}/pricing`,
+      success_url: buildAppUrl('/billing/success'),
+      cancel_url: buildAppUrl('/pricing'),
     }
 
     setProcessingPlanId(planId)

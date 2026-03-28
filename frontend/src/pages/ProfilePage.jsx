@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { User, Lock, CreditCard, LogOut, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
+import { buildAppUrl } from '@/lib/appUrl'
 import { useAuthStore } from '@/store/authStore'
 import Navbar from '@/components/layout/Navbar'
 
@@ -62,7 +63,7 @@ export default function ProfilePage() {
   })
 
   const checkoutMut = useMutation({
-    mutationFn: plan => api.post('/billing/checkout', { plan, success_url: `${window.location.origin}/billing/success`, cancel_url: window.location.href }),
+    mutationFn: plan => api.post('/billing/checkout', { plan, success_url: buildAppUrl('/billing/success'), cancel_url: buildAppUrl('/profile') }),
     onSuccess: data => { window.location.href = data.data.checkout_url },
     onError: err => toast.error(err.response?.data?.detail || 'Erro ao abrir checkout'),
   })
