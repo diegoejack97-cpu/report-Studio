@@ -1,25 +1,31 @@
 import { useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { buildAppUrl } from '@/lib/appUrl'
 import { useAuthStore } from '@/store/authStore'
 
 export default function BillingSuccessPage() {
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const hasHydrated = useAuthStore(s => s.hasHydrated)
   const token = useAuthStore(s => s.token)
   const setAuth = useAuthStore(s => s.setAuth)
   const refreshUser = useAuthStore(s => s.refreshUser)
 
+  const redirectToPostPaymentPage = currentToken => {
+    const target = currentToken
+      ? buildAppUrl('/dashboard?upgraded=true')
+      : buildAppUrl('/login?upgraded=true')
+    window.location.assign(target)
+  }
+
   useEffect(() => {
     if (!hasHydrated) return
 
     const sessionId = searchParams.get('session_id')
     if (!sessionId) {
-      toast.error('Sessão de checkout não encontrada.')
-      navigate('/pricing', { replace: true })
+      toast.success('Pagamento processado. Redirecionando...')
+      redirectToPostPaymentPage(token)
       return
     }
 
@@ -46,23 +52,23 @@ export default function BillingSuccessPage() {
           await refreshUser()
           if (canceled) return
           toast.success('Assinatura ativada com sucesso.')
-          window.location.assign(buildAppUrl('/dashboard?upgraded=true'))
+          redirectToPostPaymentPage(activeToken)
           return
         }
 
-        toast.success('Pagamento confirmado. Redirecionando para seu dashboard.')
-        window.location.assign(buildAppUrl('/dashboard?upgraded=true'))
+        toast.success('Pagamento confirmado. Redirecionando...')
+        redirectToPostPaymentPage(activeToken)
       })
       .catch(err => {
         if (canceled) return
-        toast.error(err?.response?.data?.detail || 'Não foi possível confirmar a assinatura.')
-        navigate('/pricing', { replace: true })
+        toast.success('Pagamento recebido. Finalizando seu acesso...')
+        redirectToPostPaymentPage(activeToken)
       })
 
     return () => {
       canceled = true
     }
-  }, [hasHydrated, navigate, refreshUser, searchParams, setAuth, token])
+  }, [hasHydrated, refreshUser, searchParams, setAuth, token])
 
   return (
     <div className="min-h-screen bg-surface-0 flex items-center justify-center px-4">
