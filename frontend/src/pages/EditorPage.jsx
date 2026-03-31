@@ -93,11 +93,13 @@ export default function EditorPage() {
       }
       if (reportId) {
         await api.put(`/reports/${reportId}`, payload)
+        return reportId
       } else {
         const { data } = await api.post('/reports/', payload)
         setReportId(data.id)
         navigate(`/editor/${data.id}`, { replace: true })
         await refreshUser()
+        return data.id
       }
     } catch (err) {
       if (err.response?.status === 402) {
@@ -114,8 +116,7 @@ export default function EditorPage() {
     finally { setSaving(false) }
   }
 
-  const handleExport = () => {
-    if (reportId) api.post(`/reports/${reportId}/export`).catch(() => {})
+  const handleExport = async () => {
     const themeMode = state.exportOptions?.themeMode || 'follow'
     const currentDark = !!useThemeStore.getState().dark
     let isDark = currentDark
@@ -137,15 +138,42 @@ export default function EditorPage() {
       }
     }
 
-    const html = buildReportHTML(state, {
-      isDark,
-      strictParity: state.exportOptions?.strictParity !== false,
-    })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
-    a.download = `${(state.title || 'relatorio').replace(/[^a-z0-9]/gi, '_')}.html`
-    a.click()
-    toast.success('HTML exportado!')
+    try {
+      setSaving(true)
+      const activeReportId = reportId || await autoSave(state)
+
+      if (!activeReportId) {
+        toast.error('Salve o relatório antes de exportar.')
+        return
+      }
+
+      await api.post(`/reports/${activeReportId}/export`)
+
+      const html = buildReportHTML(state, {
+        isDark,
+        strictParity: state.exportOptions?.strictParity !== false,
+      })
+      const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = `${(state.title || 'relatorio').replace(/[^a-z0-9]/gi, '_')}.html`
+      a.click()
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+
+      await refreshUser()
+      await qc.invalidateQueries({ queryKey: ['reports'] })
+      toast.success('HTML exportado!')
+      window.setTimeout(() => navigate('/dashboard?exported=true'), 150)
+    } catch (err) {
+      if (err?.response?.status === 402) {
+        toast.error(err.response.data.detail, { duration: 6000 })
+        navigate('/pricing')
+        return
+      }
+      toast.error(err?.response?.data?.detail || 'Erro ao exportar HTML')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleFileLoad = (rows, cols) => {

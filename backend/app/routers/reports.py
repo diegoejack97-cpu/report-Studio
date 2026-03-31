@@ -84,7 +84,6 @@ async def create_report(
 ):
     try:
         reset_report_usage_if_needed(current_user)
-        check_plan_limit(current_user)
 
         report = Report(
             user_id=current_user.id,
@@ -95,9 +94,6 @@ async def create_report(
             col_count=data.col_count,
         )
         db.add(report)
-        current_user.reports_used += 1
-        current_user.reports_this_month += 1
-        current_user.reports_total += 1
         await db.flush()
         await db.refresh(report)
         return report
@@ -161,11 +157,18 @@ async def export_report(
 ):
     try:
         report = await _get_own_report(report_id, current_user.id, db)
+        reset_report_usage_if_needed(current_user)
+        check_plan_limit(current_user)
         report.export_count += 1
+        current_user.reports_used += 1
+        current_user.reports_this_month += 1
+        current_user.reports_total += 1
         await db.flush()
         background_tasks.add_task(run_async_task, send_report_ready_email(current_user, report.title))
         return {"report_id": report.id, "config": report.config, "title": report.title}
-    except HTTPException:
+    except HTTPException as exc:
+        if exc.status_code == 402:
+            background_tasks.add_task(run_async_task, send_limit_reached_email(current_user))
         raise
     except Exception as exc:
         logger.exception(

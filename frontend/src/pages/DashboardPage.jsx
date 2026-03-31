@@ -22,6 +22,9 @@ export default function DashboardPage() {
     if (params.get('upgraded')) {
       toast.success('🎉 Plano atualizado com sucesso!')
     }
+    if (params.get('exported')) {
+      toast.success('HTML exportado e contabilizado no seu plano.')
+    }
   }, [])
 
   const { data: reports = [], isLoading } = useQuery({

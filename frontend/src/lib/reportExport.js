@@ -19,7 +19,7 @@ export function buildReportHTML(state, options = {}) {
   const bdColor = isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'
   const subTxt = isDark ? '#486581' : '#94a3b8'
   const showFilters = sections?.filters !== false
-  const rowRenderLimit = strictParity ? 200 : 500
+  const rowRenderLimit = rows.length
   const chartPayload = buildChartPayload(state)
   const chartPayloadJSON = JSON.stringify(chartPayload)
 
