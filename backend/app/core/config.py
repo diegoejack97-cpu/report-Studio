@@ -50,7 +50,21 @@ class Settings(BaseSettings):
         return value
 
     def get_cors_origins(self) -> List[str]:
-        return [x.strip() for x in self.CORS_ORIGINS.split(",") if x.strip()]
+        configured = [x.strip() for x in self.CORS_ORIGINS.split(",") if x.strip()]
+        defaults = [
+            "http://localhost",
+            "http://localhost:3000",
+            "https://reportflow.com.br",
+            "https://www.reportflow.com.br",
+            "https://report-studio-zeta.vercel.app",
+            self.get_public_app_url(),
+        ]
+
+        merged: list[str] = []
+        for origin in [*configured, *defaults]:
+            if origin and origin not in merged:
+                merged.append(origin)
+        return merged
 
     def get_db_url(self) -> str:
         """

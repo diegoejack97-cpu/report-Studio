@@ -29,7 +29,7 @@ export default function PricingPage() {
   const [embeddedCheckoutData, setEmbeddedCheckoutData] = useState(null)
   const [embeddedCheckoutLoading, setEmbeddedCheckoutLoading] = useState(false)
 
-  const { data: plans = [] } = useQuery({
+  const { data: plans = [], isError: plansError, error: plansQueryError } = useQuery({
     queryKey: ['plans'],
     queryFn: () => api.get('/plans/').then(r => r.data),
   })
@@ -232,6 +232,13 @@ export default function PricingPage() {
             3 planos individuais self-service e planos empresariais para equipes.
           </p>
         </motion.div>
+
+        {plansError && (
+          <div className="mb-8 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
+            Não foi possível carregar os planos da API.
+            {plansQueryError?.message ? ` Detalhe: ${plansQueryError.message}` : ''}
+          </div>
+        )}
 
         <div className="space-y-10">
           {[
