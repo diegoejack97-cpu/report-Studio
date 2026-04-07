@@ -6,7 +6,7 @@ import logging
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.schema import ensure_schema
-from app.routers import auth, users, reports, plans
+from app.routers import auth, users, reports, plans, contact
 from app.routers import billing_routes as billing
 
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +45,7 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(billing.router, prefix="/api/billing", tags=["Billing"])
 app.include_router(billing.webhook_router, tags=["Stripe Webhooks"])
 app.include_router(plans.router,   prefix="/api/plans",   tags=["Plans"])
+app.include_router(contact.router)
 
 @app.get("/api/health")
 async def health():

@@ -1,4 +1,5 @@
 import asyncio
+import html
 import logging
 
 import requests
@@ -19,26 +20,16 @@ def _post_email(payload: dict, headers: dict):
     )
 
 
-async def send_email(to: str, subject: str, body: str) -> bool:
+async def _send_resend_email(payload: dict, *, log_context: str) -> tuple[bool, str | None]:
     try:
         if not settings.RESEND_API_KEY:
-            logger.error("Email nao enviado: RESEND_API_KEY nao configurada.")
-            return False
-
-        if not to:
-            logger.error("Email nao enviado: destinatario ausente.")
-            return False
+            logger.error("%s: RESEND_API_KEY nao configurada.", log_context)
+            return False, "RESEND_API_KEY nao configurada"
 
         if not settings.EMAIL_FROM:
-            logger.error("Email nao enviado: EMAIL_FROM nao configurado.")
-            return False
+            logger.error("%s: EMAIL_FROM nao configurado.", log_context)
+            return False, "EMAIL_FROM nao configurado"
 
-        payload = {
-            "from": settings.EMAIL_FROM,
-            "to": [to],
-            "subject": subject,
-            "text": body,
-        }
         headers = {
             "Authorization": f"Bearer {settings.RESEND_API_KEY}",
             "Content-Type": "application/json",
@@ -46,16 +37,65 @@ async def send_email(to: str, subject: str, body: str) -> bool:
 
         response = await asyncio.to_thread(_post_email, payload, headers)
         if response.status_code >= 400:
-            logger.error("Falha ao enviar email via Resend.")
-            logger.error("Status HTTP: %s", response.status_code)
-            logger.error("Resposta completa: %s", response.text)
-            logger.error("Possiveis causas: API key invalida, dominio nao verificado ou EMAIL_FROM invalido.")
-            return False
+            logger.error("%s: falha ao enviar email via Resend.", log_context)
+            logger.error("%s: status HTTP %s", log_context, response.status_code)
+            logger.error("%s: resposta da API %s", log_context, response.text)
+            return False, response.text
 
-        logger.info("Email transacional enviado com sucesso para %s.", to)
-        logger.info("Status HTTP: %s", response.status_code)
-        logger.info("Resposta da API: %s", response.text)
-        return True
+        logger.info("%s: email enviado com sucesso.", log_context)
+        logger.info("%s: status HTTP %s", log_context, response.status_code)
+        logger.info("%s: resposta da API %s", log_context, response.text)
+        return True, None
     except Exception:
-        logger.exception("Falha ao enviar email transacional para %s.", to)
+        logger.exception("%s: excecao ao enviar email via Resend.", log_context)
+        return False, "Erro interno ao enviar email"
+
+
+async def send_email(to: str, subject: str, body: str) -> bool:
+    if not to:
+        logger.error("Email nao enviado: destinatario ausente.")
         return False
+
+    payload = {
+        "from": settings.EMAIL_FROM,
+        "to": [to],
+        "subject": subject,
+        "text": body,
+    }
+
+    sent, _ = await _send_resend_email(payload, log_context=f"email_transacional:{to}")
+    return sent
+
+
+async def send_contact_email(*, name: str, email: str, company: str, message: str) -> tuple[bool, str | None]:
+    if not settings.CONTACT_EMAIL:
+        logger.error("lead_comercial: CONTACT_EMAIL nao configurado.")
+        return False, "CONTACT_EMAIL nao configurado"
+
+    escaped_name = html.escape(name)
+    escaped_email = html.escape(email)
+    escaped_company = html.escape(company or "Nao informado")
+    escaped_message = html.escape(message).replace("\n", "<br />")
+
+    payload = {
+        "from": f"ReportFlow <{settings.EMAIL_FROM}>",
+        "to": [settings.CONTACT_EMAIL],
+        "reply_to": email,
+        "subject": "Novo lead - Plano empresarial",
+        "html": (
+            "<h2>Novo lead comercial</h2>"
+            f"<p><strong>Nome:</strong> {escaped_name}</p>"
+            f"<p><strong>Email:</strong> {escaped_email}</p>"
+            f"<p><strong>Empresa:</strong> {escaped_company}</p>"
+            f"<p><strong>Mensagem:</strong><br />{escaped_message}</p>"
+        ),
+        "text": (
+            "Novo lead comercial\n\n"
+            f"Nome: {name}\n"
+            f"Email: {email}\n"
+            f"Empresa: {company or 'Nao informado'}\n"
+            f"Mensagem:\n{message}"
+        ),
+    }
+
+    return await _send_resend_email(payload, log_context=f"lead_comercial:{email}")
