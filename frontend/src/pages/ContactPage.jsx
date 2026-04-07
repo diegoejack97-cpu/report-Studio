@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
-import { ArrowRight, Building2, Mail, MessageSquare, User } from 'lucide-react'
+import { ArrowRight, Building2, Mail, MessageSquare, Phone, User } from 'lucide-react'
 import Navbar from '@/components/layout/Navbar'
 import api from '@/lib/api'
 
 const INITIAL_FORM = {
   name: '',
   email: '',
+  phone: '',
   company: '',
   message: '',
   website: '',
@@ -151,6 +152,21 @@ export default function ContactPage() {
                   className="input-field"
                   placeholder="voce@empresa.com"
                   required
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-ink-300">
+                  <Phone className="h-4 w-4" />
+                  WhatsApp
+                </span>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="input-field"
+                  placeholder="(11) 99999-9999"
                 />
               </label>
 

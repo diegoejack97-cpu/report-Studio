@@ -67,13 +67,14 @@ async def send_email(to: str, subject: str, body: str) -> bool:
     return sent
 
 
-async def send_contact_email(*, name: str, email: str, company: str, message: str) -> tuple[bool, str | None]:
+async def send_contact_email(*, name: str, email: str, phone: str, company: str, message: str) -> tuple[bool, str | None]:
     if not settings.CONTACT_EMAIL:
         logger.error("lead_comercial: CONTACT_EMAIL nao configurado.")
         return False, "CONTACT_EMAIL nao configurado"
 
     escaped_name = html.escape(name)
     escaped_email = html.escape(email)
+    escaped_phone = html.escape(phone or "Nao informado")
     escaped_company = html.escape(company or "Nao informado")
     escaped_message = html.escape(message).replace("\n", "<br />")
 
@@ -86,6 +87,7 @@ async def send_contact_email(*, name: str, email: str, company: str, message: st
             "<h2>Novo lead comercial</h2>"
             f"<p><strong>Nome:</strong> {escaped_name}</p>"
             f"<p><strong>Email:</strong> {escaped_email}</p>"
+            f"<p><strong>Telefone:</strong> {escaped_phone}</p>"
             f"<p><strong>Empresa:</strong> {escaped_company}</p>"
             f"<p><strong>Mensagem:</strong><br />{escaped_message}</p>"
         ),
@@ -93,6 +95,7 @@ async def send_contact_email(*, name: str, email: str, company: str, message: st
             "Novo lead comercial\n\n"
             f"Nome: {name}\n"
             f"Email: {email}\n"
+            f"Telefone: {phone or 'Nao informado'}\n"
             f"Empresa: {company or 'Nao informado'}\n"
             f"Mensagem:\n{message}"
         ),

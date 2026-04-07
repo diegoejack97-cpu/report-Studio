@@ -12,11 +12,12 @@ logger = logging.getLogger(__name__)
 class ContactRequest(BaseModel):
     name: str
     email: EmailStr
+    phone: str = ""
     company: str = ""
     message: str
     website: str = ""
 
-    @field_validator("name", "company", "message", "website", mode="before")
+    @field_validator("name", "phone", "company", "message", "website", mode="before")
     @classmethod
     def strip_text_fields(cls, value):
         if value is None:
@@ -30,6 +31,13 @@ class ContactRequest(BaseModel):
     def validate_name(cls, value: str) -> str:
         if not value:
             raise ValueError("Nome é obrigatório")
+        return value
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        if value and len(value) < 8:
+            raise ValueError("Telefone deve ter no mínimo 8 caracteres")
         return value
 
     @field_validator("message")
@@ -59,6 +67,7 @@ async def create_contact_lead(payload: ContactRequest):
     sent, error_detail = await send_contact_email(
         name=payload.name,
         email=str(payload.email),
+        phone=payload.phone,
         company=payload.company,
         message=payload.message,
     )
