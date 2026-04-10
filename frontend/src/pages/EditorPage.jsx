@@ -59,16 +59,24 @@ export default function EditorPage() {
   const [reportId, setReportId] = useState(id ? parseInt(id) : null)
   const debounceRef = useRef(null)
 
+  const syncStateWithReport = useCallback((report) => {
+    if (!report?.config || Object.keys(report.config).length === 0) {
+      return null
+    }
+
+    const syncedState = { ...DEFAULT_STATE, ...report.config }
+    setState(syncedState)
+    setHasData((report.config.rows || []).length > 0)
+    return syncedState
+  }, [])
+
   // Load existing report
   const { data: existingReport } = useQuery({
     queryKey: ['report', id],
     queryFn: () => api.get(`/reports/${id}`).then(r => r.data),
     enabled: !!id,
     onSuccess: data => {
-      if (data.config && Object.keys(data.config).length > 0) {
-        setState({ ...DEFAULT_STATE, ...data.config })
-        setHasData((data.config.rows || []).length > 0)
-      }
+      syncStateWithReport(data)
     },
   })
 
@@ -92,14 +100,16 @@ export default function EditorPage() {
         col_count: currentState.cols?.length || 0,
       }
       if (reportId) {
-        await api.put(`/reports/${reportId}`, payload)
-        return reportId
+        const { data } = await api.put(`/reports/${reportId}`, payload)
+        const syncedState = syncStateWithReport(data) || currentState
+        return { reportId, syncedState, report: data }
       } else {
         const { data } = await api.post('/reports/', payload)
         setReportId(data.id)
         navigate(`/editor/${data.id}`, { replace: true })
+        const syncedState = syncStateWithReport(data) || currentState
         await refreshUser()
-        return data.id
+        return { reportId: data.id, syncedState, report: data }
       }
     } catch (err) {
       if (err.response?.status === 402) {
@@ -140,7 +150,9 @@ export default function EditorPage() {
 
     try {
       setSaving(true)
-      const activeReportId = reportId || await autoSave(state)
+      const saveResult = await autoSave(state)
+      const activeReportId = saveResult?.reportId || reportId
+      const exportState = saveResult?.syncedState || state
 
       if (!activeReportId) {
         toast.error('Salve o relatório antes de exportar.')
@@ -149,14 +161,19 @@ export default function EditorPage() {
 
       await api.post(`/reports/${activeReportId}/export`)
 
-      const html = buildReportHTML(state, {
+      console.log('INSIGHTS NO EXPORT:', exportState.insights)
+      if (!exportState.insights?.length) {
+        console.warn('INSIGHTS VAZIOS NO EXPORT: backend nao retornou insights ou o frontend nao sincronizou o state.')
+      }
+
+      const html = buildReportHTML(exportState, {
         isDark,
-        strictParity: state.exportOptions?.strictParity !== false,
+        strictParity: exportState.exportOptions?.strictParity !== false,
       })
       const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
       const a = document.createElement('a')
       a.href = blobUrl
-      a.download = `${(state.title || 'relatorio').replace(/[^a-z0-9]/gi, '_')}.html`
+      a.download = `${(exportState.title || 'relatorio').replace(/[^a-z0-9]/gi, '_')}.html`
       a.click()
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
 
