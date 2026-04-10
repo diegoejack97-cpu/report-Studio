@@ -9,7 +9,7 @@ export function escapeHtml(str) {
 
 export function buildReportHTML(state, options = {}) {
   const { isDark = false, strictParity = true } = options
-  const { title, subtitle, period, company, cols = [], rows = [], kpis = [], colors, sections, saving: savCfg, groupCol, footer } = state
+  const { title, subtitle, period, company, cols = [], rows = [], kpis = [], colors, sections, saving: savCfg, groupCol, footer, insights = [] } = state
   const p1 = colors?.primary || '#1a3a5c'
   const p2 = colors?.secondary || '#2e5c8a'
   const acc = colors?.accent || '#4ade80'
@@ -35,6 +35,64 @@ export function buildReportHTML(state, options = {}) {
     return parseFloat(s.replace(',', '.')) || 0
   }
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  function renderInsightsHTML(items = []) {
+    if (!items.length) {
+      return `<div style="margin:16px 0;padding:14px 18px;background:${cardBg};
+                  border:1px solid ${bdColor};border-radius:9px;
+                  font-size:13px;color:${subTxt};">
+          Não foram identificados pontos críticos nos dados analisados.
+      </div>`
+    }
+
+    const severityColors = {
+      alta: { border: '#ef4444', badgeBg: 'rgba(239,68,68,0.15)', badgeTxt: '#f87171' },
+      media: { border: '#f59e0b', badgeBg: 'rgba(245,158,11,0.15)', badgeTxt: '#fbbf24' },
+      baixa: { border: '#3b82f6', badgeBg: 'rgba(59,130,246,0.15)', badgeTxt: '#60a5fa' },
+    }
+    const typeIcons = { financeiro: '💰', risco: '⚠️', operacional: '⚙️' }
+
+    const itemsHTML = items.map((ins, index) => {
+      const sev = ins?.severidade || 'baixa'
+      const tipo = ins?.tipo || 'operacional'
+      const palette = severityColors[sev] || severityColors.baixa
+      return `
+        <div style="display:flex;gap:12px;align-items:flex-start;
+                    padding:10px 14px;border-left:3px solid ${palette.border};
+                    background:${isDark ? '#102132' : '#f8fafc'};
+                    border-radius:0 6px 6px 0;margin-bottom:${index === items.length - 1 ? 0 : 8}px;">
+            <span style="font-size:16px;flex-shrink:0;margin-top:1px">${typeIcons[tipo] || '📊'}</span>
+            <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
+                    <span style="font-size:13px;font-weight:700;color:${txt}">
+                        ${escapeHtml(ins?.titulo || '')}
+                    </span>
+                    <span style="font-size:10px;font-weight:600;padding:1px 7px;
+                                 border-radius:999px;background:${palette.badgeBg};
+                                 color:${palette.badgeTxt};">
+                        ${escapeHtml(String(sev).toUpperCase())}
+                    </span>
+                </div>
+                <div style="font-size:12px;color:${isDark ? '#7f9ab5' : '#64748b'};line-height:1.5">
+                    ${escapeHtml(ins?.descricao || '')}
+                </div>
+            </div>
+        </div>`
+    }).join('')
+
+    return `
+    <div style="margin:16px 0;background:${cardBg};border:1px solid ${bdColor};
+                border-radius:9px;overflow:hidden;">
+        <div style="padding:10px 16px;border-bottom:1px solid ${bdColor};
+                    font-size:12px;font-weight:700;color:${isDark ? '#2e5c8a' : '#1d4ed8'};
+                    text-transform:uppercase;letter-spacing:.05em;">
+            🚨 Insights Automáticos
+        </div>
+        <div style="padding:12px 16px;">
+            ${itemsHTML}
+        </div>
+    </div>`
+  }
 
   const ci = (key) => {
     const v = savCfg?.[key] ?? ''
@@ -80,6 +138,7 @@ export function buildReportHTML(state, options = {}) {
   }).join('')}</div>` : ''
 
   const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(savCfg?.label || 'Saving')}</div><div class="sav-val">${escapeHtml(fmtBRL(savTotal))}</div><div class="sav-det">${v1CI >= 0 ? `<div><div class="sav-dv">${escapeHtml(fmtBRL(v1))}</div><div class="sav-dl">${escapeHtml(savCfg?.v1Label || 'Valor 1')}</div></div><div>→</div>` : ''}${v2CI >= 0 ? `<div><div class="sav-dv" style="color:${acc}">${escapeHtml(fmtBRL(v2))}</div><div class="sav-dl">${escapeHtml(savCfg?.v2Label || 'Valor 2')}</div></div>` : ''}</div></div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
+  const insightsHTML = renderInsightsHTML(insights)
 
   const grpCI = ciRaw(groupCol)
   const summaryData = grpCI < 0 ? [] : (() => {
@@ -318,6 +377,7 @@ table#mt td{padding:7px 11px;border-bottom:1px solid ${bdColor};color:${txt};whi
   </div>
   <div class="hd-divider"></div>
 </div>
+${insightsHTML}
 ${savHTML}${kpiHTML}
 <div class="cg" id="charts"></div>
 ${summaryHTML}

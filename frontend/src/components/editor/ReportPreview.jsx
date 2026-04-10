@@ -2,6 +2,7 @@ import { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { motion } from 'motion/react'
 import { useThemeStore } from '@/store/themeStore'
+import InsightsPanel from '@/components/InsightsPanel'
 
 function TableSection({ rows, visCols, cols, dark, cardBg, bdColor, p1, p2, textColor, subText, showFilters = true }) {
   const [selectedCol, setSelectedCol] = useState('')
@@ -485,7 +486,7 @@ export default function ReportPreview({ state }) {
   const { dark } = useThemeStore()
   const {
     cols=[], rows=[], kpis=[], colors={}, sections={},
-    saving:savCfg={}, charts:chCfg={}, groupCol
+    saving:savCfg={}, charts:chCfg={}, groupCol, insights = []
   } = state
 
   const p1  = colors.primary   || '#1a3a5c'
@@ -600,6 +601,8 @@ export default function ReportPreview({ state }) {
           </div>
           <div style={{position:'absolute',bottom:0,left:0,right:0,height:1,background:dark?'linear-gradient(90deg,rgba(37,99,235,0.4),rgba(255,255,255,0.05) 60%,transparent)':'linear-gradient(90deg,rgba(37,99,235,0.3),rgba(0,0,0,0.04) 60%,transparent)'}}/>
         </div>
+
+        <InsightsPanel insights={insights} dark={dark} />
 
         {/* Saving Banner */}
         {sections.saving!==false&&(

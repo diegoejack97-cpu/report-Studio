@@ -22,6 +22,7 @@ from app.services.email_events import (
     send_processing_error_email,
     send_report_ready_email,
 )
+from app.services.insights_engine import generate_insights
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -61,6 +62,57 @@ class ReportDetail(ReportOut):
     config: dict
 
 
+def _build_tabular_data_from_config(config: dict | None) -> list[dict]:
+    if not isinstance(config, dict):
+        return []
+
+    cols = config.get("cols") or []
+    rows = config.get("rows") or []
+    if not isinstance(cols, list) or not isinstance(rows, list):
+        return []
+
+    column_names = []
+    for index, col in enumerate(cols):
+        if isinstance(col, dict):
+            name = str(col.get("name") or "").strip() or f"col_{index}"
+        else:
+            name = f"col_{index}"
+        column_names.append(name)
+
+    tabular_data = []
+    for row in rows:
+        cells = row.get("cells") if isinstance(row, dict) else None
+        if not isinstance(cells, list):
+            continue
+
+        item = {}
+        for index, column_name in enumerate(column_names):
+            item[column_name] = cells[index] if index < len(cells) else None
+        tabular_data.append(item)
+
+    return tabular_data
+
+
+def _enrich_report_config_with_insights(config: dict | None) -> dict:
+    base_config = dict(config or {})
+
+    try:
+        tabular_data = _build_tabular_data_from_config(base_config)
+        insights_result = generate_insights(tabular_data)
+        base_config["insights"] = insights_result["insights"]
+        base_config["insightsMeta"] = insights_result["meta"]
+    except Exception:
+        logger.exception("Falha ao enriquecer config do relatorio com insights")
+        base_config["insights"] = []
+        base_config["insightsMeta"] = {
+            "record_count": len(_build_tabular_data_from_config(base_config)),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "insights_count": 0,
+        }
+
+    return base_config
+
+
 @router.get("/", response_model=list[ReportOut])
 async def list_reports(
     db: AsyncSession = Depends(get_db),
@@ -84,12 +136,13 @@ async def create_report(
 ):
     try:
         reset_report_usage_if_needed(current_user)
+        enriched_config = _enrich_report_config_with_insights(data.config)
 
         report = Report(
             user_id=current_user.id,
             title=data.title,
             description=data.description,
-            config=data.config,
+            config=enriched_config,
             row_count=data.row_count,
             col_count=data.col_count,
         )
@@ -130,7 +183,7 @@ async def update_report(
     report = await _get_own_report(report_id, current_user.id, db)
     if data.title is not None:      report.title = data.title
     if data.description is not None: report.description = data.description
-    if data.config is not None:     report.config = data.config
+    if data.config is not None:     report.config = _enrich_report_config_with_insights(data.config)
     if data.row_count is not None:  report.row_count = data.row_count
     if data.col_count is not None:  report.col_count = data.col_count
     await db.flush()
