@@ -99,7 +99,9 @@ def _enrich_report_config_with_insights(config: dict | None) -> dict:
     try:
         tabular_data = _build_tabular_data_from_config(base_config)
         insights_result = generate_insights(tabular_data)
-        base_config["insights"] = insights_result["insights"]
+        insights = insights_result["insights"]
+        print("INSIGHTS GERADOS:", insights)
+        base_config["insights"] = insights
         base_config["insightsMeta"] = insights_result["meta"]
     except Exception:
         logger.exception("Falha ao enriquecer config do relatorio com insights")

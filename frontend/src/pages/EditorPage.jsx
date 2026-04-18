@@ -64,6 +64,7 @@ export default function EditorPage() {
       return null
     }
 
+    console.log('INSIGHTS RECEBIDOS:', report.config.insights)
     const syncedState = { ...DEFAULT_STATE, ...report.config }
     setState(syncedState)
     setHasData((report.config.rows || []).length > 0)
@@ -75,10 +76,17 @@ export default function EditorPage() {
     queryKey: ['report', id],
     queryFn: () => api.get(`/reports/${id}`).then(r => r.data),
     enabled: !!id,
-    onSuccess: data => {
-      syncStateWithReport(data)
-    },
   })
+
+  useEffect(() => {
+    if (existingReport) {
+      syncStateWithReport(existingReport)
+    }
+  }, [existingReport, syncStateWithReport])
+
+  useEffect(() => {
+    console.log('INSIGHTS NO STATE:', state.insights)
+  }, [state.insights])
 
   const update = useCallback((patch) => {
     setState(prev => {
@@ -152,14 +160,17 @@ export default function EditorPage() {
       setSaving(true)
       const saveResult = await autoSave(state)
       const activeReportId = saveResult?.reportId || reportId
-      const exportState = saveResult?.syncedState || state
 
       if (!activeReportId) {
         toast.error('Salve o relatório antes de exportar.')
         return
       }
 
-      await api.post(`/reports/${activeReportId}/export`)
+      const { data: exportResponse } = await api.post(`/reports/${activeReportId}/export`)
+      const exportState =
+        syncStateWithReport(exportResponse) ||
+        saveResult?.syncedState ||
+        state
 
       console.log('INSIGHTS NO EXPORT:', exportState.insights)
       if (!exportState.insights?.length) {
@@ -211,16 +222,18 @@ export default function EditorPage() {
       return { name, type, vis: true, w: type === 'number' ? 110 : name.length > 18 ? 160 : 130 }
     })
     const detectedRows = pendingRows.map(r => ({ cells: pendingCols.map((_, i) => String(r[i] ?? '')) }))
-
-    setState(prev => ({
-      ...prev,
+    const nextState = {
+      ...state,
       ...wizardState,
       cols: detectedCols,
       rows: detectedRows,
-    }))
+    }
+
+    setState(nextState)
     setHasData(true)
     setShowWizard(false)
     setTab('layout')
+    void autoSave(nextState)
     toast.success('Relatório configurado! ✨')
   }
 
