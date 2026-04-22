@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -79,6 +80,38 @@ def _build_tabular_data_from_config(config: dict | None) -> list[dict]:
             name = f"col_{index}"
         column_names.append(name)
 
+    saving_cfg = config.get("saving") if isinstance(config.get("saving"), dict) else {}
+    base_idx_raw = saving_cfg.get("savingBaseCol", saving_cfg.get("valorBaseCol", saving_cfg.get("baseCol")))
+    pct_idx_raw = saving_cfg.get("savingPercentCol", saving_cfg.get("percentualCol", saving_cfg.get("percentCol")))
+    try:
+        base_idx = int(base_idx_raw)
+    except (TypeError, ValueError):
+        base_idx = -1
+    try:
+        pct_idx = int(pct_idx_raw)
+    except (TypeError, ValueError):
+        pct_idx = -1
+
+    def _to_number(value: Any) -> float:
+        text = re.sub(r"[R$€£¥\s]", "", str(value or "").strip())
+        if not text:
+            return 0.0
+
+        dots = text.count(".")
+        commas = text.count(",")
+        if commas == 1 and re.search(r",\d{1,2}$", text):
+            text = text.replace(".", "").replace(",", ".")
+        elif dots == 1 and re.search(r"\.\d{1,2}$", text):
+            text = text.replace(",", "")
+        elif dots > 1 and commas == 0:
+            text = text.replace(".", "")
+        else:
+            text = text.replace(",", ".")
+        try:
+            return float(text)
+        except ValueError:
+            return 0.0
+
     tabular_data = []
     for row in rows:
         cells = row.get("cells") if isinstance(row, dict) else None
@@ -88,6 +121,10 @@ def _build_tabular_data_from_config(config: dict | None) -> list[dict]:
         item = {}
         for index, column_name in enumerate(column_names):
             item[column_name] = cells[index] if index < len(cells) else None
+        if base_idx >= 0 and pct_idx >= 0 and base_idx < len(cells) and pct_idx < len(cells):
+            base_value = _to_number(cells[base_idx])
+            percentage = _to_number(cells[pct_idx])
+            item["saving_calculado"] = base_value * (percentage / 100)
         tabular_data.append(item)
 
     return tabular_data

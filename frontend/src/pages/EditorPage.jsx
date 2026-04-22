@@ -16,6 +16,7 @@ import ColumnsPanel from '@/components/editor/ColumnsPanel'
 import ReportPreview from '@/components/editor/ReportPreview'
 import SetupWizard from '@/components/editor/SetupWizard'
 import { buildReportHTML } from '@/lib/reportExport'
+import { normalizeSavingConfig } from '@/lib/saving'
 
 const TABS = [
   { id: 'data',    label: '📊 Dados' },
@@ -29,7 +30,23 @@ const DEFAULT_STATE = {
   cols: [], rows: [], kpis: [],
   colors: { primary: '#1a3a5c', secondary: '#2e5c8a', accent: '#4ade80', bg: '#eef1f5', text: '#1e293b' },
   sections: { saving: true, kpi: true, charts: true, summary: true, table: true, filters: true, footer: true },
-  saving: { label: 'Saving Total', savingCol: '', v1Col: '', v1Label: 'Valor Original', v2Col: '', v2Label: 'Valor Negociado' },
+  saving: {
+    label: 'Saving Total (R$)',
+    savingMode: '',
+    savingCol: '',
+    savingPercentCol: '',
+    savingPercentLabel: 'Saving (%)',
+    savingBaseCol: '',
+    savingBaseLabel: 'Valor Base',
+    originalCol: '',
+    originalLabel: 'Valor Original',
+    negotiatedCol: '',
+    negotiatedLabel: 'Valor Negociado',
+    v1Col: '',
+    v1Label: 'Valor Original',
+    v2Col: '',
+    v2Label: 'Valor Negociado',
+  },
   charts: {
     g1: { on: true, title: 'Distribuição', type: 'doughnut', col: '', h: 240 },
     g2: { on: true, title: 'Por Categoria', type: 'bar', col: '', h: 240 },
@@ -65,7 +82,11 @@ export default function EditorPage() {
     }
 
     console.log('INSIGHTS RECEBIDOS:', report.config.insights)
-    const syncedState = { ...DEFAULT_STATE, ...report.config }
+    const syncedState = {
+      ...DEFAULT_STATE,
+      ...report.config,
+      saving: normalizeSavingConfig(report.config.saving || {}, (report.config.cols || []).length),
+    }
     setState(syncedState)
     setHasData((report.config.rows || []).length > 0)
     return syncedState
@@ -101,9 +122,10 @@ export default function EditorPage() {
   const autoSave = async (currentState) => {
     if (!currentState.rows?.length) return
     try {
+      const normalizedSaving = normalizeSavingConfig(currentState.saving || {}, currentState.cols?.length || 0)
       const payload = {
         title: currentState.title || 'Relatório',
-        config: currentState,
+        config: { ...currentState, saving: normalizedSaving },
         row_count: currentState.rows?.length || 0,
         col_count: currentState.cols?.length || 0,
       }

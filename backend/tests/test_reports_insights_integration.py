@@ -31,6 +31,28 @@ class ReportsInsightsIntegrationTestCase(unittest.TestCase):
             ],
         )
 
+    def test_build_tabular_data_from_config_calculates_saving_from_config(self):
+        config = {
+            "cols": [
+                {"name": "Fornecedor"},
+                {"name": "Valor Base"},
+                {"name": "Saving (%)"},
+            ],
+            "rows": [
+                {"cells": ["Alpha", "1000", "10"]},
+                {"cells": ["Beta", "2500,50", "4,2"]},
+            ],
+            "saving": {
+                "savingBaseCol": "1",
+                "savingPercentCol": "2",
+            },
+        }
+
+        result = _build_tabular_data_from_config(config)
+
+        self.assertEqual(result[0]["saving_calculado"], 100.0)
+        self.assertAlmostEqual(result[1]["saving_calculado"], 105.021, places=3)
+
     def test_enrich_report_config_with_insights_adds_payload(self):
         config = {
             "cols": [{"name": "Saving (%)"}],

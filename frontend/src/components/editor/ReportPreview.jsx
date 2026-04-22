@@ -3,6 +3,7 @@ import ReactECharts from 'echarts-for-react'
 import { motion } from 'motion/react'
 import { useThemeStore } from '@/store/themeStore'
 import InsightsPanel from '@/components/InsightsPanel'
+import { getSavingDetailItems, groupSavingBy, summarizeSaving } from '@/lib/saving'
 
 function TableSection({ rows, visCols, cols, dark, cardBg, bdColor, p1, p2, textColor, subText, showFilters = true }) {
   const [selectedCol, setSelectedCol] = useState('')
@@ -111,6 +112,7 @@ const PAL_LIGHT = ['#1d4ed8','#059669','#d97706','#dc2626','#7c3aed','#0891b2','
 // ── Utils ──────────────────────────────────────────────────────────
 const fmtBRL = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0})
 const fmtN   = v => Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2})
+const fmtPct = v => `${fmtN(v)}%`
 
 function pnum(v) {
   let s = String(v??'').trim().replace(/[R$€£¥\s]/g,'')
@@ -494,10 +496,12 @@ export default function ReportPreview({ state }) {
   const acc = colors.accent    || '#4ade80'
 
   const ci  = v => { const n=parseInt(v); return isNaN(n)||n<0||n>=cols.length?-1:n }
-  const sCI=ci(savCfg.savingCol), v1CI=ci(savCfg.v1Col), v2CI=ci(savCfg.v2Col)
+  const savingSummary = useMemo(() => summarizeSaving(rows, savCfg, cols.length), [rows, savCfg, cols.length])
+  const resolvedSavCfg = savingSummary.config
+  const savingDetailItems = useMemo(() => getSavingDetailItems(savingSummary), [savingSummary])
+  const v1CI=ci(resolvedSavCfg.v1Col), v2CI=ci(resolvedSavCfg.v2Col)
   const sumCol = idx => idx<0?0:rows.reduce((s,r)=>s+pnum(r.cells?.[idx]),0)
-  const sv=sumCol(sCI), v1=sumCol(v1CI), v2=sumCol(v2CI)
-  const savTotal = sCI>=0?sv:(v1CI>=0&&v2CI>=0?v1-v2:v1CI>=0?v1:0)
+  const savTotal = savingSummary.total
 
   // chart data
   const g1=chCfg.g1||{}, g2=chCfg.g2||{}, g3=chCfg.g3||{}, g4=chCfg.g4||{}
@@ -561,17 +565,16 @@ export default function ReportPreview({ state }) {
 
   const visCols = cols.map((c,i)=>({...c,i})).filter(c=>c.vis!==false)
 
-  // Waterfall: saving por categoria (se tiver agrupamento + saving)
+  /* Saving calculation modes:
+     - original_minus_negotiated => soma das diferencas por linha
+     - direct_value => soma direta de saving monetario
+     - percent_x_base => converte percentual em BRL antes de agrupar
+  */
   const waterfallData = useMemo(()=>{
-    if(grpCI<0||sCI<0) return null
-    const agg={}
-    rows.forEach(r=>{
-      const k=String(r.cells?.[grpCI]??'').trim()||'(vazio)'
-      agg[k]=(agg[k]||0)+pnum(r.cells?.[sCI])
-    })
-    const sorted=Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,8)
-    return { cats:sorted.map(x=>x[0]), vals:sorted.map(x=>Math.round(x[1]*100)/100) }
-  },[rows,grpCI,sCI])
+    if(grpCI<0) return null
+    const grouped = groupSavingBy(rows, grpCI, resolvedSavCfg, cols.length, 8)
+    return grouped.cats.length ? grouped : null
+  },[rows,grpCI,resolvedSavCfg,cols.length])
 
   const bgColor = dark ? '#080f18' : '#eef1f5'
   const cardBg  = dark ? '#0d1a26' : '#ffffff'
@@ -610,13 +613,23 @@ export default function ReportPreview({ state }) {
             className="rounded-2xl p-5 mb-5 flex items-center justify-between overflow-hidden relative"
             style={{background:`linear-gradient(135deg,${p1},${p2})`,color:'#fff'}}>
             <div>
-              <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{savCfg.label||'Saving'}</div>
+              <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{resolvedSavCfg.label||'Saving Total (R$)'}</div>
               <div className="text-4xl font-extrabold font-mono" style={{color:acc}}>{fmtBRL(savTotal)}</div>
-              <div className="flex gap-6 mt-3 flex-wrap items-center">
-                {v1CI>=0&&<div><div className="text-sm font-bold font-mono">{fmtBRL(v1)}</div><div className="text-[10px] opacity-50">{savCfg.v1Label||'Valor 1'}</div></div>}
-                {v1CI>=0&&v2CI>=0&&<div className="opacity-30 text-lg">→</div>}
-                {v2CI>=0&&<div><div className="text-sm font-bold font-mono" style={{color:acc}}>{fmtBRL(v2)}</div><div className="text-[10px] opacity-50">{savCfg.v2Label||'Valor 2'}</div></div>}
-              </div>
+              {savingDetailItems.length > 0 && (
+                <div className="flex gap-6 mt-3 flex-wrap items-center">
+                  {savingDetailItems.map((item, index) => (
+                    <div key={`${item.label}-${index}`} className="flex items-center gap-6">
+                      {index > 0 && <div className="opacity-30 text-lg">→</div>}
+                      <div>
+                        <div className="text-sm font-bold font-mono" style={item.accent ? { color: acc } : undefined}>
+                          {item.kind === 'percent' ? fmtPct(item.value) : fmtBRL(item.value)}
+                        </div>
+                        <div className="text-[10px] opacity-50">{item.label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="text-[80px] opacity-[0.07] select-none">💹</div>
           </motion.div>

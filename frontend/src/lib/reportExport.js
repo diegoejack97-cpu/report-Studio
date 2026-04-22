@@ -1,3 +1,5 @@
+import { getSavingDetailItems, groupSavingBy, summarizeSaving } from './saving.js'
+
 export function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -35,6 +37,7 @@ export function buildReportHTML(state, options = {}) {
     return parseFloat(s.replace(',', '.')) || 0
   }
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
 
   function renderInsightsHTML(items = []) {
     if (!items.length) {
@@ -94,24 +97,18 @@ export function buildReportHTML(state, options = {}) {
     </div>`
   }
 
-  const ci = (key) => {
-    const v = savCfg?.[key] ?? ''
-    const n = parseInt(v)
-    return isNaN(n) || n < 0 || n >= cols.length ? -1 : n
-  }
   const ciRaw = (v) => {
     const n = parseInt(v)
     return isNaN(n) || n < 0 || n >= cols.length ? -1 : n
   }
 
   const sumCol = (idx) => idx < 0 ? 0 : rows.reduce((s, r) => s + pnum(r.cells?.[idx]), 0)
-  const sCI = ci('savingCol')
-  const v1CI = ci('v1Col')
-  const v2CI = ci('v2Col')
-  const sv = sumCol(sCI)
-  const v1 = sumCol(v1CI)
-  const v2 = sumCol(v2CI)
-  const savTotal = sCI >= 0 ? sv : (v1CI >= 0 && v2CI >= 0 ? v1 - v2 : v1CI >= 0 ? v1 : 0)
+  const savingSummary = summarizeSaving(rows, savCfg, cols.length)
+  const resolvedSavCfg = savingSummary.config
+  const savingDetailItems = getSavingDetailItems(savingSummary)
+  const v1CI = ciRaw(resolvedSavCfg.v1Col)
+  const v2CI = ciRaw(resolvedSavCfg.v2Col)
+  const savTotal = savingSummary.total
 
   const kpiHTML = sections?.kpi && kpis.length ? `<div class="kpi-row">${kpis.map(k => {
     const colI = (k.col === '' || k.col == null) ? -1 : parseInt(k.col)
@@ -137,7 +134,13 @@ export function buildReportHTML(state, options = {}) {
     return `<div class="kpi" style="border-top-color:${k.color || p2}"><div class="kpi-ico">${escapeHtml(k.icon || '📊')}</div><div class="kpi-v" style="color:${k.color || p2}">${escapeHtml(val)}</div><div class="kpi-l">${escapeHtml(k.label || 'KPI')}</div></div>`
   }).join('')}</div>` : ''
 
-  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(savCfg?.label || 'Saving')}</div><div class="sav-val">${escapeHtml(fmtBRL(savTotal))}</div><div class="sav-det">${v1CI >= 0 ? `<div><div class="sav-dv">${escapeHtml(fmtBRL(v1))}</div><div class="sav-dl">${escapeHtml(savCfg?.v1Label || 'Valor 1')}</div></div><div>→</div>` : ''}${v2CI >= 0 ? `<div><div class="sav-dv" style="color:${acc}">${escapeHtml(fmtBRL(v2))}</div><div class="sav-dl">${escapeHtml(savCfg?.v2Label || 'Valor 2')}</div></div>` : ''}</div></div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
+  const savDetailsHTML = savingDetailItems.map((item, index) => {
+    const valueText = item.kind === 'percent' ? fmtPct(item.value) : fmtBRL(item.value)
+    const valueStyle = item.accent ? ` style="color:${acc}"` : ''
+    const arrow = index > 0 ? '<div>→</div>' : ''
+    return `${arrow}<div><div class="sav-dv"${valueStyle}>${escapeHtml(valueText)}</div><div class="sav-dl">${escapeHtml(item.label)}</div></div>`
+  }).join('')
+  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(resolvedSavCfg?.label || 'Saving Total (R$)')}</div><div class="sav-val">${escapeHtml(fmtBRL(savTotal))}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
   const insightsHTML = renderInsightsHTML(insights)
 
   const grpCI = ciRaw(groupCol)
@@ -560,8 +563,6 @@ export function buildChartPayload(state) {
   }
 
   const ci = v => { const n = parseInt(v); return isNaN(n) || n < 0 || n >= cols.length ? -1 : n }
-  const ciSav = key => ci(savCfg?.[key])
-
   const countByCol = idx => {
     if (idx < 0) return null
     const freq = {}
@@ -724,22 +725,21 @@ export function buildChartPayload(state) {
   }
 
   const grpCI = ci(groupCol)
-  const savCI = ciSav('savingCol')
-  if (grpCI >= 0 && savCI >= 0) {
-    const agg = {}
-    rows.forEach(r => {
-      const key = String(r.cells?.[grpCI] ?? '').trim() || '(vazio)'
-      agg[key] = (agg[key] || 0) + pnum(r.cells?.[savCI])
-    })
-    const sorted = Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, 8)
-    if (sorted.length > 2) charts.push({
+  /* Saving calculation modes:
+     - original_minus_negotiated agrupa diferencas por linha
+     - direct_value agrupa saving monetario direto
+     - percent_x_base converte o percentual em BRL antes de agrupar
+  */
+  if (grpCI >= 0) {
+    const groupedSaving = groupSavingBy(rows, grpCI, savCfg, cols.length, 8)
+    if (groupedSaving.cats.length > 2) charts.push({
       id: 'wf',
       full: false,
       title: `Saving por ${cols[grpCI]?.name || 'Categoria'}`,
       h: 280,
       type: 'waterfall',
-      labels: sorted.map(x => x[0]),
-      data: sorted.map(x => Math.round(x[1] * 100) / 100),
+      labels: groupedSaving.cats,
+      data: groupedSaving.vals,
     })
   }
 

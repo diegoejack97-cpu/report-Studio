@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ChevronRight, ChevronLeft, Check, X, Sparkles, BarChart2, PieChart, TrendingUp, Trophy, Tag, DollarSign, Calendar, Hash, Layers } from 'lucide-react'
+import { ChevronRight, ChevronLeft, X, Sparkles } from 'lucide-react'
+import { detectSavingColumnKind, getSavingDetailItems, summarizeSaving } from '@/lib/saving'
 
 // ── Utilitários de detecção ────────────────────────────────────────
 function detectColumns(cols, rows) {
@@ -31,6 +32,7 @@ function autoDetectSaving(analyzed) {
   // Heurística: par de colunas com "corrig/original/bruto" e "negoc/final/pago"
   const keywords1 = ['corrig', 'original', 'estimado', 'bruto', 'inicial', 'valor1', 'v1']
   const keywords2 = ['negoc', 'final', 'pago', 'contrato', 'ajust', 'valor2', 'v2']
+  const baseKw    = ['base', 'pago', 'valor', 'total', 'negociado', 'final']
   const savKw    = ['saving', 'economia', 'reducao', 'desconto', 'ganho']
 
   const normalize = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -38,8 +40,9 @@ function autoDetectSaving(analyzed) {
   const v1 = nums.find(c => keywords1.some(k => normalize(c.name).includes(k)))
   const v2 = nums.find(c => keywords2.some(k => normalize(c.name).includes(k)))
   const sv = nums.find(c => savKw.some(k => normalize(c.name).includes(k)))
+  const base = nums.find(c => baseKw.some(k => normalize(c.name).includes(k))) || v2 || nums[0]
 
-  return { v1: v1?.i ?? '', v2: v2?.i ?? '', savingCol: sv?.i ?? '' }
+  return { v1: v1?.i ?? '', v2: v2?.i ?? '', savingCol: sv?.i ?? '', base: base?.i ?? '' }
 }
 
 function autoDetectCharts(analyzed) {
@@ -120,36 +123,6 @@ function StepTitle({ emoji, title, desc }) {
   )
 }
 
-function ColButton({ col, selected, onClick, showType = true }) {
-  const typeIcon = col.type === 'date' ? '📅' : col.type === 'number' ? '💰' : '🏷'
-  const typeColor = col.type === 'date' ? 'text-amber-400' : col.type === 'number' ? 'text-green-400' : 'text-blue-400'
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all flex items-center gap-3 ${
-        selected
-          ? 'bg-blue-600/20 border-blue-500/60 text-white'
-          : 'bg-white/[0.04] border-white/[0.08] text-slate-300 hover:bg-white/[0.07] hover:border-white/[0.15]'
-      }`}
-    >
-      {selected ? (
-        <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-          <Check className="w-3 h-3 text-white" />
-        </div>
-      ) : (
-        <div className="w-5 h-5 rounded-full border border-white/20 flex-shrink-0" />
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold truncate">{col.name}</div>
-        {showType && col.sample?.length > 0 && (
-          <div className="text-[10px] text-slate-500 truncate mt-0.5">{col.sample.slice(0,3).join(', ')}</div>
-        )}
-      </div>
-      {showType && <span className={`text-[10px] font-bold ${typeColor} flex-shrink-0`}>{typeIcon}</span>}
-    </button>
-  )
-}
-
 function ColSelect({ label, value, onChange, cols, filter, placeholder = '— selecionar —', hint }) {
   const options = filter ? cols.filter(filter) : cols
   return (
@@ -201,7 +174,7 @@ function NavButtons({ onBack, onNext, nextLabel = 'Próximo', nextDisabled, onSk
 // ── STEPS ─────────────────────────────────────────────────────────
 
 // Step 1: Identificação do relatório
-function StepIdentity({ data, analyzed, onChange, onNext, onSkip }) {
+function StepIdentity({ data, analyzed, onChange, onNext }) {
   const [title, setTitle]   = useState(data.title   || '')
   const [company, setCompany] = useState(data.company || '')
   const [period, setPeriod] = useState(data.period  || '')
@@ -258,26 +231,66 @@ function StepIdentity({ data, analyzed, onChange, onNext, onSkip }) {
 }
 
 // Step 2: Saving Banner
-function StepSaving({ data, analyzed, onChange, onNext, onBack, onSkip }) {
+function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) {
   const nums  = analyzed.filter(c => c.type === 'number')
   const auto  = autoDetectSaving(analyzed)
 
   const [enabled, setEnabled]    = useState(data.savingEnabled !== false)
-  const [v1Col, setV1]           = useState(data.v1Col   ?? String(auto.v1))
-  const [v2Col, setV2]           = useState(data.v2Col   ?? String(auto.v2))
-  const [savCol, setSav]         = useState(data.savingCol ?? String(auto.savingCol))
-  const [label, setLabel]        = useState(data.label   || 'Saving Total')
+  const [v1Col, setV1]           = useState(data.originalCol ?? data.v1Col ?? String(auto.v1))
+  const [v2Col, setV2]           = useState(data.negotiatedCol ?? data.v2Col ?? String(auto.v2))
+  const [savCol, setSav]         = useState(data.savingPercentCol ?? data.savingCol ?? String(auto.savingCol))
+  const [baseCol, setBaseCol]    = useState(data.savingBaseCol ?? String(auto.base))
+  const [savingTypeChoice, setSavingTypeChoice] = useState(
+    data.savingMode === 'percent_x_base'
+      ? 'percentage'
+      : data.savingMode === 'direct_value'
+        ? 'monetary'
+        : (data.savingType || 'auto'),
+  )
+  const [label, setLabel]        = useState(data.label   || 'Saving Total (R$)')
 
-  const pnum = v => parseFloat(String(v ?? '').replace(/[R$.\s]/g, '').replace(',', '.')) || 0
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-
-  const v1Sum = analyzed[parseInt(v1Col)]?.sum ?? 0
-  const v2Sum = analyzed[parseInt(v2Col)]?.sum ?? 0
-  const svSum = analyzed[parseInt(savCol)]?.sum ?? 0
-  const saving = savCol !== '' ? svSum : (v1Col !== '' && v2Col !== '' ? v1Sum - v2Sum : 0)
+  const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+  const savingIndex = parseInt(savCol, 10)
+  const detectedSavingType = savCol !== '' ? detectSavingColumnKind(rows, savingIndex, analyzed[savingIndex]?.name) : 'unknown'
+  const savingType = savCol !== ''
+    ? (savingTypeChoice === 'auto' ? detectedSavingType : savingTypeChoice)
+    : 'unknown'
+  const savingMode = savCol !== ''
+    ? (savingType === 'percentage' ? 'percent_x_base' : 'direct_value')
+    : (v1Col !== '' || v2Col !== '' ? 'original_minus_negotiated' : '')
+  const draftSaving = {
+    label,
+    savingMode,
+    savingCol: savingMode === 'direct_value' ? savCol : '',
+    savingPercentCol: savingMode === 'percent_x_base' ? savCol : '',
+    savingBaseCol: savingMode === 'percent_x_base' ? baseCol : '',
+    originalCol: savingMode === 'original_minus_negotiated' ? v1Col : '',
+    negotiatedCol: savingMode === 'original_minus_negotiated' ? v2Col : '',
+    originalLabel: analyzed[parseInt(v1Col, 10)]?.name || 'Valor Original',
+    negotiatedLabel: analyzed[parseInt(v2Col, 10)]?.name || 'Valor Negociado',
+    savingBaseLabel: analyzed[parseInt(baseCol, 10)]?.name || 'Valor Base',
+    savingPercentLabel: analyzed[savingIndex]?.name || 'Saving (%)',
+  }
+  const savingSummary = summarizeSaving(rows, draftSaving, analyzed.length)
+  const saving = savingSummary.total
+  const detailItems = getSavingDetailItems(savingSummary)
+  const nextDisabled = enabled && savingMode === 'percent_x_base' && baseCol === ''
 
   const next = () => {
-    onChange({ savingEnabled: enabled, label, v1Col, v2Col, savingCol: savCol })
+    onChange({
+      savingEnabled: enabled,
+      label,
+      savingMode,
+      savingType,
+      originalCol: savingMode === 'original_minus_negotiated' ? v1Col : '',
+      negotiatedCol: savingMode === 'original_minus_negotiated' ? v2Col : '',
+      savingCol: savingMode === 'direct_value' ? savCol : '',
+      savingPercentCol: savingMode === 'percent_x_base' ? savCol : '',
+      savingBaseCol: savingMode === 'percent_x_base' ? baseCol : '',
+      v1Col: savingMode === 'original_minus_negotiated' ? v1Col : '',
+      v2Col: savingMode === 'original_minus_negotiated' ? v2Col : '',
+    })
     onNext()
   }
 
@@ -301,19 +314,91 @@ function StepSaving({ data, analyzed, onChange, onNext, onBack, onSkip }) {
             <div className="grid grid-cols-3 gap-2">
               <ColSelect label="Valor Original" value={v1Col} onChange={setV1} cols={nums} hint="Ex: Valor Corrigido" />
               <ColSelect label="Valor Negociado" value={v2Col} onChange={setV2} cols={nums} hint="Ex: Valor Negociado" />
-              <ColSelect label="Saving direto" value={savCol} onChange={setSav} cols={nums} hint="Ou deixe vazio" />
+              <ColSelect label="Saving" value={savCol} onChange={setSav} cols={nums} hint="Pode ser monetario ou percentual" />
             </div>
+
+            {savCol !== '' && (
+              <div className={`rounded-lg border px-3 py-2 text-xs ${savingType === 'percentage' ? 'bg-amber-900/20 border-amber-700/30 text-amber-200' : 'bg-emerald-900/20 border-emerald-700/30 text-emerald-200'}`}>
+                <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <div className="font-semibold">
+                      {savingType === 'percentage' ? 'Coluna percentual detectada' : 'Coluna monetaria detectada'}
+                    </div>
+                    <div className="mt-1 text-[11px] text-white/70">
+                      Detectado automaticamente: {detectedSavingType === 'percentage' ? 'Percentual' : 'Monetario'}
+                    </div>
+                  </div>
+                  <div className="min-w-[180px]">
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/60">Tipo do saving</label>
+                    <select
+                      value={savingTypeChoice}
+                      onChange={e => setSavingTypeChoice(e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white outline-none focus:border-blue-500"
+                    >
+                      <option value="auto">Automático</option>
+                      <option value="monetary">Monetário</option>
+                      <option value="percentage">Percentual</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-2 text-[11px] text-white/70">
+                  {savingType === 'percentage'
+                    ? 'O saving sera convertido para R$ linha a linha usando uma coluna base.'
+                    : 'O saving sera somado diretamente como valor monetario.'}
+                </div>
+              </div>
+            )}
+
+            {savingMode === 'percent_x_base' && (
+              <div className="space-y-2 rounded-xl border border-amber-700/30 bg-amber-950/20 p-3">
+                <ColSelect
+                  label="Valor base para calculo"
+                  value={baseCol}
+                  onChange={setBaseCol}
+                  cols={nums}
+                  hint="Selecione a coluna monetaria usada como base"
+                />
+                {baseCol === '' && (
+                  <div className="text-[11px] text-amber-200">
+                    Selecione a coluna de valor base para calcular o saving monetario.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {nextDisabled && (
+              <div className="text-[11px] text-amber-200">
+                Selecione a coluna de valor base para calcular o saving monetario.
+              </div>
+            )}
 
             {saving !== 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gradient-to-r from-[#1a3a5c] to-[#2e5c8a] rounded-xl p-4 flex items-center justify-between">
                 <div>
                   <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{label}</div>
                   <div className="text-2xl font-bold text-green-400 font-mono">{fmtBRL(saving)}</div>
-                  {v1Col !== '' && v2Col !== '' && savCol === '' && (
+                  <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/70">
+                    {savingMode === 'percent_x_base'
+                      ? 'Modo: Saving (%) x Valor Base'
+                      : savingMode === 'direct_value'
+                        ? 'Modo: Saving Direto'
+                        : savingMode === 'original_minus_negotiated'
+                          ? 'Modo: Valor Original - Valor Negociado'
+                          : 'Modo: nao configurado'}
+                  </div>
+                  {detailItems.length > 0 && (
                     <div className="flex items-center gap-3 mt-2">
-                      <div><div className="text-xs font-bold font-mono text-white">{fmtBRL(v1Sum)}</div><div className="text-[9px] text-white/50">{analyzed[parseInt(v1Col)]?.name}</div></div>
-                      <span className="text-white/30 text-sm">→</span>
-                      <div><div className="text-xs font-bold font-mono text-green-400">{fmtBRL(v2Sum)}</div><div className="text-[9px] text-white/50">{analyzed[parseInt(v2Col)]?.name}</div></div>
+                      {detailItems.map((item, index) => (
+                        <div key={`${item.label}-${index}`} className="flex items-center gap-3">
+                          {index > 0 && <span className="text-white/30 text-sm">→</span>}
+                          <div>
+                            <div className={`text-xs font-bold font-mono ${item.accent ? 'text-green-400' : 'text-white'}`}>
+                              {item.kind === 'percent' ? fmtPct(item.value) : fmtBRL(item.value)}
+                            </div>
+                            <div className="text-[9px] text-white/50">{item.label}</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -323,7 +408,7 @@ function StepSaving({ data, analyzed, onChange, onNext, onBack, onSkip }) {
           </motion.div>
         )}
       </div>
-      <NavButtons onBack={onBack} onNext={next} onSkip={onSkip} />
+      <NavButtons onBack={onBack} onNext={next} onSkip={nextDisabled ? undefined : onSkip} nextDisabled={nextDisabled} />
     </>
   )
 }
@@ -589,12 +674,23 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss }) {
       footer:  'Relatório gerado pelo Report Flow · Uso interno',
 
       saving: {
-        label:     wdata.label     || 'Saving Total',
-        savingCol: ci(wdata.savingCol),
-        v1Col:     ci(wdata.v1Col),
-        v1Label:   wdata.v1Col !== '' ? (a[parseInt(wdata.v1Col)]?.name || 'Valor 1') : 'Valor Original',
-        v2Col:     ci(wdata.v2Col),
-        v2Label:   wdata.v2Col !== '' ? (a[parseInt(wdata.v2Col)]?.name || 'Valor 2') : 'Valor Negociado',
+        label:            wdata.label || 'Saving Total (R$)',
+        savingMode:       wdata.savingMode || '',
+        savingCol:        wdata.savingMode === 'direct_value' ? ci(wdata.savingCol) : '',
+        savingPercentCol: wdata.savingMode === 'percent_x_base' ? ci(wdata.savingPercentCol || wdata.savingCol) : '',
+        savingBaseCol:    wdata.savingMode === 'percent_x_base' ? ci(wdata.savingBaseCol) : '',
+        savingBaseLabel:  wdata.savingBaseCol !== '' ? (a[parseInt(wdata.savingBaseCol)]?.name || 'Valor Base') : 'Valor Base',
+        savingPercentLabel: (wdata.savingPercentCol || wdata.savingCol) !== ''
+          ? (a[parseInt(wdata.savingPercentCol || wdata.savingCol)]?.name || 'Saving (%)')
+          : 'Saving (%)',
+        originalCol:      wdata.savingMode === 'original_minus_negotiated' ? ci(wdata.originalCol ?? wdata.v1Col) : '',
+        originalLabel:    (wdata.originalCol ?? wdata.v1Col) !== '' ? (a[parseInt(wdata.originalCol ?? wdata.v1Col)]?.name || 'Valor Original') : 'Valor Original',
+        negotiatedCol:    wdata.savingMode === 'original_minus_negotiated' ? ci(wdata.negotiatedCol ?? wdata.v2Col) : '',
+        negotiatedLabel:  (wdata.negotiatedCol ?? wdata.v2Col) !== '' ? (a[parseInt(wdata.negotiatedCol ?? wdata.v2Col)]?.name || 'Valor Negociado') : 'Valor Negociado',
+        v1Col:            wdata.savingMode === 'original_minus_negotiated' ? ci(wdata.originalCol ?? wdata.v1Col) : '',
+        v1Label:          (wdata.originalCol ?? wdata.v1Col) !== '' ? (a[parseInt(wdata.originalCol ?? wdata.v1Col)]?.name || 'Valor 1') : 'Valor Original',
+        v2Col:            wdata.savingMode === 'original_minus_negotiated' ? ci(wdata.negotiatedCol ?? wdata.v2Col) : '',
+        v2Label:          (wdata.negotiatedCol ?? wdata.v2Col) !== '' ? (a[parseInt(wdata.negotiatedCol ?? wdata.v2Col)]?.name || 'Valor 2') : 'Valor Negociado',
       },
 
       sections: {
@@ -657,7 +753,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss }) {
     onComplete(finalState)
   }
 
-  const stepProps = { analyzed, data: wdata, onChange: update }
+  const stepProps = { rows, analyzed, data: wdata, onChange: update }
 
   return (
     <AnimatePresence>
