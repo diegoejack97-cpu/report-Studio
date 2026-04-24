@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronRight, ChevronLeft, X, Sparkles } from 'lucide-react'
 import { detectSavingColumnKind, getSavingDetailItems, summarizeSaving } from '@/lib/saving'
@@ -27,20 +27,96 @@ function detectColumns(cols, rows) {
   })
 }
 
-function autoDetectSaving(analyzed) {
-  const nums = analyzed.filter(c => c.type === 'number')
+function parseNumericValue(value) {
+  let str = String(value ?? '').trim().replace(/[R$€£¥%\s]/g, '')
+  if (!str) return Number.NaN
+
+  const commas = (str.match(/,/g) || []).length
+  const dots = (str.match(/\./g) || []).length
+
+  if (commas === 1 && /,\d{1,2}$/.test(str)) {
+    str = str.replace(/\./g, '').replace(',', '.')
+  } else if (dots === 1 && /\.\d{1,2}$/.test(str)) {
+    str = str.replace(/,/g, '')
+  } else if (dots > 1 && commas === 0) {
+    str = str.replace(/\./g, '')
+  } else {
+    str = str.replace(',', '.')
+  }
+
+  return Number.parseFloat(str)
+}
+
+function getColumnValues(rows, index) {
+  const numericIndex = Number.parseInt(index, 10)
+  if (Number.isNaN(numericIndex) || numericIndex < 0) return []
+  return rows
+    .map(row => Array.isArray(row) ? row[numericIndex] : row?.[numericIndex])
+    .filter(value => value !== '' && value != null)
+}
+
+function isPercentColumn(values = []) {
+  const numericValues = values.map(parseNumericValue).filter(Number.isFinite)
+  if (!numericValues.length) return false
+  const inPercentRange = numericValues.filter(value => value >= 0 && value <= 100).length
+  return inPercentRange / numericValues.length >= 0.6
+}
+
+function isMonetaryColumn(values = []) {
+  const rawValues = values.map(value => String(value ?? '').trim()).filter(Boolean)
+  const numericValues = rawValues.map(parseNumericValue).filter(Number.isFinite)
+  if (!numericValues.length) return false
+
+  const highValueCount = numericValues.filter(value => Math.abs(value) >= 1000).length
+  const financialPatternCount = rawValues.filter(value => {
+    const compact = value.replace(/\s/g, '')
+    return /R\$/.test(value) || /(?:\d+[.,]\d{2})$/.test(compact)
+  }).length
+
+  return highValueCount > 0 || (financialPatternCount / rawValues.length) >= 0.4
+}
+
+function buildNumericProfiles(analyzed, rows) {
+  return analyzed
+    .filter(c => c.type === 'number')
+    .map(c => {
+      const values = getColumnValues(rows, c.i)
+      return {
+        ...c,
+        values,
+        isPercent: isPercentColumn(values),
+        isMonetary: isMonetaryColumn(values),
+      }
+    })
+}
+
+function findSuggestedBaseColumn(columns, savingIndex) {
   // Heurística: par de colunas com "corrig/original/bruto" e "negoc/final/pago"
+  const baseKw    = ['base', 'pago', 'valor', 'total', 'negociado', 'final']
+  const normalize = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const baseCandidates = columns.filter(c => String(c.i) !== String(savingIndex))
+  const monetaryCandidates = baseCandidates.filter(c => c.isMonetary && !c.isPercent)
+
+  return (
+    monetaryCandidates.find(c => baseKw.some(k => normalize(c.name).includes(k)))
+    || monetaryCandidates[0]
+    || baseCandidates.find(c => !c.isPercent)
+    || null
+  )
+}
+
+function autoDetectSaving(analyzed, rows) {
+  const nums = buildNumericProfiles(analyzed, rows)
   const keywords1 = ['corrig', 'original', 'estimado', 'bruto', 'inicial', 'valor1', 'v1']
   const keywords2 = ['negoc', 'final', 'pago', 'contrato', 'ajust', 'valor2', 'v2']
-  const baseKw    = ['base', 'pago', 'valor', 'total', 'negociado', 'final']
   const savKw    = ['saving', 'economia', 'reducao', 'desconto', 'ganho']
 
   const normalize = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
   const v1 = nums.find(c => keywords1.some(k => normalize(c.name).includes(k)))
   const v2 = nums.find(c => keywords2.some(k => normalize(c.name).includes(k)))
-  const sv = nums.find(c => savKw.some(k => normalize(c.name).includes(k)))
-  const base = nums.find(c => baseKw.some(k => normalize(c.name).includes(k))) || v2 || nums[0]
+  const sv = nums.find(c => savKw.some(k => normalize(c.name).includes(k))) || nums.find(c => c.isPercent) || nums[0]
+  const base = findSuggestedBaseColumn(nums, sv?.i)
 
   return { v1: v1?.i ?? '', v2: v2?.i ?? '', savingCol: sv?.i ?? '', base: base?.i ?? '' }
 }
@@ -232,8 +308,8 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
 
 // Step 2: Saving Banner
 function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) {
-  const nums  = analyzed.filter(c => c.type === 'number')
-  const auto  = autoDetectSaving(analyzed)
+  const nums  = buildNumericProfiles(analyzed, rows)
+  const auto  = autoDetectSaving(analyzed, rows)
 
   const [enabled, setEnabled]    = useState(data.savingEnabled !== false)
   const [v1Col, setV1]           = useState(data.originalCol ?? data.v1Col ?? String(auto.v1))
@@ -248,6 +324,7 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) 
         : (data.savingType || 'auto'),
   )
   const [label, setLabel]        = useState(data.label   || 'Saving Total (R$)')
+  const [baseConfirmed, setBaseConfirmed] = useState(false)
 
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
@@ -259,6 +336,52 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) 
   const savingMode = savCol !== ''
     ? (savingType === 'percentage' ? 'percent_x_base' : 'direct_value')
     : (v1Col !== '' || v2Col !== '' ? 'original_minus_negotiated' : '')
+  const baseProfile = nums.find(col => String(col.i) === String(baseCol))
+  const baseLooksPercent = !!baseProfile?.isPercent
+  const baseLooksMonetary = !!baseProfile?.isMonetary
+  const baseIsSameAsSaving = savingMode === 'percent_x_base' && baseCol !== '' && savCol !== '' && baseCol === savCol
+  const suggestedBaseProfile = findSuggestedBaseColumn(nums, savingIndex)
+  const suggestedBaseCol = suggestedBaseProfile ? String(suggestedBaseProfile.i) : ''
+  const needsBaseSelection = enabled && savingMode === 'percent_x_base' && baseCol === ''
+  const hasInvalidBase = enabled && savingMode === 'percent_x_base' && (baseIsSameAsSaving || baseLooksPercent)
+  const needsBaseConfirmation = enabled
+    && savingMode === 'percent_x_base'
+    && baseCol !== ''
+    && !baseIsSameAsSaving
+    && !baseLooksPercent
+    && !baseLooksMonetary
+
+  useEffect(() => {
+    setBaseConfirmed(false)
+  }, [baseCol, savCol, savingTypeChoice])
+
+  useEffect(() => {
+    if (savingMode !== 'percent_x_base') return
+    if (!suggestedBaseCol) return
+
+    const shouldAutoFixBase =
+      baseCol === ''
+      || baseIsSameAsSaving
+      || (
+        savingTypeChoice === 'auto'
+        && savingType === 'percentage'
+        && (baseLooksPercent || !baseLooksMonetary)
+      )
+
+    if (shouldAutoFixBase && baseCol !== suggestedBaseCol) {
+      setBaseCol(suggestedBaseCol)
+    }
+  }, [
+    baseCol,
+    baseIsSameAsSaving,
+    baseLooksMonetary,
+    baseLooksPercent,
+    savingMode,
+    savingType,
+    savingTypeChoice,
+    suggestedBaseCol,
+  ])
+
   const draftSaving = {
     label,
     savingMode,
@@ -275,7 +398,7 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) 
   const savingSummary = summarizeSaving(rows, draftSaving, analyzed.length)
   const saving = savingSummary.total
   const detailItems = getSavingDetailItems(savingSummary)
-  const nextDisabled = enabled && savingMode === 'percent_x_base' && baseCol === ''
+  const nextDisabled = needsBaseSelection || hasInvalidBase || (needsBaseConfirmation && !baseConfirmed)
 
   const next = () => {
     onChange({
@@ -356,17 +479,43 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) 
                   value={baseCol}
                   onChange={setBaseCol}
                   cols={nums}
-                  hint="Selecione a coluna monetaria usada como base"
+                  hint={suggestedBaseProfile ? `Sugestão automática: ${suggestedBaseProfile.name}` : 'Selecione a coluna monetaria usada como base'}
                 />
                 {baseCol === '' && (
                   <div className="text-[11px] text-amber-200">
                     Selecione a coluna de valor base para calcular o saving monetario.
                   </div>
                 )}
+                {baseIsSameAsSaving && (
+                  <div className="text-[11px] text-rose-200">
+                    ⚠️ A coluna base não pode ser a mesma coluna percentual de saving.
+                  </div>
+                )}
+                {!baseIsSameAsSaving && baseLooksPercent && (
+                  <div className="text-[11px] text-rose-200">
+                    ⚠️ A coluna base selecionada parece percentual. Escolha uma coluna monetária para evitar valores incorretos.
+                  </div>
+                )}
+                {!baseIsSameAsSaving && !baseLooksPercent && baseCol !== '' && !baseLooksMonetary && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] text-amber-200">
+                      ⚠️ A coluna base selecionada não parece monetária. Isso pode gerar valores incorretos.
+                    </div>
+                    <label className="flex items-center gap-2 text-[11px] text-white/75">
+                      <input
+                        type="checkbox"
+                        checked={baseConfirmed}
+                        onChange={e => setBaseConfirmed(e.target.checked)}
+                        className="rounded border-white/20 bg-white/5"
+                      />
+                      Confirmo que quero usar essa coluna como base mesmo assim.
+                    </label>
+                  </div>
+                )}
               </div>
             )}
 
-            {nextDisabled && (
+            {needsBaseSelection && (
               <div className="text-[11px] text-amber-200">
                 Selecione a coluna de valor base para calcular o saving monetario.
               </div>
