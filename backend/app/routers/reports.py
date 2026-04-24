@@ -137,7 +137,7 @@ def _enrich_report_config_with_insights(config: dict | None) -> dict:
         tabular_data = _build_tabular_data_from_config(base_config)
         insights_result = generate_insights(tabular_data)
         insights = insights_result["insights"]
-        print("INSIGHTS GERADOS:", insights)
+        print("INSIGHTS:", insights)
         base_config["insights"] = insights
         base_config["insightsMeta"] = insights_result["meta"]
     except Exception:
@@ -209,6 +209,7 @@ async def get_report(
     current_user: User = Depends(get_current_user),
 ):
     report = await _get_own_report(report_id, current_user.id, db)
+    report.config = _enrich_report_config_with_insights(report.config)
     return report
 
 
@@ -249,6 +250,7 @@ async def export_report(
 ):
     try:
         report = await _get_own_report(report_id, current_user.id, db)
+        report.config = _enrich_report_config_with_insights(report.config)
         reset_report_usage_if_needed(current_user)
         check_plan_limit(current_user)
         report.export_count += 1

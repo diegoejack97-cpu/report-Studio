@@ -28,6 +28,7 @@ const TABS = [
 const DEFAULT_STATE = {
   title: 'Novo Relatório', subtitle: '', period: '', company: '',
   cols: [], rows: [], kpis: [],
+  insights: [],
   colors: { primary: '#1a3a5c', secondary: '#2e5c8a', accent: '#4ade80', bg: '#eef1f5', text: '#1e293b' },
   sections: { saving: true, kpi: true, charts: true, summary: true, table: true, filters: true, footer: true },
   saving: {
@@ -75,18 +76,28 @@ export default function EditorPage() {
   const [saving, setSaving] = useState(false)
   const [reportId, setReportId] = useState(id ? parseInt(id) : null)
   const debounceRef = useRef(null)
+  const stateRef = useRef(DEFAULT_STATE)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
 
   const syncStateWithReport = useCallback((report) => {
     if (!report?.config || Object.keys(report.config).length === 0) {
       return null
     }
 
-    console.log('INSIGHTS RECEBIDOS:', report.config.insights)
+    console.log('INSIGHTS RESPONSE:', report.config.insights)
+    const syncedInsights = Array.isArray(report.config.insights)
+      ? report.config.insights
+      : (Array.isArray(stateRef.current.insights) ? stateRef.current.insights : [])
     const syncedState = {
       ...DEFAULT_STATE,
       ...report.config,
+      insights: syncedInsights,
       saving: normalizeSavingConfig(report.config.saving || {}, (report.config.cols || []).length),
     }
+    stateRef.current = syncedState
     setState(syncedState)
     setHasData((report.config.rows || []).length > 0)
     return syncedState
@@ -106,7 +117,7 @@ export default function EditorPage() {
   }, [existingReport, syncStateWithReport])
 
   useEffect(() => {
-    console.log('INSIGHTS NO STATE:', state.insights)
+    console.log('INSIGHTS STATE:', state.insights)
   }, [state.insights])
 
   const update = useCallback((patch) => {
@@ -189,12 +200,13 @@ export default function EditorPage() {
       }
 
       const { data: exportResponse } = await api.post(`/reports/${activeReportId}/export`)
+      console.log('INSIGHTS RESPONSE:', exportResponse?.config?.insights)
       const exportState =
         syncStateWithReport(exportResponse) ||
         saveResult?.syncedState ||
         state
 
-      console.log('INSIGHTS NO EXPORT:', exportState.insights)
+      console.log('EXPORT INSIGHTS:', exportState.insights)
       if (!exportState.insights?.length) {
         console.warn('INSIGHTS VAZIOS NO EXPORT: backend nao retornou insights ou o frontend nao sincronizou o state.')
       }

@@ -61,10 +61,18 @@ export function normalizeSavingConfig(saving = {}, totalColumns = Infinity) {
     totalColumns,
   )
   const savingBaseCol = normalizeColumn(saving.savingBaseCol ?? saving.valorBaseCol ?? saving.baseCol, totalColumns)
+  const hasPercentBasedConfig = savingPercentCol !== '' && savingBaseCol !== ''
+  const shouldForcePercentMode = hasPercentBasedConfig || (
+    saving.savingType === 'percentage' &&
+    savingBaseCol !== '' &&
+    (savingPercentCol !== '' || savingCol !== '')
+  )
 
   let savingMode = VALID_SAVING_MODES.has(saving.savingMode) ? saving.savingMode : ''
-  if (!savingMode) {
-    if (savingPercentCol && savingBaseCol) savingMode = 'percent_x_base'
+  if (shouldForcePercentMode) {
+    savingMode = 'percent_x_base'
+  } else if (!savingMode) {
+    if (hasPercentBasedConfig) savingMode = 'percent_x_base'
     else if (savingCol) savingMode = 'direct_value'
     else if (originalCol || negotiatedCol) savingMode = 'original_minus_negotiated'
   }
