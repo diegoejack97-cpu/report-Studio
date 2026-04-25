@@ -11,6 +11,9 @@ FIELD_ALIASES = {
         "saving (%)", "saving(%)", "saving_percent", "saving", "economia",
         "saving_pct", "pct_saving",
     ],
+    "metric_value": [
+        "metric_value", "valor_metrica", "valor métrica", "saving_calculado",
+    ],
     "valor_pago": [
         "valor pago", "valor_pago", "valor", "amount", "vl_pago",
         "valor negociado", "valor_negociado",

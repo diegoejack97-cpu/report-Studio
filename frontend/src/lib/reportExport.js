@@ -1,4 +1,4 @@
-import { getSavingDetailItems, groupSavingBy, summarizeSaving } from './saving.js'
+import { buildMetricDataset, summarizeSaving } from './saving.js'
 
 export function escapeHtml(str) {
   return String(str ?? '')
@@ -103,9 +103,10 @@ export function buildReportHTML(state, options = {}) {
   }
 
   const sumCol = (idx) => idx < 0 ? 0 : rows.reduce((s, r) => s + pnum(r.cells?.[idx]), 0)
+  const metricDataset = buildMetricDataset(rows, savCfg, cols.length)
   const savingSummary = summarizeSaving(rows, savCfg, cols.length)
-  const resolvedSavCfg = savingSummary.config
-  const savingDetailItems = getSavingDetailItems(savingSummary)
+  const resolvedSavCfg = metricDataset.config
+  const savingDetailItems = metricDataset.detailItems || []
   const v1CI = ciRaw(resolvedSavCfg.v1Col)
   const v2CI = ciRaw(resolvedSavCfg.v2Col)
   const savTotal = savingSummary.total
@@ -135,13 +136,14 @@ export function buildReportHTML(state, options = {}) {
   }).join('')}</div>` : ''
 
   const savDetailsHTML = savingDetailItems.map((item, index) => {
-    const valueText = item.kind === 'percent' ? fmtPct(item.value) : fmtBRL(item.value)
+    const valueText = item.kind === 'percent' ? fmtPct(item.value) : item.kind === 'number' ? fmtN(item.value) : fmtBRL(item.value)
     const valueStyle = item.accent ? ` style="color:${acc}"` : ''
     const arrow = index > 0 ? '<div>→</div>' : ''
     return `${arrow}<div><div class="sav-dv"${valueStyle}>${escapeHtml(valueText)}</div><div class="sav-dl">${escapeHtml(item.label)}</div></div>`
   }).join('')
-  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(resolvedSavCfg?.label || 'Saving Total (R$)')}</div><div class="sav-val">${escapeHtml(fmtBRL(savTotal))}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
-  const insightsHTML = renderInsightsHTML(insights)
+  const savDisplay = resolvedSavCfg?.metricType === 'TAXA' ? fmtPct(savTotal) : resolvedSavCfg?.metricType === 'VOLUME' ? fmtN(savTotal) : fmtBRL(savTotal)
+  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(resolvedSavCfg?.label || 'Métrica principal')}</div><div class="sav-val">${escapeHtml(savDisplay)}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
+  const insightsHTML = renderInsightsHTML(insights?.length ? insights : (metricDataset.insights || []))
 
   const grpCI = ciRaw(groupCol)
   const summaryData = grpCI < 0 ? [] : (() => {
@@ -548,212 +550,19 @@ window.addEventListener('resize', () => {
 }
 
 export function buildChartPayload(state) {
-  const { cols = [], rows = [], charts: chCfg = {}, groupCol, saving: savCfg = {}, sections = {} } = state
+  const { cols = [], rows = [], saving: savCfg = {}, sections = {} } = state
   if (!cols.length || !rows.length || sections?.charts === false) return []
-
-  function pnum(v) {
-    let s = String(v ?? '').trim().replace(/[R$€£¥\s]/g, '')
-    if (!s) return 0
-    const commas = (s.match(/,/g) || []).length
-    const dots = (s.match(/\./g) || []).length
-    if (commas === 1 && /,\d{1,2}$/.test(s)) return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0
-    if (dots === 1 && /\.\d{1,2}$/.test(s)) return parseFloat(s.replace(/,/g, '')) || 0
-    if (dots > 1 && commas === 0) return parseFloat(s.replace(/\./g, '')) || 0
-    return parseFloat(s.replace(',', '.')) || 0
-  }
-
-  const ci = v => { const n = parseInt(v); return isNaN(n) || n < 0 || n >= cols.length ? -1 : n }
-  const countByCol = idx => {
-    if (idx < 0) return null
-    const freq = {}
-    rows.forEach(r => {
-      const key = String(r.cells?.[idx] ?? '').trim() || '(vazio)'
-      freq[key] = (freq[key] || 0) + 1
-    })
-    const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 20)
-    return { labels: sorted.map(x => x[0]), data: sorted.map(x => x[1]) }
-  }
-
-  const sumGrouped = (labelIdx, valIdx, n = 10) => {
-    if (labelIdx < 0 || valIdx < 0) return null
-    const agg = {}
-    rows.forEach(r => {
-      const key = String(r.cells?.[labelIdx] ?? '').trim() || '(vazio)'
-      agg[key] = (agg[key] || 0) + pnum(r.cells?.[valIdx])
-    })
-    const sorted = Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, n)
-    return { labels: sorted.map(x => x[0]), data: sorted.map(x => Math.round(x[1] * 100) / 100) }
-  }
-
-  const monthly = (dateIdx, v1Idx, v2Idx) => {
-    if (dateIdx < 0) return null
-    const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
-    const bucket = {}
-    rows.forEach(r => {
-      const raw = String(r.cells?.[dateIdx] ?? '').trim()
-      if (!raw) return
-      let year = null
-      let month = null
-      let m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)
-      if (m) { month = parseInt(m[2]) - 1; year = parseInt(m[3]) }
-      if (!m) { m = raw.match(/^(\d{1,2})[\/\-](\d{4})$/); if (m) { month = parseInt(m[1]) - 1; year = parseInt(m[2]) } }
-      if (!m) { m = raw.match(/^(\d{4})[\/\-](\d{1,2})/); if (m) { year = parseInt(m[1]); month = parseInt(m[2]) - 1 } }
-      if (month == null || month < 0 || month > 11) return
-      if (!year || year < 1900) year = new Date().getFullYear()
-      const key = `${year}-${String(month + 1).padStart(2, '0')}`
-      if (!bucket[key]) bucket[key] = { year, month, v1: 0, v2: 0 }
-      if (v1Idx >= 0) bucket[key].v1 += pnum(r.cells?.[v1Idx])
-      if (v2Idx >= 0) bucket[key].v2 += pnum(r.cells?.[v2Idx])
-    })
-    const sorted = Object.entries(bucket).sort((a, b) => a[0].localeCompare(b[0]))
-    const multiYear = new Set(sorted.map(([_, v]) => v.year)).size > 1
-    return {
-      labels: sorted.map(([_, v]) => monthNames[v.month] + (multiYear ? `/${v.year}` : '')),
-      d1: sorted.map(([_, v]) => Math.round(v.v1 * 100) / 100),
-      d2: sorted.map(([_, v]) => Math.round(v.v2 * 100) / 100),
-    }
-  }
-
-  const g1 = chCfg.g1 || {}
-  const g2 = chCfg.g2 || {}
-  const g3 = chCfg.g3 || {}
-  const g4 = chCfg.g4 || {}
-  const charts = []
-
-  const D1 = g1.on !== false ? countByCol(ci(g1.col)) : null
-  if (D1?.labels.length) {
-    const t = g1.type || 'doughnut'
-    charts.push({
-      id: 'g1',
-      full: false,
-      title: g1.title || 'Distribuição',
-      h: g1.h || 260,
-      type: t === 'doughnut' || t === 'pie' || t === 'nightingale' ? 'pie' : (t === 'treemap' ? 'treemap' : (t === 'funnel' ? 'funnel' : 'bar')),
-      donut: t === 'doughnut',
-      rose: t === 'nightingale',
-      horizontal: t === 'hbar',
-      labels: D1.labels,
-      data: D1.data,
-    })
-  }
-
-  const D2 = g2.on !== false ? countByCol(ci(g2.col)) : null
-  if (D2?.labels.length) {
-    const t = g2.type || 'bar'
-    charts.push({
-      id: 'g2',
-      full: false,
-      title: g2.title || 'Por Categoria',
-      h: g2.h || 260,
-      type: t === 'radar' ? 'radar' : (t === 'line' || t === 'area' ? 'line' : (t === 'funnel' ? 'funnel' : 'bar')),
-      horizontal: t === 'hbar',
-      area: t === 'area',
-      labels: D2.labels,
-      data: D2.data,
-      d1: D2.data,
-      d2: [],
-      bar: false,
-    })
-  }
-
-  const D3 = g3.on !== false ? monthly(ci(g3.dateCol), ci(g3.v1Col), ci(g3.v2Col)) : null
-  if (D3?.labels.length) {
-    const t = g3.type || 'line'
-    const v1Name = ci(g3.v1Col) >= 0 ? (cols[ci(g3.v1Col)]?.name || 'V1') : 'V1'
-    const v2Name = ci(g3.v2Col) >= 0 ? (cols[ci(g3.v2Col)]?.name || 'V2') : 'V2'
-    charts.push({
-      id: 'g3',
-      full: true,
-      title: g3.title || 'Evolução Mensal',
-      h: g3.h || 300,
-      type: 'line',
-      labels: D3.labels,
-      d1: D3.d1,
-      d2: D3.d2,
-      name1: v1Name,
-      name2: v2Name,
-      area: t === 'area',
-      bar: t === 'bar',
-      isNum: true,
-    })
-  }
-
-  const D4Raw = g4.on !== false ? sumGrouped(ci(g4.labelCol), ci(g4.valCol), g4.n || 10) : null
-  if (D4Raw?.labels.length) {
-    const t = g4.type || 'hbar'
-    charts.push({
-      id: 'g4',
-      full: true,
-      title: g4.title || `Top ${g4.n || 10}`,
-      h: g4.h || 400,
-      type: t === 'doughnut' || t === 'pie' ? 'pie' : (t === 'treemap' ? 'treemap' : (t === 'funnel' ? 'funnel' : 'bar')),
-      donut: t === 'doughnut',
-      horizontal: t !== 'bar',
-      labels: D4Raw.labels,
-      data: D4Raw.data,
-      isNum: ci(g4.valCol) >= 0 && cols[ci(g4.valCol)]?.type === 'number',
-    })
-  }
-
-  const catCols = cols.map((c, i) => ({ ...c, i })).filter(c => c.type === 'text' && c.uniq >= 2 && c.uniq <= 30)
-  if (catCols.length >= 2) {
-    const c1 = catCols[0].i
-    const c2 = catCols[1].i
-    const matrix = {}
-    rows.forEach(r => {
-      const x = String(r.cells?.[c1] ?? '').trim()
-      const y = String(r.cells?.[c2] ?? '').trim()
-      if (!x || !y) return
-      if (!matrix[x]) matrix[x] = {}
-      matrix[x][y] = (matrix[x][y] || 0) + 1
-    })
-    const xLabels = Object.keys(matrix).slice(0, 10)
-    const yLabels = [...new Set(Object.values(matrix).flatMap(o => Object.keys(o)))].slice(0, 8)
-    const data = []
-    xLabels.forEach((x, xi) => yLabels.forEach((y, yi) => {
-      if ((matrix[x] || {})[y]) data.push([xi, yi, matrix[x][y]])
-    }))
-    if (data.length) charts.push({ id: 'hx', full: true, title: `Heatmap — ${catCols[0].name} × ${catCols[1].name}`, h: 280, type: 'heatmap', data, xLabels, yLabels })
-  }
-
-  const numCols = cols.map((c, i) => ({ ...c, i })).filter(c => c.type === 'number')
-  if (numCols.length >= 2) {
-    const xCol = numCols[0].i
-    const yCol = numCols[1].i
-    const points = rows.map(r => [pnum(r.cells?.[xCol]), pnum(r.cells?.[yCol])]).filter(([x, y]) => x || y).slice(0, 250)
-    if (points.length) charts.push({ id: 'sc', full: false, title: `Dispersão — ${numCols[0].name} × ${numCols[1].name}`, h: 280, type: 'scatter', points, xName: numCols[0].name, yName: numCols[1].name })
-  }
-
-  const grpCI = ci(groupCol)
-  /* Saving calculation modes:
-     - original_minus_negotiated agrupa diferencas por linha
-     - direct_value agrupa saving monetario direto
-     - percent_x_base converte o percentual em BRL antes de agrupar
-  */
-  if (grpCI >= 0) {
-    const groupedSaving = groupSavingBy(rows, grpCI, savCfg, cols.length, 8)
-    if (groupedSaving.cats.length > 2) charts.push({
-      id: 'wf',
-      full: false,
-      title: `Saving por ${cols[grpCI]?.name || 'Categoria'}`,
-      h: 280,
-      type: 'waterfall',
-      labels: groupedSaving.cats,
-      data: groupedSaving.vals,
-    })
-  }
-
-  if (D4Raw?.labels?.length >= 3 && (g4.type || 'hbar') !== 'treemap') {
-    charts.push({
-      id: 'tx',
-      full: false,
-      title: `Treemap — ${cols[ci(g4.labelCol)]?.name || 'Distribuição'}`,
-      h: 280,
-      type: 'treemap',
-      labels: D4Raw.labels,
-      data: D4Raw.data,
-    })
-  }
-
-  return charts
+  return (buildMetricDataset(rows, savCfg, cols.length).chartConfig || []).map((chart, index) => ({
+    id: chart.id || `metric-${index + 1}`,
+    full: index >= 2,
+    title: chart.title,
+    h: index >= 2 ? 300 : 260,
+    type: chart.type === 'hbar' ? 'bar' : chart.type,
+    horizontal: chart.type === 'hbar',
+    labels: chart.labels,
+    data: chart.data,
+    d1: chart.d1,
+    d2: chart.d2,
+    isNum: chart.isCurrency || chart.isPercent,
+  }))
 }

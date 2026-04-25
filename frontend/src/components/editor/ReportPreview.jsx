@@ -3,7 +3,7 @@ import ReactECharts from 'echarts-for-react'
 import { motion } from 'motion/react'
 import { useThemeStore } from '@/store/themeStore'
 import InsightsPanel from '@/components/InsightsPanel'
-import { getSavingDetailItems, groupSavingBy, summarizeSaving } from '@/lib/saving'
+import { buildMetricDataset, summarizeSaving } from '@/lib/saving'
 
 function TableSection({ rows, visCols, cols, dark, cardBg, bdColor, p1, p2, textColor, subText, showFilters = true }) {
   const [selectedCol, setSelectedCol] = useState('')
@@ -496,60 +496,17 @@ export default function ReportPreview({ state }) {
   const acc = colors.accent    || '#4ade80'
 
   const ci  = v => { const n=parseInt(v); return isNaN(n)||n<0||n>=cols.length?-1:n }
+  const metricDataset = useMemo(() => buildMetricDataset(rows, savCfg, cols.length), [rows, savCfg, cols.length])
   const savingSummary = useMemo(() => summarizeSaving(rows, savCfg, cols.length), [rows, savCfg, cols.length])
-  const resolvedSavCfg = savingSummary.config
-  const savingDetailItems = useMemo(() => getSavingDetailItems(savingSummary), [savingSummary])
-  const v1CI=ci(resolvedSavCfg.v1Col), v2CI=ci(resolvedSavCfg.v2Col)
+  const resolvedSavCfg = metricDataset.config
+  const savingDetailItems = metricDataset.detailItems || []
+  const v1CI=ci(resolvedSavCfg.initialCol ?? resolvedSavCfg.v1Col), v2CI=ci(resolvedSavCfg.finalCol ?? resolvedSavCfg.v2Col)
   const sumCol = idx => idx<0?0:rows.reduce((s,r)=>s+pnum(r.cells?.[idx]),0)
-  const savTotal = savingSummary.total
-
-  // chart data
-  const g1=chCfg.g1||{}, g2=chCfg.g2||{}, g3=chCfg.g3||{}, g4=chCfg.g4||{}
-  const D1 = g1.on!==false ? countByCol(rows,ci(g1.col))       : {labels:[],data:[]}
-  const D2 = g2.on!==false ? countByCol(rows,ci(g2.col))       : {labels:[],data:[]}
-  const D3 = g3.on!==false ? monthly(rows,ci(g3.dateCol),ci(g3.v1Col),ci(g3.v2Col)) : {labels:[],d1:[],d2:[]}
-  const D4 = g4.on!==false ? sumGrouped(rows,ci(g4.labelCol),ci(g4.valCol),g4.n||10) : {labels:[],data:[]}
-  const g4isNum = ci(g4.valCol)>=0 && cols[ci(g4.valCol)]?.type==='number'
-  const g3v1Name = ci(g3.v1Col)>=0 ? cols[ci(g3.v1Col)]?.name||'V1' : 'V1'
-  const g3v2Name = ci(g3.v2Col)>=0 ? cols[ci(g3.v2Col)]?.name||'V2' : 'V2'
-
-  // Extra charts: heatmap colxcol, scatter, treemap
-  const numCols = cols.map((c,i)=>({...c,i})).filter(c=>c.type==='number')
-  const catCols = cols.map((c,i)=>({...c,i})).filter(c=>c.type==='text'&&c.uniq>=2&&c.uniq<=30)
-
-  // Heatmap: 2 cat cols cross-tab
-  const heatData = useMemo(()=>{
-    if(catCols.length<2||!rows.length) return null
-    const c1=catCols[0].i, c2=catCols[1].i
-    const m={}
-    rows.forEach(r=>{
-      const x=String(r.cells?.[c1]??'').trim(), y=String(r.cells?.[c2]??'').trim()
-      if(!x||!y) return
-      if(!m[x]) m[x]={}
-      m[x][y]=(m[x][y]||0)+1
-    })
-    const xs=Object.keys(m).slice(0,10), ys=[...new Set(Object.values(m).flatMap(o=>Object.keys(o)))].slice(0,8)
-    const data=[]
-    xs.forEach((x,xi)=>ys.forEach((y,yi)=>{ if((m[x]||{})[y]) data.push([xi,yi,(m[x]||{})[y]||0]) }))
-    return {data, xLabels:xs, yLabels:ys}
-  },[rows,cols])
-
-  // Scatter: 2 numeric cols
-  const scatterData = useMemo(()=>{
-    if(numCols.length<2||!rows.length) return null
-    const c1=numCols[0].i, c2=numCols[1].i
-    const pts=rows.map(r=>({ x:pnum(r.cells?.[c1]), y:pnum(r.cells?.[c2]) })).filter(p=>p.x||p.y).slice(0,200)
-    return { xData:pts.map(p=>p.x), yData:pts.map(p=>p.y), xName:numCols[0].name, yName:numCols[1].name }
-  },[rows,cols])
-
-  // Treemap: same as D1 if enough data
-  const treemapData = useMemo(()=>{
-    if(!D4.labels.length||D4.labels.length<3) return null
-    return { labels:D4.labels, data:D4.data }
-  },[D4])
+  const savTotal = metricDataset.total
+  const metricCharts = metricDataset.chartConfig || []
 
   // Summary
-  const grpCI=ci(groupCol)
+  const grpCI=ci(resolvedSavCfg.categoryCol || groupCol)
   const summaryData = useMemo(()=>{
     if(grpCI<0) return []
     const agg={}
@@ -564,17 +521,6 @@ export default function ReportPreview({ state }) {
   },[rows,grpCI,v1CI,v2CI])
 
   const visCols = cols.map((c,i)=>({...c,i})).filter(c=>c.vis!==false)
-
-  /* Saving calculation modes:
-     - original_minus_negotiated => soma das diferencas por linha
-     - direct_value => soma direta de saving monetario
-     - percent_x_base => converte percentual em BRL antes de agrupar
-  */
-  const waterfallData = useMemo(()=>{
-    if(grpCI<0) return null
-    const grouped = groupSavingBy(rows, grpCI, resolvedSavCfg, cols.length, 8)
-    return grouped.cats.length ? grouped : null
-  },[rows,grpCI,resolvedSavCfg,cols.length])
 
   const bgColor = dark ? '#080f18' : '#eef1f5'
   const cardBg  = dark ? '#0d1a26' : '#ffffff'
@@ -605,7 +551,7 @@ export default function ReportPreview({ state }) {
           <div style={{position:'absolute',bottom:0,left:0,right:0,height:1,background:dark?'linear-gradient(90deg,rgba(37,99,235,0.4),rgba(255,255,255,0.05) 60%,transparent)':'linear-gradient(90deg,rgba(37,99,235,0.3),rgba(0,0,0,0.04) 60%,transparent)'}}/>
         </div>
 
-        <InsightsPanel insights={insights} dark={dark} />
+        <InsightsPanel insights={insights?.length ? insights : (metricDataset.insights || [])} dark={dark} />
 
         {/* Saving Banner */}
         {sections.saving!==false&&(
@@ -613,8 +559,10 @@ export default function ReportPreview({ state }) {
             className="rounded-2xl p-5 mb-5 flex items-center justify-between overflow-hidden relative"
             style={{background:`linear-gradient(135deg,${p1},${p2})`,color:'#fff'}}>
             <div>
-              <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{resolvedSavCfg.label||'Saving Total (R$)'}</div>
-              <div className="text-4xl font-extrabold font-mono" style={{color:acc}}>{fmtBRL(savTotal)}</div>
+              <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{resolvedSavCfg.label||'Métrica principal'}</div>
+              <div className="text-4xl font-extrabold font-mono" style={{color:acc}}>
+                {resolvedSavCfg.metricType === 'TAXA' ? fmtPct(savTotal) : resolvedSavCfg.metricType === 'VOLUME' ? fmtN(savTotal) : fmtBRL(savTotal)}
+              </div>
               {savingDetailItems.length > 0 && (
                 <div className="flex gap-6 mt-3 flex-wrap items-center">
                   {savingDetailItems.map((item, index) => (
@@ -622,7 +570,7 @@ export default function ReportPreview({ state }) {
                       {index > 0 && <div className="opacity-30 text-lg">→</div>}
                       <div>
                         <div className="text-sm font-bold font-mono" style={item.accent ? { color: acc } : undefined}>
-                          {item.kind === 'percent' ? fmtPct(item.value) : fmtBRL(item.value)}
+                          {item.kind === 'percent' ? fmtPct(item.value) : item.kind === 'number' ? fmtN(item.value) : fmtBRL(item.value)}
                         </div>
                         <div className="text-[10px] opacity-50">{item.label}</div>
                       </div>
@@ -645,82 +593,14 @@ export default function ReportPreview({ state }) {
         {/* Charts Grid */}
         {sections.charts!==false&&(
           <div className="grid grid-cols-2 gap-4 mb-5">
-
-            {/* G1 — Donut / Pie / Nightingale / Polar */}
-            {g1.on!==false&&D1.labels.length>0&&(
-              <ChartCard title={g1.title||'Distribuição'} h={g1.h||260}>
-                {['doughnut','pie','nightingale'].includes(g1.type||'doughnut')
-                  ? <PieChart {...D1} type={g1.type||'doughnut'} h={g1.h||260} dark={dark}/>
-                  : g1.type==='treemap'
-                    ? <TreemapChart {...D1} h={g1.h||260} dark={dark}/>
-                    : g1.type==='funnel'
-                      ? <FunnelChart {...D1} h={g1.h||260} dark={dark}/>
-                      : <BarChart {...D1} horizontal={g1.type==='hbar'} h={g1.h||260} dark={dark}/>
-                }
+            {metricCharts.map((chart, index) => (
+              <ChartCard key={chart.id || index} title={chart.title} h={index >= 2 ? 300 : 260} full={index >= 2}>
+                {chart.type === 'pie' && <PieChart data={chart.data} labels={chart.labels} type="doughnut" h={index >= 2 ? 300 : 260} dark={dark} />}
+                {chart.type === 'bar' && <BarChart data={chart.data} labels={chart.labels} h={index >= 2 ? 300 : 260} dark={dark} isNum={chart.isCurrency || chart.isPercent} />}
+                {chart.type === 'hbar' && <BarChart data={chart.data} labels={chart.labels} horizontal h={index >= 2 ? 300 : 260} dark={dark} isNum={chart.isCurrency || chart.isPercent} />}
+                {chart.type === 'line' && <LineChart labels={chart.labels} d1={chart.d1 || []} d2={chart.d2 || []} h={index >= 2 ? 300 : 260} dark={dark} isNum={chart.isCurrency || chart.isPercent} />}
               </ChartCard>
-            )}
-
-            {/* G2 — Bar / Hbar / Line / Radar */}
-            {g2.on!==false&&D2.labels.length>0&&(
-              <ChartCard title={g2.title||'Por Categoria'} h={g2.h||260}>
-                {g2.type==='radar'
-                  ? <RadarChart labels={D2.labels} data={D2.data} h={g2.h||260} dark={dark}/>
-                  : g2.type==='line'||g2.type==='area'
-                    ? <LineChart labels={D2.labels} d1={D2.data} d2={[]} name1={cols[ci(g2.col)]?.name||'G2'} type={g2.type} h={g2.h||260} dark={dark}/>
-                    : <BarChart {...D2} horizontal={g2.type==='hbar'} h={g2.h||260} dark={dark}/>
-                }
-              </ChartCard>
-            )}
-
-            {/* G3 — Line / Area temporal */}
-            {g3.on!==false&&D3.labels.length>0&&(
-              <ChartCard title={g3.title||'Evolução Mensal'} h={g3.h||300} full>
-                <LineChart labels={D3.labels} d1={D3.d1} d2={D3.d2} name1={g3v1Name} name2={g3v2Name} type={g3.type||'area'} h={g3.h||300} dark={dark} isNum/>
-              </ChartCard>
-            )}
-
-            {/* G4 — TopN hbar / doughnut / treemap / funnel */}
-            {g4.on!==false&&D4.labels.length>0&&(
-              <ChartCard title={g4.title||`Top ${g4.n||10}`} h={g4.h||400} full>
-                {g4.type==='doughnut'||g4.type==='pie'
-                  ? <PieChart {...D4} type={g4.type} h={g4.h||400} dark={dark}/>
-                  : g4.type==='treemap'
-                    ? <TreemapChart {...D4} h={g4.h||400} dark={dark}/>
-                    : g4.type==='funnel'
-                      ? <FunnelChart {...D4} h={g4.h||400} dark={dark}/>
-                      : <BarChart {...D4} horizontal={g4.type!=='bar'} h={g4.h||400} dark={dark} isNum={g4isNum}/>
-                }
-              </ChartCard>
-            )}
-
-            {/* EXTRA: Heatmap cruzado (automático se tiver 2 cols categóricas) */}
-            {heatData&&heatData.data.length>0&&(
-              <ChartCard title={`Heatmap — ${catCols[0]?.name} × ${catCols[1]?.name}`} h={280} full>
-                <HeatmapChart {...heatData} h={280} dark={dark}/>
-              </ChartCard>
-            )}
-
-            {/* EXTRA: Scatter correlação (automático se tiver 2 cols numéricas) */}
-            {scatterData&&(
-              <ChartCard title={`Dispersão — ${scatterData.xName} × ${scatterData.yName}`} h={280}>
-                <ScatterChart {...scatterData} h={280} dark={dark}/>
-              </ChartCard>
-            )}
-
-            {/* EXTRA: Waterfall saving por categoria */}
-            {waterfallData&&waterfallData.cats.length>2&&(
-              <ChartCard title={`Saving por ${cols[grpCI]?.name||'Categoria'}`} h={280}>
-                <WaterfallChart categories={waterfallData.cats} values={waterfallData.vals} h={280} dark={dark}/>
-              </ChartCard>
-            )}
-
-            {/* EXTRA: Treemap top N se disponível */}
-            {treemapData&&g4.type!=='treemap'&&(
-              <ChartCard title={`Treemap — ${cols[ci(g4.labelCol)]?.name||'Distribuição'}`} h={280}>
-                <TreemapChart {...treemapData} h={280} dark={dark}/>
-              </ChartCard>
-            )}
-
+            ))}
           </div>
         )}
 

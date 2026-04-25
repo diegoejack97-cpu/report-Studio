@@ -310,214 +310,114 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
 function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) {
   const nums  = buildNumericProfiles(analyzed, rows)
   const auto  = autoDetectSaving(analyzed, rows)
+  const cats = analyzed.filter(c => c.type === 'text' && c.uniq >= 2)
+  const dates = analyzed.filter(c => c.type === 'date')
 
-  const [enabled, setEnabled]    = useState(data.savingEnabled !== false)
-  const [v1Col, setV1]           = useState(data.originalCol ?? data.v1Col ?? String(auto.v1))
-  const [v2Col, setV2]           = useState(data.negotiatedCol ?? data.v2Col ?? String(auto.v2))
-  const [savCol, setSav]         = useState(data.savingPercentCol ?? data.savingCol ?? String(auto.savingCol))
-  const [baseCol, setBaseCol]    = useState(data.savingBaseCol ?? String(auto.base))
-  const [savingTypeChoice, setSavingTypeChoice] = useState(
-    data.savingMode === 'percent_x_base'
-      ? 'percentage'
-      : data.savingMode === 'direct_value'
-        ? 'monetary'
-        : (data.savingType || 'auto'),
-  )
-  const [label, setLabel]        = useState(data.label   || 'Saving Total (R$)')
-  const [baseConfirmed, setBaseConfirmed] = useState(false)
+  const [enabled, setEnabled] = useState(data.savingEnabled !== false)
+  const [metricType, setMetricType] = useState(data.metricType || data.type || 'ECONOMIA')
+  const [label, setLabel] = useState(data.label || 'Economia')
+  const [valueCol, setValueCol] = useState(data.valueCol ?? data.savingCol ?? '')
+  const [percentCol, setPercentCol] = useState(data.percentCol ?? data.savingPercentCol ?? String(auto.savingCol))
+  const [baseCol, setBaseCol] = useState(data.baseCol ?? data.savingBaseCol ?? String(auto.base))
+  const [initialCol, setInitialCol] = useState(data.initialCol ?? data.originalCol ?? data.v1Col ?? String(auto.v1))
+  const [finalCol, setFinalCol] = useState(data.finalCol ?? data.negotiatedCol ?? data.v2Col ?? String(auto.v2))
+  const [categoryCol, setCategoryCol] = useState(data.categoryCol ?? data.groupCol ?? '')
+  const [entityCol, setEntityCol] = useState(data.entityCol ?? '')
+  const [dateCol, setDateCol] = useState(data.dateCol ?? '')
 
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
-  const savingIndex = parseInt(savCol, 10)
-  const detectedSavingType = savCol !== '' ? detectSavingColumnKind(rows, savingIndex, analyzed[savingIndex]?.name) : 'unknown'
-  const savingType = savCol !== ''
-    ? (savingTypeChoice === 'auto' ? detectedSavingType : savingTypeChoice)
-    : 'unknown'
-  const savingMode = savCol !== ''
-    ? (savingType === 'percentage' ? 'percent_x_base' : 'direct_value')
-    : (v1Col !== '' || v2Col !== '' ? 'original_minus_negotiated' : '')
-  const baseProfile = nums.find(col => String(col.i) === String(baseCol))
-  const baseLooksPercent = !!baseProfile?.isPercent
-  const baseLooksMonetary = !!baseProfile?.isMonetary
-  const baseIsSameAsSaving = savingMode === 'percent_x_base' && baseCol !== '' && savCol !== '' && baseCol === savCol
-  const suggestedBaseProfile = findSuggestedBaseColumn(nums, savingIndex)
-  const suggestedBaseCol = suggestedBaseProfile ? String(suggestedBaseProfile.i) : ''
-  const needsBaseSelection = enabled && savingMode === 'percent_x_base' && baseCol === ''
-  const hasInvalidBase = enabled && savingMode === 'percent_x_base' && (baseIsSameAsSaving || baseLooksPercent)
-  const needsBaseConfirmation = enabled
-    && savingMode === 'percent_x_base'
-    && baseCol !== ''
-    && !baseIsSameAsSaving
-    && !baseLooksPercent
-    && !baseLooksMonetary
-
-  useEffect(() => {
-    setBaseConfirmed(false)
-  }, [baseCol, savCol, savingTypeChoice])
-
-  useEffect(() => {
-    if (savingMode !== 'percent_x_base') return
-    if (!suggestedBaseCol) return
-
-    const shouldAutoFixBase =
-      baseCol === ''
-      || baseIsSameAsSaving
-      || (
-        savingTypeChoice === 'auto'
-        && savingType === 'percentage'
-        && (baseLooksPercent || !baseLooksMonetary)
-      )
-
-    if (shouldAutoFixBase && baseCol !== suggestedBaseCol) {
-      setBaseCol(suggestedBaseCol)
-    }
-  }, [
-    baseCol,
-    baseIsSameAsSaving,
-    baseLooksMonetary,
-    baseLooksPercent,
-    savingMode,
-    savingType,
-    savingTypeChoice,
-    suggestedBaseCol,
-  ])
 
   const draftSaving = {
     label,
-    savingMode,
-    savingCol: savingMode === 'direct_value' ? savCol : '',
-    savingPercentCol: savingMode === 'percent_x_base' ? savCol : '',
-    savingBaseCol: savingMode === 'percent_x_base' ? baseCol : '',
-    originalCol: savingMode === 'original_minus_negotiated' ? v1Col : '',
-    negotiatedCol: savingMode === 'original_minus_negotiated' ? v2Col : '',
-    originalLabel: analyzed[parseInt(v1Col, 10)]?.name || 'Valor Original',
-    negotiatedLabel: analyzed[parseInt(v2Col, 10)]?.name || 'Valor Negociado',
-    savingBaseLabel: analyzed[parseInt(baseCol, 10)]?.name || 'Valor Base',
-    savingPercentLabel: analyzed[savingIndex]?.name || 'Saving (%)',
+    metricType,
+    valueCol,
+    percentCol,
+    baseCol,
+    initialCol,
+    finalCol,
+    categoryCol,
+    entityCol,
+    dateCol,
   }
   const savingSummary = summarizeSaving(rows, draftSaving, analyzed.length)
   const saving = savingSummary.total
   const detailItems = getSavingDetailItems(savingSummary)
-  const nextDisabled = needsBaseSelection || hasInvalidBase || (needsBaseConfirmation && !baseConfirmed)
+  const nextDisabled = enabled && !savingSummary.valid
 
   const next = () => {
     onChange({
       savingEnabled: enabled,
       label,
-      savingMode,
-      savingType,
-      originalCol: savingMode === 'original_minus_negotiated' ? v1Col : '',
-      negotiatedCol: savingMode === 'original_minus_negotiated' ? v2Col : '',
-      savingCol: savingMode === 'direct_value' ? savCol : '',
-      savingPercentCol: savingMode === 'percent_x_base' ? savCol : '',
-      savingBaseCol: savingMode === 'percent_x_base' ? baseCol : '',
-      v1Col: savingMode === 'original_minus_negotiated' ? v1Col : '',
-      v2Col: savingMode === 'original_minus_negotiated' ? v2Col : '',
+      metricType,
+      type: metricType,
+      valueCol,
+      percentCol,
+      baseCol,
+      initialCol,
+      finalCol,
+      categoryCol,
+      entityCol,
+      dateCol,
     })
     onNext()
   }
 
   return (
     <>
-      <StepTitle emoji="💰" title="Banner de Saving" desc="O saving é o destaque principal do seu relatório. Configure as colunas para o cálculo automático." />
+      <StepTitle emoji="💰" title="Métrica principal" desc="Escolha o tipo de métrica e as colunas necessárias. Cálculo, gráficos e insights usarão exatamente essa mesma base." />
       <div className="px-6 pb-2 space-y-3">
         <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg bg-white/[0.03] border border-white/[0.07] hover:border-white/[0.12]">
           <div className={`w-10 h-5 rounded-full relative transition-colors ${enabled ? 'bg-blue-600' : 'bg-white/10'}`} onClick={() => setEnabled(e => !e)}>
             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </div>
-          <span className="text-sm font-semibold text-slate-200">Mostrar banner de saving</span>
+          <span className="text-sm font-semibold text-slate-200">Mostrar banner da métrica</span>
         </label>
 
         {enabled && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Rótulo do saving</label>
-              <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex: Saving Total" className="w-full px-3 py-2 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 transition-colors" />
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Tipo de métrica</label>
+              <select value={metricType} onChange={e => setMetricType(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+                <option value="ECONOMIA">Economia</option>
+                <option value="TOTAL">Total Financeiro</option>
+                <option value="VARIACAO">Variação</option>
+                <option value="TAXA">Taxa</option>
+                <option value="VOLUME">Volume</option>
+              </select>
             </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Rótulo da métrica</label>
+              <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex: Economia" className="w-full px-3 py-2 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 transition-colors" />
+            </div>
+
+            {metricType === 'ECONOMIA' && (
+              <div className="grid grid-cols-2 gap-2">
+                <ColSelect label="Base monetária" value={baseCol} onChange={setBaseCol} cols={nums} hint="Obrigatório com percentual" />
+                <ColSelect label="Percentual" value={percentCol} onChange={setPercentCol} cols={nums} hint="Opcional se usar valor final" />
+                <ColSelect label="Valor inicial" value={initialCol} onChange={setInitialCol} cols={nums} hint="Alternativa ao cálculo percentual" />
+                <ColSelect label="Valor final" value={finalCol} onChange={setFinalCol} cols={nums} hint="Alternativa ao cálculo percentual" />
+              </div>
+            )}
+            {metricType === 'TOTAL' && (
+              <ColSelect label="Coluna monetária" value={valueCol} onChange={setValueCol} cols={nums} />
+            )}
+            {metricType === 'VARIACAO' && (
+              <div className="grid grid-cols-2 gap-2">
+                <ColSelect label="Coluna inicial" value={initialCol} onChange={setInitialCol} cols={nums} />
+                <ColSelect label="Coluna final" value={finalCol} onChange={setFinalCol} cols={nums} />
+              </div>
+            )}
+
             <div className="grid grid-cols-3 gap-2">
-              <ColSelect label="Valor Original" value={v1Col} onChange={setV1} cols={nums} hint="Ex: Valor Corrigido" />
-              <ColSelect label="Valor Negociado" value={v2Col} onChange={setV2} cols={nums} hint="Ex: Valor Negociado" />
-              <ColSelect label="Saving" value={savCol} onChange={setSav} cols={nums} hint="Pode ser monetario ou percentual" />
+              <ColSelect label="Categoria" value={categoryCol} onChange={setCategoryCol} cols={cats} placeholder="— opcional —" />
+              <ColSelect label="Entidade" value={entityCol} onChange={setEntityCol} cols={cats} placeholder="— opcional —" />
+              <ColSelect label="Data" value={dateCol} onChange={setDateCol} cols={dates} placeholder="— opcional —" />
             </div>
 
-            {savCol !== '' && (
-              <div className={`rounded-lg border px-3 py-2 text-xs ${savingType === 'percentage' ? 'bg-amber-900/20 border-amber-700/30 text-amber-200' : 'bg-emerald-900/20 border-emerald-700/30 text-emerald-200'}`}>
-                <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                  <div>
-                    <div className="font-semibold">
-                      {savingType === 'percentage' ? 'Coluna percentual detectada' : 'Coluna monetaria detectada'}
-                    </div>
-                    <div className="mt-1 text-[11px] text-white/70">
-                      Detectado automaticamente: {detectedSavingType === 'percentage' ? 'Percentual' : 'Monetario'}
-                    </div>
-                  </div>
-                  <div className="min-w-[180px]">
-                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/60">Tipo do saving</label>
-                    <select
-                      value={savingTypeChoice}
-                      onChange={e => setSavingTypeChoice(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white outline-none focus:border-blue-500"
-                    >
-                      <option value="auto">Automático</option>
-                      <option value="monetary">Monetário</option>
-                      <option value="percentage">Percentual</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="mt-2 text-[11px] text-white/70">
-                  {savingType === 'percentage'
-                    ? 'O saving sera convertido para R$ linha a linha usando uma coluna base.'
-                    : 'O saving sera somado diretamente como valor monetario.'}
-                </div>
-              </div>
-            )}
-
-            {savingMode === 'percent_x_base' && (
-              <div className="space-y-2 rounded-xl border border-amber-700/30 bg-amber-950/20 p-3">
-                <ColSelect
-                  label="Valor base para calculo"
-                  value={baseCol}
-                  onChange={setBaseCol}
-                  cols={nums}
-                  hint={suggestedBaseProfile ? `Sugestão automática: ${suggestedBaseProfile.name}` : 'Selecione a coluna monetaria usada como base'}
-                />
-                {baseCol === '' && (
-                  <div className="text-[11px] text-amber-200">
-                    Selecione a coluna de valor base para calcular o saving monetario.
-                  </div>
-                )}
-                {baseIsSameAsSaving && (
-                  <div className="text-[11px] text-rose-200">
-                    ⚠️ A coluna base não pode ser a mesma coluna percentual de saving.
-                  </div>
-                )}
-                {!baseIsSameAsSaving && baseLooksPercent && (
-                  <div className="text-[11px] text-rose-200">
-                    ⚠️ A coluna base selecionada parece percentual. Escolha uma coluna monetária para evitar valores incorretos.
-                  </div>
-                )}
-                {!baseIsSameAsSaving && !baseLooksPercent && baseCol !== '' && !baseLooksMonetary && (
-                  <div className="space-y-2">
-                    <div className="text-[11px] text-amber-200">
-                      ⚠️ A coluna base selecionada não parece monetária. Isso pode gerar valores incorretos.
-                    </div>
-                    <label className="flex items-center gap-2 text-[11px] text-white/75">
-                      <input
-                        type="checkbox"
-                        checked={baseConfirmed}
-                        onChange={e => setBaseConfirmed(e.target.checked)}
-                        className="rounded border-white/20 bg-white/5"
-                      />
-                      Confirmo que quero usar essa coluna como base mesmo assim.
-                    </label>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {needsBaseSelection && (
-              <div className="text-[11px] text-amber-200">
-                Selecione a coluna de valor base para calcular o saving monetario.
+            {!savingSummary.valid && (
+              <div className="rounded-lg border border-rose-700/30 bg-rose-950/20 px-3 py-2 text-[11px] text-rose-200">
+                As colunas selecionadas não atendem os requisitos da métrica escolhida.
               </div>
             )}
 
@@ -525,15 +425,9 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gradient-to-r from-[#1a3a5c] to-[#2e5c8a] rounded-xl p-4 flex items-center justify-between">
                 <div>
                   <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{label}</div>
-                  <div className="text-2xl font-bold text-green-400 font-mono">{fmtBRL(saving)}</div>
+                  <div className="text-2xl font-bold text-green-400 font-mono">{metricType === 'TAXA' ? fmtPct(saving) : metricType === 'VOLUME' ? String(saving) : fmtBRL(saving)}</div>
                   <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/70">
-                    {savingMode === 'percent_x_base'
-                      ? 'Modo: Saving (%) x Valor Base'
-                      : savingMode === 'direct_value'
-                        ? 'Modo: Saving Direto'
-                        : savingMode === 'original_minus_negotiated'
-                          ? 'Modo: Valor Original - Valor Negociado'
-                          : 'Modo: nao configurado'}
+                    Tipo: {metricType}
                   </div>
                   {detailItems.length > 0 && (
                     <div className="flex items-center gap-3 mt-2">
@@ -542,7 +436,7 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) 
                           {index > 0 && <span className="text-white/30 text-sm">→</span>}
                           <div>
                             <div className={`text-xs font-bold font-mono ${item.accent ? 'text-green-400' : 'text-white'}`}>
-                              {item.kind === 'percent' ? fmtPct(item.value) : fmtBRL(item.value)}
+                              {item.kind === 'percent' ? fmtPct(item.value) : item.kind === 'number' ? String(item.value) : fmtBRL(item.value)}
                             </div>
                             <div className="text-[9px] text-white/50">{item.label}</div>
                           </div>
@@ -823,23 +717,17 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss }) {
       footer:  'Relatório gerado pelo Report Flow · Uso interno',
 
       saving: {
-        label:            wdata.label || 'Saving Total (R$)',
-        savingMode:       wdata.savingMode || '',
-        savingCol:        wdata.savingMode === 'direct_value' ? ci(wdata.savingCol) : '',
-        savingPercentCol: wdata.savingMode === 'percent_x_base' ? ci(wdata.savingPercentCol || wdata.savingCol) : '',
-        savingBaseCol:    wdata.savingMode === 'percent_x_base' ? ci(wdata.savingBaseCol) : '',
-        savingBaseLabel:  wdata.savingBaseCol !== '' ? (a[parseInt(wdata.savingBaseCol)]?.name || 'Valor Base') : 'Valor Base',
-        savingPercentLabel: (wdata.savingPercentCol || wdata.savingCol) !== ''
-          ? (a[parseInt(wdata.savingPercentCol || wdata.savingCol)]?.name || 'Saving (%)')
-          : 'Saving (%)',
-        originalCol:      wdata.savingMode === 'original_minus_negotiated' ? ci(wdata.originalCol ?? wdata.v1Col) : '',
-        originalLabel:    (wdata.originalCol ?? wdata.v1Col) !== '' ? (a[parseInt(wdata.originalCol ?? wdata.v1Col)]?.name || 'Valor Original') : 'Valor Original',
-        negotiatedCol:    wdata.savingMode === 'original_minus_negotiated' ? ci(wdata.negotiatedCol ?? wdata.v2Col) : '',
-        negotiatedLabel:  (wdata.negotiatedCol ?? wdata.v2Col) !== '' ? (a[parseInt(wdata.negotiatedCol ?? wdata.v2Col)]?.name || 'Valor Negociado') : 'Valor Negociado',
-        v1Col:            wdata.savingMode === 'original_minus_negotiated' ? ci(wdata.originalCol ?? wdata.v1Col) : '',
-        v1Label:          (wdata.originalCol ?? wdata.v1Col) !== '' ? (a[parseInt(wdata.originalCol ?? wdata.v1Col)]?.name || 'Valor 1') : 'Valor Original',
-        v2Col:            wdata.savingMode === 'original_minus_negotiated' ? ci(wdata.negotiatedCol ?? wdata.v2Col) : '',
-        v2Label:          (wdata.negotiatedCol ?? wdata.v2Col) !== '' ? (a[parseInt(wdata.negotiatedCol ?? wdata.v2Col)]?.name || 'Valor 2') : 'Valor Negociado',
+        metricType:       wdata.metricType || 'ECONOMIA',
+        type:             wdata.metricType || 'ECONOMIA',
+        label:            wdata.label || 'Economia',
+        valueCol:         ci(wdata.valueCol),
+        percentCol:       ci(wdata.percentCol),
+        baseCol:          ci(wdata.baseCol),
+        initialCol:       ci(wdata.initialCol),
+        finalCol:         ci(wdata.finalCol),
+        categoryCol:      ci(wdata.categoryCol || wdata.g2col),
+        entityCol:        ci(wdata.entityCol || wdata.g4label || wdata.g2col),
+        dateCol:          ci(wdata.dateCol || wdata.g3date),
       },
 
       sections: {
@@ -889,7 +777,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss }) {
         },
       },
 
-      groupCol: ci(wdata.g2col), // agrupamento do resumo = mesma col do G2
+      groupCol: ci(wdata.categoryCol || wdata.g2col),
       colors: {
         primary:   '#1a3a5c',
         secondary: '#2e5c8a',

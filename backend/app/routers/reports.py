@@ -81,16 +81,6 @@ def _build_tabular_data_from_config(config: dict | None) -> list[dict]:
         column_names.append(name)
 
     saving_cfg = config.get("saving") if isinstance(config.get("saving"), dict) else {}
-    base_idx_raw = saving_cfg.get("savingBaseCol", saving_cfg.get("valorBaseCol", saving_cfg.get("baseCol")))
-    pct_idx_raw = saving_cfg.get("savingPercentCol", saving_cfg.get("percentualCol", saving_cfg.get("percentCol")))
-    try:
-        base_idx = int(base_idx_raw)
-    except (TypeError, ValueError):
-        base_idx = -1
-    try:
-        pct_idx = int(pct_idx_raw)
-    except (TypeError, ValueError):
-        pct_idx = -1
 
     def _to_number(value: Any) -> float:
         text = re.sub(r"[R$€£¥\s]", "", str(value or "").strip())
@@ -121,10 +111,51 @@ def _build_tabular_data_from_config(config: dict | None) -> list[dict]:
         item = {}
         for index, column_name in enumerate(column_names):
             item[column_name] = cells[index] if index < len(cells) else None
-        if base_idx >= 0 and pct_idx >= 0 and base_idx < len(cells) and pct_idx < len(cells):
-            base_value = _to_number(cells[base_idx])
-            percentage = _to_number(cells[pct_idx])
-            item["saving_calculado"] = base_value * (percentage / 100)
+        metric_type = str(saving_cfg.get("metricType") or saving_cfg.get("type") or "ECONOMIA").upper()
+
+        def _idx(*keys: str) -> int:
+            for key in keys:
+                raw = saving_cfg.get(key)
+                try:
+                    idx = int(raw)
+                    if idx >= 0:
+                        return idx
+                except (TypeError, ValueError):
+                    continue
+            return -1
+
+        def _cell(idx: int) -> Any:
+            return cells[idx] if 0 <= idx < len(cells) else None
+
+        value_idx = _idx("valueCol", "savingCol")
+        base_idx = _idx("baseCol", "savingBaseCol", "valorBaseCol", "baseCol")
+        pct_idx = _idx("percentCol", "savingPercentCol", "percentualCol", "percentCol")
+        initial_idx = _idx("initialCol", "originalCol", "v1Col")
+        final_idx = _idx("finalCol", "negotiatedCol", "v2Col")
+
+        metric_value = None
+        if metric_type == "ECONOMIA":
+            if base_idx >= 0 and pct_idx >= 0:
+                base_value = _to_number(_cell(base_idx))
+                percentage = _to_number(_cell(pct_idx))
+                metric_value = base_value * (percentage / 100)
+                item["saving (%)"] = percentage
+            elif initial_idx >= 0 and final_idx >= 0:
+                metric_value = _to_number(_cell(initial_idx)) - _to_number(_cell(final_idx))
+        elif metric_type == "TOTAL" and value_idx >= 0:
+            metric_value = _to_number(_cell(value_idx))
+        elif metric_type == "VARIACAO" and initial_idx >= 0 and final_idx >= 0:
+            initial_value = _to_number(_cell(initial_idx))
+            final_value = _to_number(_cell(final_idx))
+            metric_value = ((final_value - initial_value) / initial_value) * 100 if initial_value else 0.0
+        elif metric_type == "TAXA":
+            metric_value = 1.0
+        elif metric_type == "VOLUME":
+            metric_value = 1.0
+
+        if metric_value is not None:
+            item["metric_value"] = metric_value
+            item["saving_calculado"] = metric_value
         tabular_data.append(item)
 
     return tabular_data

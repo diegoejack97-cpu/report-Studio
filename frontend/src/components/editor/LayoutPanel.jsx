@@ -52,10 +52,7 @@ export default function LayoutPanel({ state, update }) {
   const setColor = (k, v) => update(s => ({ ...s, colors: { ...s.colors, [k]: v } }))
   const setSav = (k, v) => update(s => ({ ...s, saving: { ...s.saving, [k]: v } }))
   const setExportOpt = (k, v) => update(s => ({ ...s, exportOptions: { ...(s.exportOptions || {}), [k]: v } }))
-  const currentSavingMode = savCfg.savingMode
-    || (savCfg.savingPercentCol && savCfg.savingBaseCol ? 'percent_x_base' : '')
-    || (savCfg.savingCol ? 'direct_value' : '')
-    || ((savCfg.originalCol || savCfg.v1Col || savCfg.negotiatedCol || savCfg.v2Col) ? 'original_minus_negotiated' : '')
+  const currentMetricType = savCfg.metricType || savCfg.type || 'ECONOMIA'
 
   const addKPI = () => update(s => ({ ...s, kpis: [...s.kpis, { label: 'KPI', col: '', fmt: 'count', icon: '📊', color: '#3b82f6' }] }))
   const updKPI = (i, k, v) => update(s => ({ ...s, kpis: s.kpis.map((kpi, idx) => idx === i ? { ...kpi, [k]: v } : kpi) }))
@@ -70,67 +67,59 @@ export default function LayoutPanel({ state, update }) {
         <Field label="Empresa"><input className="input-field text-xs py-1.5" value={state.company || ''} onChange={e => setCo(e.target.value)} /></Field>
       </Accordion>
 
-      <Accordion title="💰 Banner Saving">
+      <Accordion title="💰 Métrica principal">
         <Toggle checked={sections.saving !== false} onChange={v => setSection('saving', v)} label="Mostrar banner" />
         <Field label="Rótulo"><input className="input-field text-xs py-1.5" value={savCfg.label || ''} onChange={e => setSav('label', e.target.value)} /></Field>
-        <Field label="Modo de cálculo">
-          <select className="input-field text-xs py-1.5" value={currentSavingMode} onChange={e => setSav('savingMode', e.target.value)}>
-            <option value="">— nenhum —</option>
-            <option value="original_minus_negotiated">Valor Original - Valor Negociado</option>
-            <option value="direct_value">Saving Direto (R$)</option>
-            <option value="percent_x_base">Saving (%) x Valor Base</option>
+        <Field label="Tipo de métrica">
+          <select className="input-field text-xs py-1.5" value={currentMetricType} onChange={e => setSav('metricType', e.target.value)}>
+            <option value="ECONOMIA">Economia</option>
+            <option value="TOTAL">Total Financeiro</option>
+            <option value="VARIACAO">Variação</option>
+            <option value="TAXA">Taxa</option>
+            <option value="VOLUME">Volume</option>
           </select>
         </Field>
-        {currentSavingMode === 'direct_value' && (
-          <Field label="Coluna Saving Direto (R$)">
-            <Select value={savCfg.savingCol} onChange={v => setSav('savingCol', v)} options={numOpts} />
-          </Field>
-        )}
-        {currentSavingMode === 'original_minus_negotiated' && (
+        {currentMetricType === 'ECONOMIA' && (
           <>
-            <Field label="Coluna Valor Original">
-              <Select
-                value={savCfg.originalCol ?? savCfg.v1Col}
-                onChange={v => update(s => ({ ...s, saving: { ...s.saving, originalCol: v, v1Col: v } }))}
-                options={numOpts}
-              />
+            <Field label="Base monetária">
+              <Select value={savCfg.baseCol ?? savCfg.savingBaseCol} onChange={v => setSav('baseCol', v)} options={numOpts} />
             </Field>
-            <Field label="Label Valor Original">
-              <input
-                className="input-field text-xs py-1.5"
-                value={savCfg.originalLabel ?? savCfg.v1Label ?? ''}
-                onChange={e => update(s => ({ ...s, saving: { ...s.saving, originalLabel: e.target.value, v1Label: e.target.value } }))}
-              />
+            <Field label="Percentual">
+              <Select value={savCfg.percentCol ?? savCfg.savingPercentCol} onChange={v => setSav('percentCol', v)} options={numOpts} />
             </Field>
-            <Field label="Coluna Valor Negociado">
-              <Select
-                value={savCfg.negotiatedCol ?? savCfg.v2Col}
-                onChange={v => update(s => ({ ...s, saving: { ...s.saving, negotiatedCol: v, v2Col: v } }))}
-                options={numOpts}
-              />
+            <Field label="Valor inicial">
+              <Select value={savCfg.initialCol ?? savCfg.originalCol} onChange={v => setSav('initialCol', v)} options={numOpts} />
             </Field>
-            <Field label="Label Valor Negociado">
-              <input
-                className="input-field text-xs py-1.5"
-                value={savCfg.negotiatedLabel ?? savCfg.v2Label ?? ''}
-                onChange={e => update(s => ({ ...s, saving: { ...s.saving, negotiatedLabel: e.target.value, v2Label: e.target.value } }))}
-              />
+            <Field label="Valor final">
+              <Select value={savCfg.finalCol ?? savCfg.negotiatedCol} onChange={v => setSav('finalCol', v)} options={numOpts} />
             </Field>
           </>
         )}
-        {currentSavingMode === 'percent_x_base' && (
+        {currentMetricType === 'TOTAL' && (
+          <Field label="Coluna monetária">
+            <Select value={savCfg.valueCol ?? savCfg.savingCol} onChange={v => setSav('valueCol', v)} options={numOpts} />
+          </Field>
+        )}
+        {currentMetricType === 'VARIACAO' && (
           <>
-            <Field label="Coluna Saving (%)">
-              <Select value={savCfg.savingPercentCol} onChange={v => setSav('savingPercentCol', v)} options={numOpts} />
+            <Field label="Coluna inicial">
+              <Select value={savCfg.initialCol ?? savCfg.originalCol} onChange={v => setSav('initialCol', v)} options={numOpts} />
             </Field>
-            <Field label="Label Saving (%)">
-              <input className="input-field text-xs py-1.5" value={savCfg.savingPercentLabel || ''} onChange={e => setSav('savingPercentLabel', e.target.value)} />
+            <Field label="Coluna final">
+              <Select value={savCfg.finalCol ?? savCfg.negotiatedCol} onChange={v => setSav('finalCol', v)} options={numOpts} />
             </Field>
-            <Field label="Coluna Valor Base">
-              <Select value={savCfg.savingBaseCol} onChange={v => setSav('savingBaseCol', v)} options={numOpts} />
+          </>
+        )}
+        {(currentMetricType === 'TAXA' || currentMetricType === 'VOLUME' || currentMetricType === 'ECONOMIA' || currentMetricType === 'TOTAL' || currentMetricType === 'VARIACAO') && (
+          <>
+            <Field label="Categoria">
+              <Select value={savCfg.categoryCol ?? state.groupCol} onChange={v => setSav('categoryCol', v)} options={cols.map((c, i) => ({ value: String(i), label: c.name }))} />
             </Field>
-            <Field label="Label Valor Base">
-              <input className="input-field text-xs py-1.5" value={savCfg.savingBaseLabel || ''} onChange={e => setSav('savingBaseLabel', e.target.value)} />
+            <Field label="Entidade / Ranking">
+              <Select value={savCfg.entityCol ?? savCfg.categoryCol ?? state.groupCol} onChange={v => setSav('entityCol', v)} options={cols.map((c, i) => ({ value: String(i), label: c.name }))} />
+            </Field>
+            <Field label="Data">
+              <Select value={savCfg.dateCol} onChange={v => setSav('dateCol', v)} options={cols.map((c, i) => ({ value: String(i), label: c.name }))} />
             </Field>
           </>
         )}
