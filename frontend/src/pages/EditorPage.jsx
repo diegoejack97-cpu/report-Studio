@@ -56,6 +56,14 @@ const DEFAULT_STATE = {
   exportOptions: { strictParity: true, themeMode: 'follow' },
 }
 
+function getApiErrorMessage(err, fallback = 'Erro ao salvar') {
+  const detail = err?.response?.data?.detail
+  if (!detail) return fallback
+  if (typeof detail === 'string') return detail
+  if (typeof detail === 'object') return detail.message || detail.error || fallback
+  return fallback
+}
+
 export default function EditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -88,7 +96,7 @@ export default function EditorPage() {
       return null
     }
 
-    const reportData = report.report_data || report.reportData || null
+    const reportData = report.report_data || report.reportData || {}
     const syncedInsights = Array.isArray(reportData?.insights)
       ? reportData.insights
       : (Array.isArray(stateRef.current.insights) ? stateRef.current.insights : [])
@@ -169,7 +177,9 @@ export default function EditorPage() {
       const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }
       // Debounced auto-save
       clearTimeout(debounceRef.current)
-      debounceRef.current = setTimeout(() => autoSave(next), 2000)
+      debounceRef.current = setTimeout(() => {
+        void autoSave(next).catch(() => {})
+      }, 2000)
       return next
     })
   }, [reportId])
@@ -201,14 +211,23 @@ export default function EditorPage() {
       if (err.response?.status === 402) {
         toast.error(err.response.data.detail, { duration: 6000 })
         navigate('/pricing')
+        return null
       }
+      const message = getApiErrorMessage(err, 'Erro ao salvar')
+      toast.error(message, { duration: 6000 })
+      throw err
     }
   }
 
   const handleSave = async () => {
     setSaving(true)
-    try { await autoSave(state); toast.success('Salvo!') }
-    catch { toast.error('Erro ao salvar') }
+    try {
+      const result = await autoSave(state)
+      if (!result) return
+      toast.success('Salvo!')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Erro ao salvar'))
+    }
     finally { setSaving(false) }
   }
 
@@ -237,6 +256,7 @@ export default function EditorPage() {
     try {
       setSaving(true)
       const saveResult = await autoSave(state)
+      if (!saveResult) return
       const activeReportId = saveResult?.reportId || reportId
 
       if (!activeReportId) {
@@ -277,7 +297,7 @@ export default function EditorPage() {
         navigate('/pricing')
         return
       }
-      toast.error(err?.response?.data?.detail || 'Erro ao exportar HTML')
+      toast.error(getApiErrorMessage(err, 'Erro ao exportar HTML'), { duration: 6000 })
     } finally {
       setSaving(false)
     }
@@ -309,7 +329,7 @@ export default function EditorPage() {
       ...wizardState,
       cols: detectedCols,
       rows: detectedRows,
-      reportData: previewData || null,
+      reportData: previewData || {},
     }
 
     setState(nextState)

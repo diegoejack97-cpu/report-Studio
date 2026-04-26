@@ -239,13 +239,14 @@ function KPICard({ kpi, dark }) {
 export default function ReportPreview({ state }) {
   const { dark } = useThemeStore()
   const { cols = [], rows = [], colors = {}, sections = {}, reportData = {} } = state
-  const dataset = reportData.dataset || {}
+  const safeReportData = reportData || {}
+  const dataset = safeReportData.dataset || {}
   const summary = dataset.summary || { rows: [], totals: {}, group_index: -1 }
   const kpis = dataset.kpis || []
   const detailItems = dataset.detail_items || []
-  const metric = reportData.metric || { type: 'ECONOMIA', value: 0, label: 'Saving Total' }
-  const insights = reportData.insights || []
-  const charts = reportData.charts
+  const metric = safeReportData.metric || { type: 'ECONOMIA', value: 0, label: 'Saving Total' }
+  const insights = safeReportData.insights || []
+  const charts = safeReportData.charts
   const visCols = cols.map((c, i) => ({ ...c, i })).filter(c => c.vis !== false)
 
   const p1 = colors.primary || '#1a3a5c'
@@ -260,7 +261,7 @@ export default function ReportPreview({ state }) {
   const savTotal = metric.value ?? 0
   const summaryLabel = summary.group_index >= 0 ? cols[summary.group_index]?.name || '—' : '—'
 
-  if (!reportData?.dataset) {
+  if (!safeReportData?.dataset) {
     return (
       <div className="p-4" style={{ background: bgColor, minHeight: '100%', color: textColor }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>

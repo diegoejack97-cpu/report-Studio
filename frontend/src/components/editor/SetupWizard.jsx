@@ -26,6 +26,10 @@ function detectColumns(cols, rows) {
   })
 }
 
+function isNumericType(type) {
+  return ['number', 'monetary', 'percent'].includes(type)
+}
+
 function parseNumericValue(value) {
   let str = String(value ?? '').trim().replace(/[R$€£¥%\s]/g, '')
   if (!str) return Number.NaN
@@ -77,7 +81,7 @@ function isMonetaryColumn(values = []) {
 
 function buildNumericProfiles(analyzed, rows) {
   return analyzed
-    .filter(c => c.type === 'number')
+    .filter(c => isNumericType(c.type))
     .map(c => {
       const values = getColumnValues(rows, c.i)
       return {
@@ -456,7 +460,7 @@ function StepKPIs({ data, analyzed, onChange, onNext, onBack, onSkip }) {
 
   const [kpis, setKpis] = useState(data.kpis?.length ? data.kpis : [
     { label: 'Total Registros', icon: '📋', col: '', fmt: 'count', color: '#3b82f6' },
-    { label: 'Valor Total', icon: '💰', col: String(analyzed.filter(c => c.type === 'number')[0]?.i ?? ''), fmt: 'sum', color: '#16a34a' },
+    { label: 'Valor Total', icon: '💰', col: String(analyzed.filter(c => isNumericType(c.type))[0]?.i ?? ''), fmt: 'sum', color: '#16a34a' },
     { label: 'Top Categoria', icon: '🏆', col: String(analyzed.filter(c => c.type === 'text' && c.uniq >= 2)[0]?.i ?? ''), fmt: 'topval', color: '#f59e0b' },
   ])
 
@@ -602,7 +606,7 @@ function StepChartsDist({ data, analyzed, onChange, onNext, onBack, onSkip }) {
 
 // Step 5: Gráfico Temporal + Top N
 function StepChartsAdvanced({ data, analyzed, onChange, onNext, onBack, onSkip }) {
-  const nums  = analyzed.filter(c => c.type === 'number')
+  const nums  = analyzed.filter(c => isNumericType(c.type))
   const dates = analyzed.filter(c => c.type === 'date')
   const cats  = analyzed.filter(c => c.type === 'text' && c.uniq >= 2)
   const auto  = autoDetectCharts(analyzed)

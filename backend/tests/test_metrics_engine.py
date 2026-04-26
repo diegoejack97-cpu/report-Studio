@@ -271,6 +271,24 @@ def test_invalid_column_type_raises_validation_error():
     assert exc_info.value.field == "valueCol"
 
 
+def test_frontend_number_columns_are_accepted_for_numeric_metrics():
+    data = {
+        "cols": [
+            {"name": "Base", "type": "number"},
+            {"name": "Pct", "type": "number"},
+        ],
+        "rows": [
+            {"cells": ["1000", "10%"]},
+        ],
+    }
+    config = _base_config("ECONOMIA", baseCol="0", percentCol="1")
+
+    result = build_metric_dataset(data, config)
+
+    assert result["metric"]["value"] == 100.0
+    _assert_all_numbers_finite(result)
+
+
 def test_missing_aggregation_for_chart_raises_structured_error():
     data = {
         "cols": [

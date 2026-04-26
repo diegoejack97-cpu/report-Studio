@@ -36,7 +36,7 @@ function Toggle({ checked, onChange, label }) {
 export default function ChartsPanel({ state, update }) {
   const { cols = [], charts: ch = {} } = state
   const colOpts = cols.map((c, i) => ({ value: String(i), label: c.name }))
-  const numOpts  = colOpts.filter((_, i) => cols[i]?.type === 'number')
+  const numOpts  = colOpts.filter((_, i) => !cols[i]?.type || ['number', 'monetary', 'percent'].includes(cols[i]?.type))
 
   const setG = (g, k, v) => update(s => ({ ...s, charts: { ...s.charts, [g]: { ...s.charts?.[g], [k]: v } } }))
 

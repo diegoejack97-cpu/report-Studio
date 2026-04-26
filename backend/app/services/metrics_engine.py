@@ -165,6 +165,14 @@ def _validate_column_type(field: str, column: dict[str, Any] | None, expected: s
     if column is None:
         return
     received = str(column.get("type") or "text").lower()
+    if received == expected:
+        return
+
+    # The frontend still labels uploaded numeric columns as "number".
+    # Treat that legacy value as compatible with numeric metric fields.
+    if received == "number" and expected in {"monetary", "percent"}:
+        return
+
     if received != expected:
         raise MetricsValidationError(
             f"A coluna selecionada para {field} não é compatível com a métrica.",

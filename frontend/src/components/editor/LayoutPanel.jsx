@@ -42,7 +42,7 @@ export default function LayoutPanel({ state, update }) {
   const { cols = [], kpis = [], colors = {}, sections = {}, saving: savCfg = {}, exportOptions = {} } = state
   const numOpts = cols
     .map((c, i) => ({ ...c, value: String(i), label: c.name }))
-    .filter(c => !c.type || c.type === 'number')
+    .filter(c => !c.type || ['number', 'monetary', 'percent'].includes(c.type))
 
   const setTitle = v => update({ title: v })
   const setSub = v => update({ subtitle: v })

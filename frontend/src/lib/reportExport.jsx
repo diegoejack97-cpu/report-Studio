@@ -11,12 +11,13 @@ export function buildReportHTML(state, options = {}) {
   const { isDark = false, strictParity = true } = options
   const { title, subtitle, period, company, cols = [], rows = [], colors, sections, footer } = state
   const reportData = state.reportData || {}
-  const dataset = reportData.dataset || {}
-  const metric = reportData.metric || { type: 'ECONOMIA', value: 0, label: 'Saving Total' }
+  const safeReportData = reportData || {}
+  const dataset = safeReportData.dataset || {}
+  const metric = safeReportData.metric || { type: 'ECONOMIA', value: 0, label: 'Saving Total' }
   const kpis = dataset.kpis || []
   const summary = dataset.summary || { labels: [], rows: [], totals: {} }
   const detailItems = dataset.detail_items || []
-  const insights = reportData.insights || []
+  const insights = safeReportData.insights || []
   const p1 = colors?.primary || '#1a3a5c'
   const p2 = colors?.secondary || '#2e5c8a'
   const acc = colors?.accent || '#4ade80'
@@ -28,7 +29,7 @@ export function buildReportHTML(state, options = {}) {
   const showFilters = sections?.filters !== false
   const showCharts = sections?.charts !== false
   const rowRenderLimit = rows.length
-  const charts = Array.isArray(reportData.charts) ? reportData.charts : []
+  const charts = Array.isArray(safeReportData.charts) ? safeReportData.charts : []
   const chartsJSON = JSON.stringify(charts)
   const reportDataJSON = JSON.stringify(reportData)
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
