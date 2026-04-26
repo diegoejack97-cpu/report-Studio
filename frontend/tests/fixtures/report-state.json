@@ -83,6 +83,94 @@
         { "kind": "currency", "label": "Saving", "value": 306000 }
       ]
     },
+    "charts": [
+      {
+        "id": "g1",
+        "title": "Distribuicao por Conformidade",
+        "type": "pie",
+        "labels": ["Sim", "Não"],
+        "data": [245000, 61000],
+        "full": false,
+        "h": 260,
+        "option": {
+          "tooltip": { "trigger": "item" },
+          "legend": { "orient": "vertical", "right": 0, "top": "middle" },
+          "series": [
+            {
+              "type": "pie",
+              "radius": ["45%", "72%"],
+              "center": ["42%", "50%"],
+              "data": [
+                { "name": "Sim", "value": 245000 },
+                { "name": "Não", "value": 61000 }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "g2",
+        "title": "Contratos por Categoria",
+        "type": "bar",
+        "labels": ["Tecnologia", "Facilities", "Energia"],
+        "data": [3, 4, 5],
+        "full": false,
+        "h": 260,
+        "option": {
+          "tooltip": { "trigger": "axis" },
+          "xAxis": { "type": "category", "data": ["Tecnologia", "Facilities", "Energia"] },
+          "yAxis": { "type": "value" },
+          "series": [
+            {
+              "type": "bar",
+              "data": [3, 4, 5]
+            }
+          ]
+        }
+      },
+      {
+        "id": "g3",
+        "title": "Evolucao Mensal",
+        "type": "line",
+        "labels": ["Jan/2026", "Fev/2026", "Mar/2026", "Abr/2026"],
+        "data": [22000, 24000, 38000, 21000],
+        "full": true,
+        "h": 300,
+        "option": {
+          "tooltip": { "trigger": "axis" },
+          "legend": { "top": 0 },
+          "xAxis": { "type": "category", "data": ["Jan/2026", "Fev/2026", "Mar/2026", "Abr/2026"] },
+          "yAxis": { "type": "value" },
+          "series": [
+            {
+              "type": "line",
+              "smooth": true,
+              "data": [22000, 24000, 38000, 21000]
+            }
+          ]
+        }
+      },
+      {
+        "id": "g4",
+        "title": "Top Fornecedor",
+        "type": "hbar",
+        "labels": ["Alpha", "Gamma", "Beta"],
+        "data": [66000, 38000, 24000],
+        "full": true,
+        "h": 300,
+        "option": {
+          "tooltip": { "trigger": "axis" },
+          "xAxis": { "type": "value" },
+          "yAxis": { "type": "category", "data": ["Alpha", "Gamma", "Beta"] },
+          "series": [
+            {
+              "type": "bar",
+              "data": [66000, 38000, 24000]
+            }
+          ]
+        }
+      }
+    ],
     "insights": []
   },
   "exportOptions": { "strictParity": true }

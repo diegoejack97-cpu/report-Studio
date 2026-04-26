@@ -26,11 +26,13 @@ export function buildReportHTML(state, options = {}) {
   const bdColor = isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'
   const subTxt = isDark ? '#486581' : '#94a3b8'
   const showFilters = sections?.filters !== false
+  const showCharts = sections?.charts !== false
   const rowRenderLimit = rows.length
-  const chartPayload = buildChartPayload(state)
-  const chartPayloadJSON = JSON.stringify(chartPayload)
+  const charts = Array.isArray(reportData.charts) ? reportData.charts : []
+  const chartsJSON = JSON.stringify(charts)
   const reportDataJSON = JSON.stringify(reportData)
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
+  const fmtN = v => Number(v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
 
   function renderInsightsHTML(items = []) {
@@ -332,7 +334,7 @@ table#mt td{padding:7px 11px;border-bottom:1px solid ${bdColor};color:${txt};whi
 </div>
 ${insightsHTML}
 ${savHTML}${kpiHTML}
-<div class="cg" id="charts"></div>
+${showCharts ? '<div class="cg" id="charts"></div>' : ''}
 ${summaryHTML}
 ${tblHTML}
 ${sections?.footer ? `<div class="footer">${escapeHtml(footer || '')} · ${new Date().toLocaleDateString('pt-BR')}</div>` : ''}
@@ -340,10 +342,18 @@ ${sections?.footer ? `<div class="footer">${escapeHtml(footer || '')} · ${new D
 <script>window.REPORT_DATA = ${reportDataJSON};</script>
 <script>(function(){
 const _isDark = ${isDark ? 'true' : 'false'};
-const _charts = ${chartPayloadJSON};
+const _charts = ${chartsJSON};
 const _pal = _isDark ? ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'] : ['#1d4ed8','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#db2777','#65a30d','#ea580c','#4f46e5'];
+const _emptyBorder = ${JSON.stringify(bdColor)};
+const _emptyBg = ${JSON.stringify(cardBg)};
+const _emptyText = ${JSON.stringify(subTxt)};
 const cg = document.getElementById('charts');
-if (!_charts.length || !cg || !window.echarts) return;
+if (!Array.isArray(_charts) || !_charts.length || !cg || !window.echarts) {
+  if (cg) {
+    cg.innerHTML = '<div style="grid-column:1/-1;padding:18px 16px;border:1px solid ' + _emptyBorder + ';border-radius:9px;background:' + _emptyBg + ';color:' + _emptyText + ';font-size:13px;">O backend não enviou charts para este relatório.</div>';
+  }
+  return;
+}
 function mk(id, full, title, h){
   const card = document.createElement('div');
   card.className = 'cc' + (full ? ' full' : '');
@@ -372,121 +382,8 @@ function baseGrid(horizontal){
 function render(item){
   const el = mk(item.id, !!item.full, item.title, item.h || 260);
   const inst = echarts.init(el);
-  let option = null;
-  if (item.type === 'pie') {
-    option = {
-      color:_pal,
-      tooltip:{ trigger:'item' },
-      legend:{ orient:'vertical', right:0, top:'middle', textStyle:{ color:_isDark?'#94a3b8':'#64748b', fontSize:11 } },
-      series:[{
-        type:'pie',
-        radius:item.rose ? ['15%','72%'] : item.donut ? ['45%','72%'] : ['0%','72%'],
-        roseType:item.rose ? 'radius' : false,
-        center:['42%','50%'],
-        itemStyle:{ borderColor:_isDark?'#0d1a26':'#fff', borderWidth:2 },
-        data:item.labels.map((n,i)=>({ name:n, value:item.data[i] || 0 }))
-      }]
-    };
-  }
-  if (item.type === 'bar') {
-    const horizontal = !!item.horizontal;
-    option = {
-      color:_pal,
-      grid:baseGrid(horizontal),
-      tooltip:{ trigger:'axis' },
-      xAxis:horizontal
-        ? { type:'value', axisLabel:{ color:_isDark?'#94a3b8':'#64748b', formatter:item.isNum ? (v)=>fmtBRL(v).replace('R$\\u00a0','') : undefined }, splitLine:{ lineStyle:{ color:_isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.06)' } }, axisLine:{ lineStyle:{ color:_isDark?'#1c3350':'#e2e8f0' } } }
-        : { type:'category', data:item.labels, axisLabel:{ color:_isDark?'#94a3b8':'#64748b', interval:0, rotate:item.labels.length>8?30:0 }, axisLine:{ lineStyle:{ color:_isDark?'#1c3350':'#e2e8f0' } } },
-      yAxis:horizontal
-        ? { type:'category', data:item.labels, axisLabel:{ color:_isDark?'#94a3b8':'#64748b' }, axisLine:{ lineStyle:{ color:_isDark?'#1c3350':'#e2e8f0' } } }
-        : { type:'value', axisLabel:{ color:_isDark?'#94a3b8':'#64748b', formatter:item.isNum ? (v)=>fmtBRL(v).replace('R$\\u00a0','') : undefined }, splitLine:{ lineStyle:{ color:_isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.06)' } }, axisLine:{ lineStyle:{ color:_isDark?'#1c3350':'#e2e8f0' } } },
-      series:[{ type:'bar', data:item.data, itemStyle:{ borderRadius:horizontal?[0,6,6,0]:[6,6,0,0] } }]
-    };
-  }
-  if (item.type === 'line') {
-    option = {
-      color:_pal,
-      tooltip:{ trigger:'axis' },
-      legend:{ top:0, textStyle:{ color:_isDark?'#94a3b8':'#64748b', fontSize:11 } },
-      grid:{ left:'3%', right:'4%', top:'16%', bottom:'12%', containLabel:true },
-      xAxis:{ type:'category', data:item.labels, boundaryGap:item.bar === true, axisLabel:{ color:_isDark?'#94a3b8':'#64748b' }, axisLine:{ lineStyle:{ color:_isDark?'#1c3350':'#e2e8f0' } } },
-      yAxis:{ type:'value', axisLabel:{ color:_isDark?'#94a3b8':'#64748b', formatter:item.isNum ? (v)=>fmtBRL(v).replace('R$\\u00a0','') : undefined }, splitLine:{ lineStyle:{ color:_isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.06)' } }, axisLine:{ lineStyle:{ color:_isDark?'#1c3350':'#e2e8f0' } } },
-      series:[
-        item.bar ? { type:'bar', name:item.name1 || 'V1', data:item.d1 } : { type:'line', smooth:true, name:item.name1 || 'V1', data:item.d1, areaStyle:item.area ? {} : undefined },
-        ...(item.d2 && item.d2.some(v=>v!==0) ? [item.bar ? { type:'bar', name:item.name2 || 'V2', data:item.d2 } : { type:'line', smooth:true, name:item.name2 || 'V2', data:item.d2, areaStyle:item.area ? {} : undefined }] : [])
-      ]
-    };
-  }
-  if (item.type === 'radar') {
-    option = {
-      color:_pal,
-      tooltip:{},
-      radar:{
-        indicator:item.labels.slice(0,8).map((n,i)=>({ name:n, max:(item.data[i] || 0) * 1.3 || 1 })),
-        axisName:{ color:_isDark?'#94a3b8':'#64748b', fontSize:10 },
-      },
-      series:[{ type:'radar', data:[{ value:item.data.slice(0,8), name:'Valor', areaStyle:{ opacity:0.25 } }] }]
-    };
-  }
-  if (item.type === 'treemap') {
-    option = {
-      color:_pal,
-      tooltip:{},
-      series:[{ type:'treemap', breadcrumb:{ show:false }, roam:false, data:item.labels.map((n,i)=>({ name:n, value:item.data[i] || 0 })) }]
-    };
-  }
-  if (item.type === 'funnel') {
-    option = {
-      color:_pal,
-      tooltip:{},
-      series:[{ type:'funnel', left:'10%', width:'80%', top:'5%', bottom:'5%', sort:'descending', data:item.labels.map((n,i)=>({ name:n, value:item.data[i] || 0 })) }]
-    };
-  }
-  if (item.type === 'scatter') {
-    option = {
-      color:_pal,
-      tooltip:{ trigger:'item' },
-      grid:{ left:'8%', right:'4%', top:'8%', bottom:'12%', containLabel:true },
-      xAxis:{ type:'value', name:item.xName || 'X', axisLabel:{ color:_isDark?'#94a3b8':'#64748b' }, splitLine:{ lineStyle:{ color:_isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.06)' } } },
-      yAxis:{ type:'value', name:item.yName || 'Y', axisLabel:{ color:_isDark?'#94a3b8':'#64748b', formatter:(v)=>fmtBRL(v).replace('R$\\u00a0','') }, splitLine:{ lineStyle:{ color:_isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.06)' } } },
-      series:[{ type:'scatter', symbolSize:9, data:item.points || [] }]
-    };
-  }
-  if (item.type === 'heatmap') {
-    const maxV = Math.max(1, ...(item.data || []).map(d=>d[2] || 0));
-    option = {
-      tooltip:{},
-      grid:{ left:'12%', right:'12%', top:'10%', bottom:'15%' },
-      xAxis:{ type:'category', data:item.xLabels || [], splitArea:{ show:true }, axisLabel:{ color:_isDark?'#94a3b8':'#64748b' } },
-      yAxis:{ type:'category', data:item.yLabels || [], splitArea:{ show:true }, axisLabel:{ color:_isDark?'#94a3b8':'#64748b' } },
-      visualMap:{ min:0, max:maxV, calculable:true, orient:'horizontal', left:'center', bottom:0, textStyle:{ color:_isDark?'#94a3b8':'#64748b' }, inRange:{ color:_isDark?['#1c3350','#3b82f6','#10b981']:['#e0f2fe','#3b82f6','#059669'] } },
-      series:[{ type:'heatmap', data:item.data || [] }]
-    };
-  }
-  if (item.type === 'waterfall') {
-    const vals = item.data || [];
-    const helper = [];
-    const bars = [];
-    let base = 0;
-    vals.forEach(v => {
-      helper.push(v >= 0 ? base : base + v);
-      bars.push(Math.abs(v));
-      base += v;
-    });
-    option = {
-      color:_pal,
-      tooltip:{ trigger:'axis' },
-      grid:{ left:'3%', right:'4%', top:'8%', bottom:'12%', containLabel:true },
-      xAxis:{ type:'category', data:item.labels || [], axisLabel:{ color:_isDark?'#94a3b8':'#64748b' } },
-      yAxis:{ type:'value', axisLabel:{ color:_isDark?'#94a3b8':'#64748b', formatter:(v)=>fmtBRL(v).replace('R$\\u00a0','') }, splitLine:{ lineStyle:{ color:_isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.06)' } } },
-      series:[
-        { type:'bar', stack:'total', data:helper, itemStyle:{ color:'transparent' }, silent:true },
-        { type:'bar', stack:'total', data:bars }
-      ]
-    };
-  }
-  if (!option) return;
-  inst.setOption(option, true);
+  if (!item?.option) return;
+  inst.setOption(item.option, true);
 }
 _charts.forEach(render);
 window.addEventListener('resize', () => {
@@ -496,75 +393,3 @@ window.addEventListener('resize', () => {
   });
 });
 })();<\/script></body></html>`
-}
-
-export function buildChartPayload(state) {
-  const reportData = state?.reportData || {}
-  const dataset = reportData.dataset || {}
-  const aggregations = dataset.aggregations || {}
-  const charts = state?.charts || {}
-  const sections = state?.sections || {}
-  if (sections?.charts === false) return []
-
-  const byCategory = aggregations.by_category || { labels: [], data: [] }
-  const byDate = aggregations.by_date || { labels: [], d1: [] }
-  const topItems = aggregations.top_items || { labels: [], data: [] }
-  const distribution = aggregations.distribution || { labels: [], data: [] }
-
-  const chartDefs = [
-    {
-      id: 'metric-1',
-      enabled: charts?.g1?.on !== false,
-      title: charts?.g1?.title || 'Distribuição por categoria',
-      type: charts?.g1?.type || 'pie',
-      horizontal: charts?.g1?.type === 'hbar',
-      labels: byCategory.labels,
-      data: byCategory.data,
-      d1: byCategory.data,
-    },
-    {
-      id: 'metric-2',
-      enabled: charts?.g2?.on !== false,
-      title: charts?.g2?.title || 'Distribuição',
-      type: charts?.g2?.type || 'bar',
-      horizontal: charts?.g2?.type === 'hbar',
-      labels: distribution.labels,
-      data: distribution.data,
-    },
-    {
-      id: 'metric-3',
-      enabled: charts?.g3?.on !== false,
-      title: charts?.g3?.title || 'Evolução mensal',
-      type: charts?.g3?.type || 'line',
-      horizontal: false,
-      labels: byDate.labels,
-      d1: byDate.d1,
-      d2: byDate.d2,
-    },
-    {
-      id: 'metric-4',
-      enabled: charts?.g4?.on !== false,
-      title: charts?.g4?.title || 'Top itens',
-      type: charts?.g4?.type || 'hbar',
-      horizontal: true,
-      labels: topItems.labels,
-      data: topItems.data,
-    },
-  ]
-
-  return chartDefs
-    .filter(chart => chart.enabled)
-    .map((chart, index) => ({
-      id: chart.id || `metric-${index + 1}`,
-      full: index >= 2,
-      title: chart.title,
-      h: index >= 2 ? 300 : 260,
-      type: chart.type === 'hbar' ? 'bar' : chart.type,
-      horizontal: chart.type === 'hbar' || chart.horizontal,
-      labels: chart.labels || [],
-      data: chart.data || [],
-      d1: chart.d1 || [],
-      d2: chart.d2 || [],
-      isNum: true,
-    }))
-}

@@ -240,12 +240,12 @@ export default function ReportPreview({ state }) {
   const { dark } = useThemeStore()
   const { cols = [], rows = [], colors = {}, sections = {}, reportData = {} } = state
   const dataset = reportData.dataset || {}
-  const aggregations = dataset.aggregations || {}
   const summary = dataset.summary || { rows: [], totals: {}, group_index: -1 }
   const kpis = dataset.kpis || []
   const detailItems = dataset.detail_items || []
   const metric = reportData.metric || { type: 'ECONOMIA', value: 0, label: 'Saving Total' }
   const insights = reportData.insights || []
+  const charts = reportData.charts
   const visCols = cols.map((c, i) => ({ ...c, i })).filter(c => c.vis !== false)
 
   const p1 = colors.primary || '#1a3a5c'
@@ -272,19 +272,19 @@ export default function ReportPreview({ state }) {
     )
   }
 
-  const byCategory = aggregations.by_category || { labels: [], data: [] }
-  const byDate = aggregations.by_date || { labels: [], d1: [], d2: [] }
-  const topItems = aggregations.top_items || { labels: [], data: [] }
-  const distribution = aggregations.distribution || { labels: [], data: [] }
-
-  const chartCards = [
-    { id: 'metric-1', title: state.charts?.g1?.title || 'Distribuição por categoria', type: state.charts?.g1?.type || 'pie', labels: byCategory.labels, data: byCategory.data, d1: byCategory.data, d2: [] },
-    { id: 'metric-2', title: state.charts?.g2?.title || 'Distribuição', type: state.charts?.g2?.type || 'bar', labels: distribution.labels, data: distribution.data, d1: distribution.data, d2: [] },
-    { id: 'metric-3', title: state.charts?.g3?.title || 'Evolução mensal', type: state.charts?.g3?.type || 'line', labels: byDate.labels, data: byDate.d1, d1: byDate.d1, d2: byDate.d2 || [] },
-    { id: 'metric-4', title: state.charts?.g4?.title || 'Top itens', type: state.charts?.g4?.type || 'hbar', labels: topItems.labels, data: topItems.data, d1: topItems.data, d2: [] },
-  ].filter((chart, index) => sections.charts !== false && state.charts?.[`g${index + 1}`]?.on !== false)
-
   const renderSummaryValue = value => fmtBRL(value)
+
+  if (!Array.isArray(charts)) {
+    return (
+      <div className="p-4" style={{ background: bgColor, minHeight: '100%', color: textColor }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+          <div className="rounded-2xl p-5" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
+            O backend não enviou `reportData.charts` para este relatório.
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4" style={{ background: bgColor, minHeight: '100%', color: textColor, transition: 'background .25s,color .25s' }}>
@@ -345,16 +345,25 @@ export default function ReportPreview({ state }) {
         )}
 
         {sections.charts !== false && (
-          <div className="grid grid-cols-2 gap-4 mb-5">
-            {chartCards.map((chart, index) => (
-              <ChartCard key={chart.id || index} title={chart.title} h={index >= 2 ? 300 : 260} full={index >= 2}>
-                {chart.type === 'pie' && <PieChart data={chart.data} labels={chart.labels} type="doughnut" h={index >= 2 ? 300 : 260} dark={dark} />}
-                {chart.type === 'bar' && <BarChart data={chart.data} labels={chart.labels} h={index >= 2 ? 300 : 260} dark={dark} isNum />}
-                {chart.type === 'hbar' && <BarChart data={chart.data} labels={chart.labels} horizontal h={index >= 2 ? 300 : 260} dark={dark} isNum />}
-                {chart.type === 'line' && <LineChart labels={chart.labels} d1={chart.d1 || []} d2={chart.d2 || []} h={index >= 2 ? 300 : 260} dark={dark} isNum />}
-              </ChartCard>
-            ))}
-          </div>
+          charts.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4 mb-5">
+              {charts.map((chart, index) => (
+                <ChartCard key={chart.id || index} title={chart.title || 'Gráfico'} h={chart.h || (index >= 2 ? 300 : 260)} full={!!chart.full}>
+                  {chart.option
+                    ? <EChart option={chart.option} h={chart.h || (index >= 2 ? 300 : 260)} />
+                    : (
+                      <div className="rounded-xl p-4 text-sm" style={{ background: dark ? '#102132' : '#f8fafc', border: `1px solid ${bdColor}`, color: subText }}>
+                        O backend enviou este gráfico sem option de renderização.
+                      </div>
+                    )}
+                </ChartCard>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl p-5 mb-5" style={{ background: cardBg, border: `1px solid ${bdColor}`, color: subText }}>
+              Nenhum gráfico foi configurado pelo backend.
+            </div>
+          )
         )}
 
         {sections.summary !== false && summary.rows.length > 0 && (

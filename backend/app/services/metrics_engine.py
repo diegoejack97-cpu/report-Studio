@@ -89,6 +89,16 @@ def parse_number(value: Any, *, is_percent: bool = False) -> float | None:
     return parsed
 
 
+def _finite_float(value: Any, default: float = 0.0) -> float:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    if not math.isfinite(numeric):
+        return float(default)
+    return numeric
+
+
 def _resolve_payload(data: Any, config: dict[str, Any] | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     payload_config = dict(config or {})
     if isinstance(data, dict):
@@ -276,6 +286,329 @@ def _build_distribution(values: list[float]) -> dict[str, list[Any]]:
         labels.append(f"{start:.2f} - {end:.2f}")
 
     return {"labels": labels, "data": buckets}
+
+
+def _chart_option_base(*, dark: bool = False) -> dict[str, Any]:
+    return {
+        "backgroundColor": "transparent",
+        "textStyle": {
+            "color": "#94a3b8" if dark else "#64748b",
+            "fontFamily": "DM Sans, system-ui",
+        },
+        "tooltip": {
+            "trigger": "item",
+            "backgroundColor": "#0d1a26" if dark else "#ffffff",
+            "borderColor": "rgba(255,255,255,0.12)" if dark else "rgba(0,0,0,0.12)",
+            "textStyle": {
+                "color": "#d9e2ec" if dark else "#1e293b",
+                "fontSize": 12,
+            },
+        },
+        "animation": True,
+        "animationDuration": 500,
+        "animationEasing": "cubicOut",
+    }
+
+
+def _resolve_chart_source(chart_key: str, chart_cfg: dict[str, Any], index: int) -> str:
+    explicit = str(chart_cfg.get("source") or chart_cfg.get("aggregation") or "").strip()
+    if explicit:
+        return explicit
+    default_sources = {
+        0: "by_category",
+        1: "distribution",
+        2: "by_date",
+        3: "top_items",
+    }
+    return default_sources.get(index, "")
+
+
+def _chart_full_width(chart_cfg: dict[str, Any], index: int) -> bool:
+    if "full" in chart_cfg:
+        return bool(chart_cfg.get("full"))
+    if "fullWidth" in chart_cfg:
+        return bool(chart_cfg.get("fullWidth"))
+    return index >= 2
+
+
+def _build_chart_option(chart_type: str, chart: dict[str, Any]) -> dict[str, Any]:
+    labels = list(chart.get("labels") or [])
+    data = [0 if value is None else _finite_float(value) for value in (chart.get("data") or [])]
+    dark = bool(chart.get("_dark"))
+    option = _chart_option_base(dark=dark)
+
+    if chart_type in {"pie", "doughnut", "nightingale"}:
+        option.update(
+            {
+                "color": chart.get("palette") or ["#1d4ed8", "#059669", "#d97706", "#dc2626", "#7c3aed", "#0891b2"],
+                "legend": {
+                    "orient": "vertical",
+                    "right": 0,
+                    "top": "middle",
+                    "textStyle": {
+                        "color": "#94a3b8" if dark else "#64748b",
+                        "fontSize": 11,
+                    },
+                },
+                "series": [
+                    {
+                        "type": "pie",
+                        "radius": ["45%", "72%"] if chart_type == "doughnut" else ["15%", "72%"] if chart_type == "nightingale" else ["0%", "72%"],
+                        "roseType": "radius" if chart_type == "nightingale" else False,
+                        "center": ["42%", "50%"],
+                        "itemStyle": {
+                            "borderColor": "#0d1a26" if dark else "#ffffff",
+                            "borderWidth": 2,
+                        },
+                        "data": [{"name": label, "value": data[index] if index < len(data) else 0} for index, label in enumerate(labels)],
+                    }
+                ],
+            }
+        )
+        return option
+
+    if chart_type in {"bar", "hbar"}:
+        horizontal = chart_type == "hbar" or bool(chart.get("horizontal"))
+        option.update(
+            {
+                "color": chart.get("palette") or ["#1d4ed8", "#059669", "#d97706", "#dc2626", "#7c3aed", "#0891b2"],
+                "grid": {
+                    "left": "22%" if horizontal else "3%",
+                    "right": "4%",
+                    "top": "8%",
+                    "bottom": "12%",
+                    "containLabel": not horizontal,
+                },
+                "tooltip": {"trigger": "axis"},
+                "xAxis": {
+                    "type": "value" if horizontal else "category",
+                    "axisLabel": {
+                        "color": "#94a3b8" if dark else "#64748b",
+                    },
+                    "splitLine": {
+                        "lineStyle": {
+                            "color": "rgba(255,255,255,0.05)" if dark else "rgba(0,0,0,0.06)",
+                        }
+                    } if horizontal else None,
+                    "axisLine": {"lineStyle": {"color": "#1c3350" if dark else "#e2e8f0"}},
+                    "data": None if horizontal else labels,
+                },
+                "yAxis": {
+                    "type": "category" if horizontal else "value",
+                    "axisLabel": {
+                        "color": "#94a3b8" if dark else "#64748b",
+                    },
+                    "splitLine": {
+                        "lineStyle": {
+                            "color": "rgba(255,255,255,0.05)" if dark else "rgba(0,0,0,0.06)",
+                        }
+                    } if not horizontal else None,
+                    "axisLine": {"lineStyle": {"color": "#1c3350" if dark else "#e2e8f0"}},
+                    "data": labels if horizontal else None,
+                },
+                "series": [
+                    {
+                        "type": "bar",
+                        "data": data,
+                        "itemStyle": {
+                            "borderRadius": [0, 6, 6, 0] if horizontal else [6, 6, 0, 0],
+                        },
+                    }
+                ],
+            }
+        )
+        return option
+
+    if chart_type in {"line", "area"}:
+        series = [
+            {
+                "type": "line",
+                "name": chart.get("name1") or "Valor",
+                "data": data,
+                "smooth": True,
+                "symbol": "circle",
+                "symbolSize": 6,
+                "areaStyle": {} if chart_type == "area" else None,
+            }
+        ]
+        second = chart.get("d2") or []
+        if any(_finite_float(value) != 0.0 for value in second):
+            series.append(
+                {
+                    "type": "line",
+                    "name": chart.get("name2") or "Valor 2",
+                    "data": [_finite_float(value) for value in second],
+                    "smooth": True,
+                    "symbol": "circle",
+                    "symbolSize": 6,
+                    "areaStyle": {} if chart_type == "area" else None,
+                }
+            )
+        option.update(
+            {
+                "color": chart.get("palette") or ["#1d4ed8", "#059669", "#d97706", "#dc2626"],
+                "legend": {
+                    "top": 0,
+                    "textStyle": {
+                        "color": "#94a3b8" if dark else "#64748b",
+                        "fontSize": 11,
+                    },
+                },
+                "grid": {"left": "3%", "right": "4%", "top": "16%", "bottom": "12%", "containLabel": True},
+                "tooltip": {"trigger": "axis"},
+                "xAxis": {
+                    "type": "category",
+                    "data": labels,
+                    "boundaryGap": chart.get("bar") is True,
+                    "axisLabel": {"color": "#94a3b8" if dark else "#64748b"},
+                    "axisLine": {"lineStyle": {"color": "#1c3350" if dark else "#e2e8f0"}},
+                },
+                "yAxis": {
+                    "type": "value",
+                    "axisLabel": {"color": "#94a3b8" if dark else "#64748b"},
+                    "splitLine": {
+                        "lineStyle": {
+                            "color": "rgba(255,255,255,0.05)" if dark else "rgba(0,0,0,0.06)",
+                        }
+                    },
+                    "axisLine": {"lineStyle": {"color": "#1c3350" if dark else "#e2e8f0"}},
+                },
+                "series": series,
+            }
+        )
+        return option
+
+    if chart_type == "radar":
+        indicators = []
+        for index, label in enumerate(labels[:8]):
+            value = data[index] if index < len(data) else 0
+            indicators.append({"name": label, "max": max(_finite_float(value), 1.0) * 1.3})
+        option.update(
+            {
+                "color": chart.get("palette") or ["#1d4ed8", "#059669", "#d97706", "#dc2626"],
+                "tooltip": {},
+                "radar": {
+                    "indicator": indicators,
+                    "axisName": {"color": "#94a3b8" if dark else "#64748b", "fontSize": 10},
+                },
+                "series": [{"type": "radar", "data": [{"value": data[:8], "name": chart.get("title") or "Valor", "areaStyle": {"opacity": 0.25}}]}],
+            }
+        )
+        return option
+
+    if chart_type == "treemap":
+        option.update(
+            {
+                "color": chart.get("palette") or ["#1d4ed8", "#059669", "#d97706", "#dc2626"],
+                "tooltip": {},
+                "series": [
+                    {
+                        "type": "treemap",
+                        "breadcrumb": {"show": False},
+                        "roam": False,
+                        "data": [{"name": label, "value": data[index] if index < len(data) else 0} for index, label in enumerate(labels)],
+                    }
+                ],
+            }
+        )
+        return option
+
+    if chart_type == "funnel":
+        option.update(
+            {
+                "color": chart.get("palette") or ["#1d4ed8", "#059669", "#d97706", "#dc2626"],
+                "tooltip": {},
+                "series": [
+                    {
+                        "type": "funnel",
+                        "left": "10%",
+                        "width": "80%",
+                        "top": "5%",
+                        "bottom": "5%",
+                        "sort": "descending",
+                        "data": [{"name": label, "value": data[index] if index < len(data) else 0} for index, label in enumerate(labels)],
+                    }
+                ],
+            }
+        )
+        return option
+
+    raise MetricsValidationError(
+        "A configuração do gráfico possui um tipo incompatível com as agregações disponíveis.",
+        field="charts",
+        expected="pie, bar, line, area, radar, treemap ou funnel",
+        received=chart_type,
+        code="invalid_chart_type",
+    )
+
+
+def _build_charts(config: dict[str, Any], dataset: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_charts = config.get("charts") or []
+    if isinstance(raw_charts, dict):
+        chart_items = list(raw_charts.items())
+    elif isinstance(raw_charts, list):
+        chart_items = [(str(index), item) for index, item in enumerate(raw_charts)]
+    else:
+        chart_items = []
+
+    aggregations = dataset.get("aggregations") if isinstance(dataset.get("aggregations"), dict) else {}
+    results: list[dict[str, Any]] = []
+
+    for index, (chart_key, raw_chart) in enumerate(chart_items):
+        if not isinstance(raw_chart, dict):
+            continue
+        if raw_chart.get("on", True) is False:
+            continue
+
+        source_key = _resolve_chart_source(chart_key, raw_chart, index)
+        aggregation = aggregations.get(source_key)
+        if not isinstance(aggregation, dict):
+            raise MetricsValidationError(
+                "Um gráfico configurado depende de uma agregação ausente no dataset.",
+                field=f"charts.{chart_key}",
+                expected=source_key or "aggregation",
+                received="missing",
+                code="missing_aggregation",
+            )
+
+        labels = aggregation.get("labels")
+        data = aggregation.get("data")
+        if source_key == "by_date" and not isinstance(data, list):
+            data = aggregation.get("d1")
+        if not isinstance(labels, list) or not isinstance(data, list):
+            raise MetricsValidationError(
+                "A agregação do gráfico está em formato inválido.",
+                field=f"charts.{chart_key}",
+                expected="labels/data arrays",
+                received="invalid",
+                code="invalid_aggregation",
+            )
+
+        chart_type = str(raw_chart.get("type") or "pie").strip().lower()
+        normalized_type = "bar" if chart_type == "hbar" else chart_type
+        chart = {
+            "id": str(raw_chart.get("id") or chart_key or f"chart-{index + 1}"),
+            "title": str(raw_chart.get("title") or "Gráfico"),
+            "type": chart_type,
+            "labels": labels,
+            "data": data,
+            "full": _chart_full_width(raw_chart, index),
+            "h": int(raw_chart.get("h") or (300 if index >= 2 else 260)),
+            "_dark": bool(raw_chart.get("dark", False)),
+        }
+        if "d2" in aggregation:
+            chart["d2"] = aggregation.get("d2") or []
+        if "name1" in raw_chart:
+            chart["name1"] = raw_chart.get("name1")
+        if "name2" in raw_chart:
+            chart["name2"] = raw_chart.get("name2")
+        if "bar" in raw_chart:
+            chart["bar"] = raw_chart.get("bar")
+
+        chart["option"] = _build_chart_option(normalized_type, chart)
+        results.append(chart)
+
+    return results
 
 
 def _build_summary(rows: list[dict[str, Any]], group_index: int, metric_type: str, value_key: str = "metric_value") -> dict[str, Any]:
@@ -497,12 +830,11 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
     date_idx = _resolve_column_index((payload_config.get("saving") or {}).get("dateCol") if isinstance(payload_config.get("saving"), dict) else payload_config.get("dateCol"), columns)
 
     metric_rows: list[dict[str, Any]] = []
-    valid_rows_count = 0
-    total_rows = len(named_rows)
+    skipped_rows = 0
 
     for row in named_rows:
-        category_value = str(row.get(columns[category_idx]["name"]) if category_idx >= 0 else "(sem categoria)") if category_idx >= 0 else "(sem categoria)"
-        entity_value = str(row.get(columns[entity_idx]["name"]) if entity_idx >= 0 else category_value) if entity_idx >= 0 else category_value
+        category_value = str(row.get(columns[category_idx]["name"]) or "(sem categoria)") if category_idx >= 0 else "(sem categoria)"
+        entity_value = str(row.get(columns[entity_idx]["name"]) or category_value) if entity_idx >= 0 else category_value
         date_value = row.get(columns[date_idx]["name"]) if date_idx >= 0 else None
         date_bucket = _parse_date_bucket(date_value)
 
@@ -514,20 +846,9 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
             if fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0:
                 base_value = parse_number(row.get(columns[fields["base"]]["name"]))
                 percent_value = parse_number(row.get(columns[fields["percent"]]["name"]), is_percent=True)
-                if base_value is None:
-                    raise MetricsValidationError(
-                        "A coluna Base Monetária possui valores inválidos.",
-                        field="baseCol",
-                        expected="number",
-                        received="invalid",
-                    )
-                if percent_value is None:
-                    raise MetricsValidationError(
-                        "A coluna Percentual possui valores inválidos.",
-                        field="percentCol",
-                        expected="number",
-                        received="invalid",
-                    )
+                if base_value is None or percent_value is None:
+                    skipped_rows += 1
+                    continue
                 metric_value = base_value * percent_value
                 aux_value = percent_value
                 formula = "percent_x_base"
@@ -536,24 +857,16 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
                 initial_value = parse_number(row.get(columns[fields["initial"]]["name"]))
                 final_value = parse_number(row.get(columns[fields["final"]]["name"]))
                 if initial_value is None or final_value is None:
-                    raise MetricsValidationError(
-                        "As colunas de valor inicial/final possuem valores inválidos.",
-                        field="saving",
-                        expected="number",
-                        received="invalid",
-                    )
+                    skipped_rows += 1
+                    continue
                 metric_value = initial_value - final_value
                 aux_value = final_value
                 formula = "original_minus_final"
         elif metric_type == "TOTAL":
             value = parse_number(row.get(columns[fields["value"]]["name"]))
             if value is None:
-                raise MetricsValidationError(
-                    "A coluna monetária possui valores inválidos.",
-                    field="valueCol",
-                    expected="number",
-                    received="invalid",
-                )
+                skipped_rows += 1
+                continue
             metric_value = value
             aux_value = value
             formula = "sum"
@@ -561,13 +874,11 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
             initial_value = parse_number(row.get(columns[fields["initial"]]["name"]))
             final_value = parse_number(row.get(columns[fields["final"]]["name"]))
             if initial_value is None or final_value is None:
-                raise MetricsValidationError(
-                    "As colunas inicial e final possuem valores inválidos.",
-                    field="saving",
-                    expected="number",
-                    received="invalid",
-                )
+                skipped_rows += 1
+                continue
             metric_value = ((final_value - initial_value) / initial_value) * 100 if initial_value else 0.0
+            if not math.isfinite(metric_value):
+                metric_value = 0.0
             aux_value = final_value - initial_value
             formula = "variation_rate"
         elif metric_type == "TAXA":
@@ -581,7 +892,6 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
             continue
 
         if metric_type == "TAXA":
-            valid_rows_count += 1
             metric_rows.append(
                 {
                     **row,
@@ -595,7 +905,6 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
             )
             continue
 
-        valid_rows_count += 1
         metric_rows.append(
             {
                 **row,
@@ -685,7 +994,12 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
         },
         "kpis": _compute_kpis(payload_config, metric_rows, columns),
         "detail_items": _build_detail_items(metric_type, metric_rows, fields, columns),
+        "validation": {
+            "skipped_rows": skipped_rows,
+        },
     }
+
+    charts = _build_charts(payload_config, dataset)
 
     insights_input = [row for row in metric_rows]
     try:
@@ -697,5 +1011,6 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
     return {
         "metric": metric,
         "dataset": dataset,
+        "charts": charts,
         "insights": insights,
     }
