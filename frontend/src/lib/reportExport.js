@@ -1,5 +1,3 @@
-import { buildMetricDataset, summarizeSaving } from './saving.js'
-
 export function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -11,7 +9,14 @@ export function escapeHtml(str) {
 
 export function buildReportHTML(state, options = {}) {
   const { isDark = false, strictParity = true } = options
-  const { title, subtitle, period, company, cols = [], rows = [], kpis = [], colors, sections, saving: savCfg, groupCol, footer, insights = [] } = state
+  const { title, subtitle, period, company, cols = [], rows = [], colors, sections, footer } = state
+  const reportData = state.reportData || {}
+  const dataset = reportData.dataset || {}
+  const metric = reportData.metric || { type: 'ECONOMIA', value: 0, label: 'Saving Total' }
+  const kpis = dataset.kpis || []
+  const summary = dataset.summary || { labels: [], rows: [], totals: {} }
+  const detailItems = dataset.detail_items || []
+  const insights = reportData.insights || []
   const p1 = colors?.primary || '#1a3a5c'
   const p2 = colors?.secondary || '#2e5c8a'
   const acc = colors?.accent || '#4ade80'
@@ -24,19 +29,8 @@ export function buildReportHTML(state, options = {}) {
   const rowRenderLimit = rows.length
   const chartPayload = buildChartPayload(state)
   const chartPayloadJSON = JSON.stringify(chartPayload)
-
-  function pnum(v) {
-    let s = String(v ?? '').trim().replace(/[R$€£¥\s]/g, '')
-    if (!s) return 0
-    const dots = (s.match(/\./g) || []).length
-    const commas = (s.match(/,/g) || []).length
-    if (dots === 0 && commas === 0) return parseFloat(s) || 0
-    if (commas === 1 && /,\d{1,2}$/.test(s)) return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0
-    if (dots === 1 && /\.\d{1,2}$/.test(s)) return parseFloat(s.replace(/,/g, '')) || 0
-    if (dots > 1 && commas === 0) return parseFloat(s.replace(/\./g, '')) || 0
-    return parseFloat(s.replace(',', '.')) || 0
-  }
-  const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const reportDataJSON = JSON.stringify(reportData)
+  const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
 
   function renderInsightsHTML(items = []) {
@@ -98,90 +92,44 @@ export function buildReportHTML(state, options = {}) {
   }
 
   const ciRaw = (v) => {
-    const n = parseInt(v)
+    const n = parseInt(v, 10)
     return isNaN(n) || n < 0 || n >= cols.length ? -1 : n
   }
-
-  const sumCol = (idx) => idx < 0 ? 0 : rows.reduce((s, r) => s + pnum(r.cells?.[idx]), 0)
-  const metricDataset = buildMetricDataset(rows, savCfg, cols.length)
-  const savingSummary = summarizeSaving(rows, savCfg, cols.length)
-  const resolvedSavCfg = metricDataset.config
-  const savingDetailItems = metricDataset.detailItems || []
-  const v1CI = ciRaw(resolvedSavCfg.v1Col)
-  const v2CI = ciRaw(resolvedSavCfg.v2Col)
-  const savTotal = savingSummary.total
+  const metricType = metric.type || 'ECONOMIA'
+  const savTotal = metric.value ?? 0
 
   const kpiHTML = sections?.kpi && kpis.length ? `<div class="kpi-row">${kpis.map(k => {
-    const colI = (k.col === '' || k.col == null) ? -1 : parseInt(k.col)
-    let val = '—'
-    if (colI < 0) val = rows.length.toLocaleString('pt-BR')
-    else {
-      const vals = rows.map(r => r.cells?.[colI]).filter(Boolean)
-      const nums = vals.map(v => pnum(v))
-      const isNum = cols[colI]?.type === 'number'
-      if (k.fmt === 'sum') { const s = nums.reduce((a, b) => a + b, 0); val = isNum ? fmtBRL(s) : s.toLocaleString('pt-BR') }
-      else if (k.fmt === 'avg' && nums.length) { const a = nums.reduce((x, y) => x + y, 0) / nums.length; val = isNum ? fmtBRL(a) : a.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) }
-      else if (k.fmt === 'max' && nums.length) val = isNum ? fmtBRL(Math.max(...nums)) : Math.max(...nums).toLocaleString('pt-BR')
-      else if (k.fmt === 'min' && nums.length) val = isNum ? fmtBRL(Math.min(...nums)) : Math.min(...nums).toLocaleString('pt-BR')
-      else if (k.fmt === 'count') val = vals.filter(Boolean).length.toLocaleString('pt-BR')
-      else if (k.fmt === 'countuniq') val = new Set(vals.filter(Boolean)).size.toLocaleString('pt-BR')
-      else if (k.fmt === 'topval') {
-        const freq = {}
-        vals.forEach(v => { freq[v] = (freq[v] || 0) + 1 })
-        const top = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]
-        val = top ? `${String(top[0]).substring(0, 20)} (${top[1]})` : '—'
-      }
-    }
-    return `<div class="kpi" style="border-top-color:${k.color || p2}"><div class="kpi-ico">${escapeHtml(k.icon || '📊')}</div><div class="kpi-v" style="color:${k.color || p2}">${escapeHtml(val)}</div><div class="kpi-l">${escapeHtml(k.label || 'KPI')}</div></div>`
+    return `<div class="kpi" style="border-top-color:${k.color || p2}"><div class="kpi-ico">${escapeHtml(k.icon || '📊')}</div><div class="kpi-v" style="color:${k.color || p2}">${escapeHtml(k.display ?? k.value ?? '—')}</div><div class="kpi-l">${escapeHtml(k.label || 'KPI')}</div></div>`
   }).join('')}</div>` : ''
 
-  const savDetailsHTML = savingDetailItems.map((item, index) => {
+  const savDetailsHTML = detailItems.map((item, index) => {
     const valueText = item.kind === 'percent' ? fmtPct(item.value) : item.kind === 'number' ? fmtN(item.value) : fmtBRL(item.value)
     const valueStyle = item.accent ? ` style="color:${acc}"` : ''
     const arrow = index > 0 ? '<div>→</div>' : ''
     return `${arrow}<div><div class="sav-dv"${valueStyle}>${escapeHtml(valueText)}</div><div class="sav-dl">${escapeHtml(item.label)}</div></div>`
   }).join('')
-  const savDisplay = resolvedSavCfg?.metricType === 'TAXA' ? fmtPct(savTotal) : resolvedSavCfg?.metricType === 'VOLUME' ? fmtN(savTotal) : fmtBRL(savTotal)
-  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(resolvedSavCfg?.label || 'Métrica principal')}</div><div class="sav-val">${escapeHtml(savDisplay)}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
-  const insightsHTML = renderInsightsHTML(insights?.length ? insights : (metricDataset.insights || []))
+  const savDisplay = metricType === 'TAXA' ? fmtPct(savTotal) : metricType === 'VOLUME' ? fmtN(savTotal) : fmtBRL(savTotal)
+  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(metric.label || 'Métrica principal')}</div><div class="sav-val">${escapeHtml(savDisplay)}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
+  const insightsHTML = renderInsightsHTML(insights)
 
-  const grpCI = ciRaw(groupCol)
-  const summaryData = grpCI < 0 ? [] : (() => {
-    const agg = {}
-    rows.forEach(r => {
-      const key = String(r.cells?.[grpCI] ?? '').trim() || '(vazio)'
-      if (!agg[key]) agg[key] = { n: 0, v1: 0, v2: 0 }
-      agg[key].n += 1
-      if (v1CI >= 0) agg[key].v1 += pnum(r.cells?.[v1CI])
-      if (v2CI >= 0) agg[key].v2 += pnum(r.cells?.[v2CI])
-    })
-    return Object.entries(agg).sort((a, b) => b[1].n - a[1].n)
-  })()
-
-  const summaryHTML = sections?.summary && summaryData.length ? `
+  const summaryHTML = sections?.summary && summary.rows.length ? `
 <div class="summary">
-  <div class="summary-title">🗂 Resumo por ${escapeHtml(cols[grpCI]?.name || '—')}</div>
+  <div class="summary-title">🗂 Resumo por ${escapeHtml(cols[summary.group_index]?.name || '—')}</div>
   <div style="overflow-x:auto">
     <table class="summary-table">
       <thead><tr>
-        <th>${escapeHtml(cols[grpCI]?.name || 'Grupo')}</th>
+        <th>${escapeHtml(cols[summary.group_index]?.name || 'Grupo')}</th>
         <th class="tr">Qtd</th>
-        ${v1CI >= 0 ? `<th class="tr">${escapeHtml(cols[v1CI]?.name || 'Valor 1')}</th>` : ''}
-        ${v2CI >= 0 ? `<th class="tr">${escapeHtml(cols[v2CI]?.name || 'Valor 2')}</th>` : ''}
       </tr></thead>
       <tbody>
-        ${summaryData.map(([key, v], i) => `
+        ${summary.rows.map((v, i) => `
         <tr style="background:${i % 2 === 0 ? (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc') : 'transparent'}">
-          <td>${escapeHtml(key)}</td>
-          <td class="tr mono">${v.n.toLocaleString('pt-BR')}</td>
-          ${v1CI >= 0 ? `<td class="tr mono">${escapeHtml(fmtBRL(v.v1))}</td>` : ''}
-          ${v2CI >= 0 ? `<td class="tr mono">${escapeHtml(fmtBRL(v.v2))}</td>` : ''}
+          <td>${escapeHtml(v.label)}</td>
+          <td class="tr mono">${v.count.toLocaleString('pt-BR')}</td>
         </tr>`).join('')}
         <tr class="summary-total">
           <td>TOTAL GERAL</td>
-          <td class="tr mono">${rows.length.toLocaleString('pt-BR')}</td>
-          ${v1CI >= 0 ? `<td class="tr mono">${escapeHtml(fmtBRL(sumCol(v1CI)))}</td>` : ''}
-          ${v2CI >= 0 ? `<td class="tr mono">${escapeHtml(fmtBRL(sumCol(v2CI)))}</td>` : ''}
+          <td class="tr mono">${(summary.totals.count || rows.length).toLocaleString('pt-BR')}</td>
         </tr>
       </tbody>
     </table>
@@ -389,6 +337,7 @@ ${summaryHTML}
 ${tblHTML}
 ${sections?.footer ? `<div class="footer">${escapeHtml(footer || '')} · ${new Date().toLocaleDateString('pt-BR')}</div>` : ''}
 </div>
+<script>window.REPORT_DATA = ${reportDataJSON};</script>
 <script>(function(){
 const _isDark = ${isDark ? 'true' : 'false'};
 const _charts = ${chartPayloadJSON};
@@ -550,19 +499,72 @@ window.addEventListener('resize', () => {
 }
 
 export function buildChartPayload(state) {
-  const { cols = [], rows = [], saving: savCfg = {}, sections = {} } = state
-  if (!cols.length || !rows.length || sections?.charts === false) return []
-  return (buildMetricDataset(rows, savCfg, cols.length).chartConfig || []).map((chart, index) => ({
-    id: chart.id || `metric-${index + 1}`,
-    full: index >= 2,
-    title: chart.title,
-    h: index >= 2 ? 300 : 260,
-    type: chart.type === 'hbar' ? 'bar' : chart.type,
-    horizontal: chart.type === 'hbar',
-    labels: chart.labels,
-    data: chart.data,
-    d1: chart.d1,
-    d2: chart.d2,
-    isNum: chart.isCurrency || chart.isPercent,
-  }))
+  const reportData = state?.reportData || {}
+  const dataset = reportData.dataset || {}
+  const aggregations = dataset.aggregations || {}
+  const charts = state?.charts || {}
+  const sections = state?.sections || {}
+  if (sections?.charts === false) return []
+
+  const byCategory = aggregations.by_category || { labels: [], data: [] }
+  const byDate = aggregations.by_date || { labels: [], d1: [] }
+  const topItems = aggregations.top_items || { labels: [], data: [] }
+  const distribution = aggregations.distribution || { labels: [], data: [] }
+
+  const chartDefs = [
+    {
+      id: 'metric-1',
+      enabled: charts?.g1?.on !== false,
+      title: charts?.g1?.title || 'Distribuição por categoria',
+      type: charts?.g1?.type || 'pie',
+      horizontal: charts?.g1?.type === 'hbar',
+      labels: byCategory.labels,
+      data: byCategory.data,
+      d1: byCategory.data,
+    },
+    {
+      id: 'metric-2',
+      enabled: charts?.g2?.on !== false,
+      title: charts?.g2?.title || 'Distribuição',
+      type: charts?.g2?.type || 'bar',
+      horizontal: charts?.g2?.type === 'hbar',
+      labels: distribution.labels,
+      data: distribution.data,
+    },
+    {
+      id: 'metric-3',
+      enabled: charts?.g3?.on !== false,
+      title: charts?.g3?.title || 'Evolução mensal',
+      type: charts?.g3?.type || 'line',
+      horizontal: false,
+      labels: byDate.labels,
+      d1: byDate.d1,
+      d2: byDate.d2,
+    },
+    {
+      id: 'metric-4',
+      enabled: charts?.g4?.on !== false,
+      title: charts?.g4?.title || 'Top itens',
+      type: charts?.g4?.type || 'hbar',
+      horizontal: true,
+      labels: topItems.labels,
+      data: topItems.data,
+    },
+  ]
+
+  return chartDefs
+    .filter(chart => chart.enabled)
+    .map((chart, index) => ({
+      id: chart.id || `metric-${index + 1}`,
+      full: index >= 2,
+      title: chart.title,
+      h: index >= 2 ? 300 : 260,
+      type: chart.type === 'hbar' ? 'bar' : chart.type,
+      horizontal: chart.type === 'hbar' || chart.horizontal,
+      labels: chart.labels || [],
+      data: chart.data || [],
+      d1: chart.d1 || [],
+      d2: chart.d2 || [],
+      isNum: true,
+    }))
 }

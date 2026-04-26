@@ -70,9 +70,13 @@ export default function EditorPage() {
   const [showWizard, setShowWizard] = useState(false)
   const [pendingRows, setPendingRows] = useState(null)
   const [pendingCols, setPendingCols] = useState(null)
+  const [wizardDraft, setWizardDraft] = useState(null)
+  const [previewData, setPreviewData] = useState(null)
+  const [previewError, setPreviewError] = useState('')
   const [saving, setSaving] = useState(false)
   const [reportId, setReportId] = useState(id ? parseInt(id) : null)
   const debounceRef = useRef(null)
+  const previewDebounceRef = useRef(null)
   const stateRef = useRef(DEFAULT_STATE)
 
   useEffect(() => {
@@ -84,19 +88,24 @@ export default function EditorPage() {
       return null
     }
 
-    console.log('INSIGHTS RESPONSE:', report.config.insights)
-    const syncedInsights = Array.isArray(report.config.insights)
-      ? report.config.insights
+    const reportData = report.report_data || report.reportData || null
+    const syncedInsights = Array.isArray(reportData?.insights)
+      ? reportData.insights
       : (Array.isArray(stateRef.current.insights) ? stateRef.current.insights : [])
     const syncedState = {
       ...DEFAULT_STATE,
       ...report.config,
       insights: syncedInsights,
+      reportData,
       saving: normalizeSavingConfig(report.config.saving || {}, (report.config.cols || []).length),
     }
     stateRef.current = syncedState
     setState(syncedState)
     setHasData((report.config.rows || []).length > 0)
+    if (reportData) {
+      setPreviewData(reportData)
+      setPreviewError('')
+    }
     return syncedState
   }, [])
 
@@ -117,6 +126,44 @@ export default function EditorPage() {
     console.log('INSIGHTS STATE:', state.insights)
   }, [state.insights])
 
+  useEffect(() => {
+    if (!showWizard || !wizardDraft?.rows || !wizardDraft?.cols) return
+
+    window.clearTimeout(previewDebounceRef.current)
+    previewDebounceRef.current = window.setTimeout(async () => {
+      try {
+        const previewRows = wizardDraft.rows.map(cells => ({ cells: cells.map(cell => String(cell ?? '')) }))
+        const previewCols = (wizardDraft.analyzed || []).map((col, index) => ({
+          name: col.name || wizardDraft.cols?.[index] || `col_${index}`,
+          type: col.type || 'text',
+          vis: true,
+        }))
+        const payload = {
+          data: { rows: previewRows, cols: previewCols },
+          config: {
+            ...wizardDraft,
+            rows: previewRows,
+            cols: previewCols,
+          },
+        }
+        const { data } = await api.post('/reports/preview', payload)
+        setPreviewData(data)
+        setPreviewError('')
+        setState(prev => ({
+          ...prev,
+          reportData: data,
+          insights: data?.insights || prev.insights,
+        }))
+      } catch (err) {
+        const message = err.response?.data?.detail?.message || err.response?.data?.detail || 'Erro ao validar a configuração no backend.'
+        setPreviewError(message)
+        setPreviewData(null)
+      }
+    }, 350)
+
+    return () => window.clearTimeout(previewDebounceRef.current)
+  }, [showWizard, wizardDraft])
+
   const update = useCallback((patch) => {
     setState(prev => {
       const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }
@@ -131,9 +178,10 @@ export default function EditorPage() {
     if (!currentState.rows?.length) return
     try {
       const normalizedSaving = normalizeSavingConfig(currentState.saving || {}, currentState.cols?.length || 0)
+      const { reportData: _reportData, ...editorConfig } = currentState
       const payload = {
         title: currentState.title || 'Relatório',
-        config: { ...currentState, saving: normalizedSaving },
+        config: { ...editorConfig, saving: normalizedSaving },
         row_count: currentState.rows?.length || 0,
         col_count: currentState.cols?.length || 0,
       }
@@ -239,6 +287,9 @@ export default function EditorPage() {
     // Guarda os dados brutos e abre o wizard
     setPendingRows(rows)
     setPendingCols(cols)
+    setWizardDraft(null)
+    setPreviewData(null)
+    setPreviewError('')
     setShowWizard(true)
     toast.success(`${rows.length.toLocaleString('pt-BR')} linhas carregadas! Configure o relatório.`)
   }
@@ -258,11 +309,13 @@ export default function EditorPage() {
       ...wizardState,
       cols: detectedCols,
       rows: detectedRows,
+      reportData: previewData || null,
     }
 
     setState(nextState)
     setHasData(true)
     setShowWizard(false)
+    setWizardDraft(null)
     setTab('layout')
     void autoSave(nextState)
     toast.success('Relatório configurado! ✨')
@@ -292,6 +345,9 @@ export default function EditorPage() {
               cols={pendingCols}
               onComplete={handleWizardComplete}
               onDismiss={() => setShowWizard(false)}
+              previewData={previewData}
+              previewError={previewError}
+              onDraftChange={setWizardDraft}
             />
           )}
         </AnimatePresence>

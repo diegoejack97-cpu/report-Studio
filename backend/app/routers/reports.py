@@ -1,20 +1,15 @@
 import logging
-import re
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Optional
 
-import aiofiles
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, FileResponse
-from sqlalchemy import select, func
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import select
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-import json, os
 
 from app.core.background import run_async_task
 from app.core.database import get_db
 from app.core.auth import get_current_user
-from app.core.config import settings
 from app.middleware.plan_limit import check_plan_limit, reset_report_usage_if_needed
 from app.models.user import User
 from app.models.report import Report
@@ -23,7 +18,7 @@ from app.services.email_events import (
     send_processing_error_email,
     send_report_ready_email,
 )
-from app.services.insights_engine import generate_insights
+from app.services.metrics_engine import build_metric_dataset, MetricsValidationError
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -61,126 +56,29 @@ class ReportOut(BaseModel):
 
 class ReportDetail(ReportOut):
     config: dict
+    report_data: dict | None = None
 
 
-def _build_tabular_data_from_config(config: dict | None) -> list[dict]:
-    if not isinstance(config, dict):
-        return []
-
-    cols = config.get("cols") or []
-    rows = config.get("rows") or []
-    if not isinstance(cols, list) or not isinstance(rows, list):
-        return []
-
-    column_names = []
-    for index, col in enumerate(cols):
-        if isinstance(col, dict):
-            name = str(col.get("name") or "").strip() or f"col_{index}"
-        else:
-            name = f"col_{index}"
-        column_names.append(name)
-
-    saving_cfg = config.get("saving") if isinstance(config.get("saving"), dict) else {}
-
-    def _to_number(value: Any) -> float:
-        text = re.sub(r"[R$€£¥\s]", "", str(value or "").strip())
-        if not text:
-            return 0.0
-
-        dots = text.count(".")
-        commas = text.count(",")
-        if commas == 1 and re.search(r",\d{1,2}$", text):
-            text = text.replace(".", "").replace(",", ".")
-        elif dots == 1 and re.search(r"\.\d{1,2}$", text):
-            text = text.replace(",", "")
-        elif dots > 1 and commas == 0:
-            text = text.replace(".", "")
-        else:
-            text = text.replace(",", ".")
-        try:
-            return float(text)
-        except ValueError:
-            return 0.0
-
-    tabular_data = []
-    for row in rows:
-        cells = row.get("cells") if isinstance(row, dict) else None
-        if not isinstance(cells, list):
-            continue
-
-        item = {}
-        for index, column_name in enumerate(column_names):
-            item[column_name] = cells[index] if index < len(cells) else None
-        metric_type = str(saving_cfg.get("metricType") or saving_cfg.get("type") or "ECONOMIA").upper()
-
-        def _idx(*keys: str) -> int:
-            for key in keys:
-                raw = saving_cfg.get(key)
-                try:
-                    idx = int(raw)
-                    if idx >= 0:
-                        return idx
-                except (TypeError, ValueError):
-                    continue
-            return -1
-
-        def _cell(idx: int) -> Any:
-            return cells[idx] if 0 <= idx < len(cells) else None
-
-        value_idx = _idx("valueCol", "savingCol")
-        base_idx = _idx("baseCol", "savingBaseCol", "valorBaseCol", "baseCol")
-        pct_idx = _idx("percentCol", "savingPercentCol", "percentualCol", "percentCol")
-        initial_idx = _idx("initialCol", "originalCol", "v1Col")
-        final_idx = _idx("finalCol", "negotiatedCol", "v2Col")
-
-        metric_value = None
-        if metric_type == "ECONOMIA":
-            if base_idx >= 0 and pct_idx >= 0:
-                base_value = _to_number(_cell(base_idx))
-                percentage = _to_number(_cell(pct_idx))
-                metric_value = base_value * (percentage / 100)
-                item["saving (%)"] = percentage
-            elif initial_idx >= 0 and final_idx >= 0:
-                metric_value = _to_number(_cell(initial_idx)) - _to_number(_cell(final_idx))
-        elif metric_type == "TOTAL" and value_idx >= 0:
-            metric_value = _to_number(_cell(value_idx))
-        elif metric_type == "VARIACAO" and initial_idx >= 0 and final_idx >= 0:
-            initial_value = _to_number(_cell(initial_idx))
-            final_value = _to_number(_cell(final_idx))
-            metric_value = ((final_value - initial_value) / initial_value) * 100 if initial_value else 0.0
-        elif metric_type == "TAXA":
-            metric_value = 1.0
-        elif metric_type == "VOLUME":
-            metric_value = 1.0
-
-        if metric_value is not None:
-            item["metric_value"] = metric_value
-            item["saving_calculado"] = metric_value
-        tabular_data.append(item)
-
-    return tabular_data
-
-
-def _enrich_report_config_with_insights(config: dict | None) -> dict:
-    base_config = dict(config or {})
-
+def _build_report_data(config: dict | None) -> dict:
     try:
-        tabular_data = _build_tabular_data_from_config(base_config)
-        insights_result = generate_insights(tabular_data)
-        insights = insights_result["insights"]
-        print("INSIGHTS:", insights)
-        base_config["insights"] = insights
-        base_config["insightsMeta"] = insights_result["meta"]
-    except Exception:
-        logger.exception("Falha ao enriquecer config do relatorio com insights")
-        base_config["insights"] = []
-        base_config["insightsMeta"] = {
-            "record_count": len(_build_tabular_data_from_config(base_config)),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "insights_count": 0,
-        }
+        return build_metric_dataset(config or {}, config or {})
+    except MetricsValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.as_detail()) from exc
 
-    return base_config
+
+def _serialize_report(report: Report, report_data: dict | None = None) -> dict[str, Any]:
+    return {
+        "id": report.id,
+        "title": report.title,
+        "description": report.description,
+        "row_count": report.row_count,
+        "col_count": report.col_count,
+        "export_count": report.export_count,
+        "created_at": report.created_at,
+        "updated_at": report.updated_at,
+        "config": report.config or {},
+        "report_data": report_data,
+    }
 
 
 @router.get("/", response_model=list[ReportOut])
@@ -206,24 +104,26 @@ async def create_report(
 ):
     try:
         reset_report_usage_if_needed(current_user)
-        enriched_config = _enrich_report_config_with_insights(data.config)
+        report_data = _build_report_data(data.config)
 
         report = Report(
             user_id=current_user.id,
             title=data.title,
             description=data.description,
-            config=enriched_config,
+            config=data.config,
             row_count=data.row_count,
             col_count=data.col_count,
         )
         db.add(report)
         await db.flush()
         await db.refresh(report)
-        return report
+        return _serialize_report(report, report_data)
     except HTTPException as exc:
         if exc.status_code == 402:
             background_tasks.add_task(run_async_task, send_limit_reached_email(current_user))
         raise
+    except MetricsValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.as_detail()) from exc
     except Exception as exc:
         logger.exception("Erro ao criar relatorio para user_id=%s.", current_user.id)
         background_tasks.add_task(
@@ -240,8 +140,8 @@ async def get_report(
     current_user: User = Depends(get_current_user),
 ):
     report = await _get_own_report(report_id, current_user.id, db)
-    report.config = _enrich_report_config_with_insights(report.config)
-    return report
+    report_data = _build_report_data(report.config)
+    return _serialize_report(report, report_data)
 
 
 @router.put("/{report_id}", response_model=ReportDetail)
@@ -252,14 +152,30 @@ async def update_report(
     current_user: User = Depends(get_current_user),
 ):
     report = await _get_own_report(report_id, current_user.id, db)
+    config_to_process = data.config if data.config is not None else report.config
+    report_data = _build_report_data(config_to_process)
     if data.title is not None:      report.title = data.title
     if data.description is not None: report.description = data.description
-    if data.config is not None:     report.config = _enrich_report_config_with_insights(data.config)
+    if data.config is not None:     report.config = data.config
     if data.row_count is not None:  report.row_count = data.row_count
     if data.col_count is not None:  report.col_count = data.col_count
     await db.flush()
     await db.refresh(report)
-    return report
+    return _serialize_report(report, report_data)
+
+
+@router.post("/preview")
+async def preview_report(
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        source = payload.get("data") if isinstance(payload, dict) and isinstance(payload.get("data"), dict) else payload
+        config = payload.get("config") if isinstance(payload, dict) and isinstance(payload.get("config"), dict) else payload
+        report_data = build_metric_dataset(source, config)
+        return report_data
+    except MetricsValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.as_detail()) from exc
 
 
 @router.delete("/{report_id}", status_code=204)
@@ -281,7 +197,7 @@ async def export_report(
 ):
     try:
         report = await _get_own_report(report_id, current_user.id, db)
-        report.config = _enrich_report_config_with_insights(report.config)
+        report_data = _build_report_data(report.config)
         reset_report_usage_if_needed(current_user)
         check_plan_limit(current_user)
         report.export_count += 1
@@ -290,11 +206,18 @@ async def export_report(
         current_user.reports_total += 1
         await db.flush()
         background_tasks.add_task(run_async_task, send_report_ready_email(current_user, report.title))
-        return {"report_id": report.id, "config": report.config, "title": report.title}
+        return {
+            "report_id": report.id,
+            "title": report.title,
+            "config": report.config,
+            "report_data": report_data,
+        }
     except HTTPException as exc:
         if exc.status_code == 402:
             background_tasks.add_task(run_async_task, send_limit_reached_email(current_user))
         raise
+    except MetricsValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.as_detail()) from exc
     except Exception as exc:
         logger.exception(
             "Erro ao exportar relatorio report_id=%s para user_id=%s.",

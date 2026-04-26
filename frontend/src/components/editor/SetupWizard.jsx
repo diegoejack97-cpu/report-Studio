@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronRight, ChevronLeft, X, Sparkles } from 'lucide-react'
-import { detectSavingColumnKind, getSavingDetailItems, summarizeSaving } from '@/lib/saving'
 
 // ── Utilitários de detecção ────────────────────────────────────────
 function detectColumns(cols, rows) {
@@ -307,7 +306,7 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
 }
 
 // Step 2: Saving Banner
-function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) {
+function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip, previewData, previewError }) {
   const nums  = buildNumericProfiles(analyzed, rows)
   const auto  = autoDetectSaving(analyzed, rows)
   const cats = analyzed.filter(c => c.type === 'text' && c.uniq >= 2)
@@ -326,24 +325,11 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) 
   const [dateCol, setDateCol] = useState(data.dateCol ?? '')
 
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+  const fmtN = v => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
-
-  const draftSaving = {
-    label,
-    metricType,
-    valueCol,
-    percentCol,
-    baseCol,
-    initialCol,
-    finalCol,
-    categoryCol,
-    entityCol,
-    dateCol,
-  }
-  const savingSummary = summarizeSaving(rows, draftSaving, analyzed.length)
-  const saving = savingSummary.total
-  const detailItems = getSavingDetailItems(savingSummary)
-  const nextDisabled = enabled && !savingSummary.valid
+  const saving = previewData?.metric?.value
+  const detailItems = previewData?.dataset?.detail_items || []
+  const nextDisabled = enabled && !!previewError
 
   const next = () => {
     onChange({
@@ -415,17 +401,17 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) 
               <ColSelect label="Data" value={dateCol} onChange={setDateCol} cols={dates} placeholder="— opcional —" />
             </div>
 
-            {!savingSummary.valid && (
+            {previewError && (
               <div className="rounded-lg border border-rose-700/30 bg-rose-950/20 px-3 py-2 text-[11px] text-rose-200">
-                As colunas selecionadas não atendem os requisitos da métrica escolhida.
+                {previewError}
               </div>
             )}
 
-            {saving !== 0 && (
+            {Number.isFinite(Number(saving)) && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gradient-to-r from-[#1a3a5c] to-[#2e5c8a] rounded-xl p-4 flex items-center justify-between">
                 <div>
                   <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{label}</div>
-                  <div className="text-2xl font-bold text-green-400 font-mono">{metricType === 'TAXA' ? fmtPct(saving) : metricType === 'VOLUME' ? String(saving) : fmtBRL(saving)}</div>
+                  <div className="text-2xl font-bold text-green-400 font-mono">{metricType === 'TAXA' ? fmtPct(saving) : metricType === 'VOLUME' ? fmtN(saving) : fmtBRL(saving)}</div>
                   <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/70">
                     Tipo: {metricType}
                   </div>
@@ -436,7 +422,7 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip }) 
                           {index > 0 && <span className="text-white/30 text-sm">→</span>}
                           <div>
                             <div className={`text-xs font-bold font-mono ${item.accent ? 'text-green-400' : 'text-white'}`}>
-                              {item.kind === 'percent' ? fmtPct(item.value) : item.kind === 'number' ? String(item.value) : fmtBRL(item.value)}
+                              {item.kind === 'percent' ? fmtPct(item.value) : item.kind === 'number' ? fmtN(item.value) : fmtBRL(item.value)}
                             </div>
                             <div className="text-[9px] text-white/50">{item.label}</div>
                           </div>
@@ -690,7 +676,7 @@ function StepChartsAdvanced({ data, analyzed, onChange, onNext, onBack, onSkip }
 // ── WIZARD PRINCIPAL ───────────────────────────────────────────────
 const TOTAL_STEPS = 5
 
-export default function SetupWizard({ rows, cols, onComplete, onDismiss }) {
+export default function SetupWizard({ rows, cols, onComplete, onDismiss, previewData, previewError, onDraftChange }) {
   const [step, setStep]     = useState(1)
   const [wdata, setWdata]   = useState({})
   const analyzed            = detectColumns(cols, rows)
@@ -699,6 +685,10 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss }) {
   const next   = ()    => setStep(s => s + 1)
   const back   = ()    => setStep(s => s - 1)
   const skip   = ()    => setStep(s => s + 1)
+
+  useEffect(() => {
+    onDraftChange?.({ rows, cols, ...wdata, analyzed })
+  }, [rows, cols, wdata, analyzed, onDraftChange])
 
   const finish = () => {
     // Monta estado final do editor a partir das respostas do wizard
@@ -800,7 +790,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss }) {
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
               {step === 1 && <StepIdentity      {...stepProps} onNext={next} />}
-              {step === 2 && <StepSaving        {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
+              {step === 2 && <StepSaving        {...stepProps} previewData={previewData} previewError={previewError} onNext={next} onBack={back} onSkip={skip} />}
               {step === 3 && <StepKPIs          {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
               {step === 4 && <StepChartsDist    {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
               {step === 5 && <StepChartsAdvanced {...stepProps} onNext={finish} onBack={back} onSkip={finish} />}

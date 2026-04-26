@@ -44,5 +44,46 @@
   },
   "groupCol": "3",
   "footer": "Relatorio gerado pelo Report Flow",
+  "reportData": {
+    "metric": {
+      "type": "TOTAL",
+      "value": 306000,
+      "label": "Saving Total",
+      "color": "#2563EB"
+    },
+    "dataset": {
+      "aggregations": {
+        "by_category": {
+          "labels": ["Sim", "Não"],
+          "data": [245000, 61000]
+        },
+        "by_date": {
+          "labels": [],
+          "d1": []
+        },
+        "top_items": {
+          "labels": ["Sim", "Sim", "Sim", "Sim", "Sim", "Sim", "Não", "Não", "Sim", "Não", "Não", "Não"],
+          "data": [66000, 57000, 38000, 26000, 24000, 22000, 21000, 12000, 12000, 11000, 9000, 8000]
+        },
+        "distribution": {
+          "labels": ["0-1"],
+          "data": [12]
+        }
+      },
+      "summary": {
+        "group_index": 3,
+        "rows": [
+          { "label": "Sim", "count": 7, "value": 245000 },
+          { "label": "Não", "count": 5, "value": 61000 }
+        ],
+        "totals": { "count": 12, "value": 306000 }
+      },
+      "kpis": [],
+      "detail_items": [
+        { "kind": "currency", "label": "Saving", "value": 306000 }
+      ]
+    },
+    "insights": []
+  },
   "exportOptions": { "strictParity": true }
 }
