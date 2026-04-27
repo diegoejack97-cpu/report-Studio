@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.services.metrics_engine import (  # noqa: E402
     MetricsValidationError,
     build_metric_dataset,
+    normalize_percent,
     parse_number,
 )
 
@@ -76,10 +77,13 @@ def _economia_data():
 
 def test_parse_number_formats():
     assert parse_number("1.234,56") == 1234.56
+    assert parse_number("1.000.000,00") == 1000000.0
     assert parse_number("1234.56") == 1234.56
     assert parse_number("R$ 1.234,56") == 1234.56
     assert parse_number("26%", is_percent=True) == 0.26
     assert parse_number("0.26", is_percent=True) == 0.26
+    assert normalize_percent(26) == 0.26
+    assert normalize_percent(0.26) == 0.26
 
 
 def test_parse_number_edge_cases():
@@ -87,6 +91,8 @@ def test_parse_number_edge_cases():
     assert parse_number("") is None
     assert parse_number("abc") is None
     assert parse_number("  ") is None
+    assert parse_number("1.000.000") is None
+    assert parse_number("abc123") is None
 
 
 def test_economia_metric_uses_base_times_percent():
@@ -151,7 +157,7 @@ def test_variacao_handles_division_by_zero():
 def test_taxa_and_volume_metrics():
     taxa_data = {
         "cols": [
-            {"name": "Categoria", "type": "text"},
+            {"name": "Categoria", "type": "category"},
         ],
         "rows": [
             {"cells": ["A"]},
@@ -271,7 +277,7 @@ def test_invalid_column_type_raises_validation_error():
     assert exc_info.value.field == "valueCol"
 
 
-def test_frontend_number_columns_are_accepted_for_numeric_metrics():
+def test_number_columns_are_rejected_for_typed_metric_fields():
     data = {
         "cols": [
             {"name": "Base", "type": "number"},
@@ -283,10 +289,11 @@ def test_frontend_number_columns_are_accepted_for_numeric_metrics():
     }
     config = _base_config("ECONOMIA", baseCol="0", percentCol="1")
 
-    result = build_metric_dataset(data, config)
+    with pytest.raises(MetricsValidationError) as exc_info:
+        build_metric_dataset(data, config)
 
-    assert result["metric"]["value"] == 100.0
-    _assert_all_numbers_finite(result)
+    assert exc_info.value.field == "baseCol"
+    assert exc_info.value.expected == "monetary"
 
 
 def test_missing_aggregation_for_chart_raises_structured_error():

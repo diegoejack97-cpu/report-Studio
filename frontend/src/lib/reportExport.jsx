@@ -9,10 +9,11 @@ export function escapeHtml(str) {
 
 export function buildReportHTML(state, options = {}) {
   const { isDark = false, strictParity = true } = options
-  const { title, subtitle, period, company, cols = [], rows = [], colors, sections, footer } = state
+  const { title, subtitle, period, company, cols = [], colors, sections, footer } = state
   const reportData = state.reportData || {}
   const safeReportData = reportData || {}
   const dataset = safeReportData.dataset || {}
+  const rows = Array.isArray(dataset.rows) ? dataset.rows : []
   const metric = safeReportData.metric || { type: 'ECONOMIA', value: 0, label: 'Saving Total' }
   const kpis = dataset.kpis || []
   const summary = dataset.summary || { labels: [], rows: [], totals: {} }
@@ -35,6 +36,7 @@ export function buildReportHTML(state, options = {}) {
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
   const fmtN = v => Number(v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+  const recordCount = summary.totals?.count ?? rows.length
   const metricColor = {
     ECONOMIA: '#16A34A',
     TOTAL: '#2563EB',
@@ -42,9 +44,9 @@ export function buildReportHTML(state, options = {}) {
     TAXA: '#7C3AED',
     VOLUME: '#6B7280',
   }[metric.type || 'ECONOMIA'] || '#16A34A'
-  const formatMetricValue = (metricType, value) => {
-    if (metricType === 'TAXA' || metricType === 'VARIACAO') return fmtPct(value)
-    if (metricType === 'VOLUME') return fmtN(value)
+  const formatMetricValue = (metricType, value, unit) => {
+    if (unit === 'percent' || metricType === 'TAXA' || metricType === 'VARIACAO') return fmtPct(value)
+    if (unit === 'number' || metricType === 'VOLUME') return fmtN(value)
     return fmtBRL(value)
   }
 
@@ -123,7 +125,7 @@ export function buildReportHTML(state, options = {}) {
     const arrow = index > 0 ? '<div>→</div>' : ''
     return `${arrow}<div><div class="sav-dv"${valueStyle}>${escapeHtml(valueText)}</div><div class="sav-dl">${escapeHtml(item.label)}</div></div>`
   }).join('')
-  const savDisplay = formatMetricValue(metricType, savTotal)
+  const savDisplay = formatMetricValue(metricType, savTotal, metric.unit)
   const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(metric.label || 'Métrica principal')}</div><div class="sav-val" style="color:${metricColor}">${escapeHtml(savDisplay)}</div><div style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:999px;border:1px solid ${metricColor}55;background:${metricColor}22;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.88)">${escapeHtml(metricType)} · ${escapeHtml(metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário')}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
   const insightsHTML = renderInsightsHTML(insights)
 
@@ -144,7 +146,7 @@ export function buildReportHTML(state, options = {}) {
         </tr>`).join('')}
         <tr class="summary-total">
           <td>TOTAL GERAL</td>
-          <td class="tr mono">${(summary.totals.count || rows.length).toLocaleString('pt-BR')}</td>
+          <td class="tr mono">${(summary.totals.count ?? 0).toLocaleString('pt-BR')}</td>
         </tr>
       </tbody>
     </table>
@@ -340,7 +342,7 @@ table#mt td{padding:7px 11px;border-bottom:1px solid ${bdColor};color:${txt};whi
     <div class="hd-badges">
       ${period ? `<span class="badge">${escapeHtml(period)}</span>` : ''}
       ${company ? `<span class="badge">${escapeHtml(company)}</span>` : ''}
-      <span class="badge badge-blue">${rows.length.toLocaleString('pt-BR')} registros</span>
+      <span class="badge badge-blue">${recordCount.toLocaleString('pt-BR')} registros</span>
     </div>
   </div>
   <div class="hd-divider"></div>

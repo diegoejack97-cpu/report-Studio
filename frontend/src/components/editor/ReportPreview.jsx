@@ -110,9 +110,9 @@ const METRIC_COLORS = {
   VOLUME: '#6B7280',
 }
 
-function formatMetricValue(metricType, value) {
-  if (metricType === 'TAXA' || metricType === 'VARIACAO') return fmtPct(value)
-  if (metricType === 'VOLUME') return fmtN(value)
+function formatMetricValue(metricType, value, unit) {
+  if (unit === 'percent' || metricType === 'TAXA' || metricType === 'VARIACAO') return fmtPct(value)
+  if (unit === 'number' || metricType === 'VOLUME') return fmtN(value)
   return fmtBRL(value)
 }
 
@@ -251,9 +251,10 @@ function KPICard({ kpi, dark }) {
 
 export default function ReportPreview({ state }) {
   const { dark } = useThemeStore()
-  const { cols = [], rows = [], colors = {}, sections = {}, reportData = {} } = state
+  const { cols = [], colors = {}, sections = {}, reportData = {} } = state
   const safeReportData = reportData || {}
   const dataset = safeReportData.dataset || {}
+  const datasetRows = Array.isArray(dataset.rows) ? dataset.rows : []
   const summary = dataset.summary || { rows: [], totals: {}, group_index: -1 }
   const kpis = dataset.kpis || []
   const detailItems = dataset.detail_items || []
@@ -273,6 +274,7 @@ export default function ReportPreview({ state }) {
   const metricType = metric.type || 'ECONOMIA'
   const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
   const savTotal = metric.value ?? 0
+  const recordCount = summary.totals?.count ?? datasetRows.length
   const summaryLabel = summary.group_index >= 0 ? cols[summary.group_index]?.name || '—' : '—'
 
   if (!safeReportData?.dataset) {
@@ -287,7 +289,7 @@ export default function ReportPreview({ state }) {
     )
   }
 
-  const renderSummaryValue = value => fmtBRL(value)
+  const renderSummaryValue = value => formatMetricValue(metricType, value, metric.unit)
 
   if (!Array.isArray(charts)) {
     return (
@@ -316,7 +318,7 @@ export default function ReportPreview({ state }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               {state.period && <span style={{ fontSize: '0.7rem', fontWeight: 500, color: dark ? '#64748b' : '#94a3b8', background: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', border: `1px solid ${bdColor}`, borderRadius: 6, padding: '0.2rem 0.6rem' }}>{state.period}</span>}
               {state.company && <span style={{ fontSize: '0.7rem', fontWeight: 500, color: dark ? '#64748b' : '#94a3b8', background: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', border: `1px solid ${bdColor}`, borderRadius: 6, padding: '0.2rem 0.6rem' }}>{state.company}</span>}
-              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: dark ? '#3b82f6' : '#2563eb', background: dark ? 'rgba(37,99,235,0.12)' : 'rgba(37,99,235,0.08)', border: `1px solid ${dark ? 'rgba(37,99,235,0.3)' : 'rgba(37,99,235,0.2)'}`, borderRadius: 6, padding: '0.2rem 0.6rem' }}>{rows.length.toLocaleString('pt-BR')} registros</span>
+              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: dark ? '#3b82f6' : '#2563eb', background: dark ? 'rgba(37,99,235,0.12)' : 'rgba(37,99,235,0.08)', border: `1px solid ${dark ? 'rgba(37,99,235,0.3)' : 'rgba(37,99,235,0.2)'}`, borderRadius: 6, padding: '0.2rem 0.6rem' }}>{recordCount.toLocaleString('pt-BR')} registros</span>
             </div>
           </div>
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: dark ? 'linear-gradient(90deg,rgba(37,99,235,0.4),rgba(255,255,255,0.05) 60%,transparent)' : 'linear-gradient(90deg,rgba(37,99,235,0.3),rgba(0,0,0,0.04) 60%,transparent)' }} />
@@ -331,7 +333,7 @@ export default function ReportPreview({ state }) {
             <div>
               <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{metric.label || 'Métrica principal'}</div>
               <div className="text-4xl font-extrabold font-mono" style={{ color: metricColor }}>
-                {formatMetricValue(metricType, savTotal)}
+                {formatMetricValue(metricType, savTotal, metric.unit)}
               </div>
               <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
                 {metricType} · {metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário'}
@@ -408,7 +410,7 @@ export default function ReportPreview({ state }) {
                   ))}
                   <tr style={{ background: dark ? 'rgba(255,255,255,0.05)' : '#e2e8f0', fontWeight: 'bold', borderTop: `2px solid ${bdColor}` }}>
                     <td className="px-3 py-2">TOTAL GERAL</td>
-                    <td className="px-3 py-2 text-right font-mono">{(summary.totals.count ?? rows.length).toLocaleString('pt-BR')}</td>
+                    <td className="px-3 py-2 text-right font-mono">{(summary.totals.count ?? 0).toLocaleString('pt-BR')}</td>
                     <td className="px-3 py-2 text-right font-mono">{renderSummaryValue(summary.totals.value ?? savTotal)}</td>
                   </tr>
                 </tbody>
@@ -417,7 +419,7 @@ export default function ReportPreview({ state }) {
           </div>
         )}
 
-        <TableSection rows={rows} visCols={visCols} dark={dark} cardBg={cardBg} bdColor={bdColor} p1={p1} p2={p2} textColor={textColor} subText={subText} showFilters={sections.filters !== false} />
+        <TableSection rows={datasetRows} visCols={visCols} dark={dark} cardBg={cardBg} bdColor={bdColor} p1={p1} p2={p2} textColor={textColor} subText={subText} showFilters={sections.filters !== false} />
       </div>
     </div>
   )

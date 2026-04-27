@@ -117,6 +117,26 @@ def _format_pct(value: float) -> str:
     return f"{value:.1f}%".replace(".", ",")
 
 
+def _format_currency(value: float) -> str:
+    formatted = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {formatted}"
+
+
+def _metric_unit(metric) -> str:
+    if isinstance(metric, dict):
+        return str(metric.get("unit") or "").lower()
+    return str(getattr(metric, "unit", "") or "").lower()
+
+
+def _format_metric_value(value: float, metric) -> str:
+    unit = _metric_unit(metric)
+    if unit == "percent":
+        return _format_pct(value)
+    if unit == "currency":
+        return _format_currency(value)
+    return f"{value:.2f}".replace(".", ",")
+
+
 def _build_meta(record_count: int, insights_count: int) -> dict:
     return {
         "record_count": record_count,
@@ -287,7 +307,8 @@ def _rule_outliers_financeiros(data: list[dict], fields: dict) -> dict | None:
                 "titulo": "Outliers financeiros identificados",
                 "descricao": (
                     f"Foram encontrados {len(outliers)} registros acima de 2x a média. "
-                    f"Média calculada: {average:.2f}. Limiar de outlier: {limit:.2f}."
+                    f"Média calculada: {_format_metric_value(average, {'unit': 'currency'})}. "
+                    f"Limiar de outlier: {_format_metric_value(limit, {'unit': 'currency'})}."
                 ),
             }
         return None
@@ -482,11 +503,3 @@ def generate_insights(data: list[dict]) -> dict:
             "insights": [],
             "meta": _build_meta(len(safe_data), 0),
         }
-
-
-# TODO: O template HTML exibe a coluna "Saving (%)" formatada como moeda BRL
-# (ex: "R$ 6.901,22") mas o valor real é um percentual puro (ex: "11.76").
-# Isso é um bug de formatacao no template de exportacao - nao afeta o engine
-# de insights que le o valor numerico diretamente do dict de dados.
-# Corrigir no template HTML separadamente, trocando fmtBRL() por fmtPct()
-# para a coluna de saving percentual.

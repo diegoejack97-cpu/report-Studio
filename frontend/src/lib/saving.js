@@ -52,6 +52,30 @@ function isDateValue(value) {
   return Number.isFinite(parsed)
 }
 
+function isNumericValue(value) {
+  let raw = String(value ?? '').trim()
+  if (!raw) return false
+  raw = raw
+    .replace(/(R\$|US\$|BRL|USD|EUR|GBP|JPY)/gi, '')
+    .replace(/[$€£¥%\s\u00a0]/g, '')
+  if (!raw || /[^0-9,.\-+]/.test(raw) || /[+-]/.test(raw.slice(1))) return false
+  if (/^[+-]/.test(raw)) raw = raw.slice(1)
+  if (!raw) return false
+  if (raw.includes(',')) {
+    if ((raw.match(/,/g) || []).length > 1) return false
+    const [integerPart, decimalPart = ''] = raw.split(',')
+    if (decimalPart.includes('.') || !/^\d*$/.test(decimalPart)) return false
+    if (integerPart.includes('.')) {
+      const groups = integerPart.split('.')
+      if (!groups[0] || groups[0].length > 3 || groups.slice(1).some(group => group.length !== 3)) return false
+    } else if (!/^\d+$/.test(integerPart)) {
+      return false
+    }
+    return true
+  }
+  return (raw.match(/\./g) || []).length <= 1 && /^\d+(\.\d+)?$/.test(raw)
+}
+
 function getRowCell(row, index) {
   if (index < 0) return undefined
   if (Array.isArray(row?.cells)) return row.cells[index]
@@ -81,7 +105,7 @@ export function detectColumnType(name, values = []) {
   const normalizedValues = presentValues.map(value => String(value).trim())
   const uniqueValues = [...new Set(normalizedValues.map(value => normalizeText(value)).filter(Boolean))]
   const uniqueRatio = uniqueValues.length / presentValues.length
-  const numericPatternCount = normalizedValues.filter(value => /[-+]?\d+([.,]\d+)?$/.test(value.replace(/\s/g, ''))).length
+  const numericPatternCount = normalizedValues.filter(isNumericValue).length
   const percentPatternCount = normalizedValues.filter(value => /%$/.test(value) || /percent|taxa|economia|saving/i.test(value)).length
   const dateMatches = presentValues.filter(isDateValue).length
   const statusMatches = uniqueValues.filter(value => STATUS_VALUES.has(value)).length

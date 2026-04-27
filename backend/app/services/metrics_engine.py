@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 import math
 import re
 from typing import Any, Iterable
@@ -53,40 +54,78 @@ def _strip_numeric_tokens(text: str) -> str:
     return re.sub(r"[R$€£¥%\s]", "", text)
 
 
+def normalize_percent(value: float) -> float:
+    if value is None:
+        return None
+
+    # REGRA DE OURO
+    if value > 1:
+        return value / 100
+    return value
+
+
+def _parse_decimal_text(text: str) -> float | None:
+    cleaned = str(text or "").strip()
+    if not cleaned:
+        return None
+
+    cleaned = re.sub(r"(?i)(r\$|us\$|brl|usd|eur|gbp|jpy)", "", cleaned)
+    cleaned = re.sub(r"[$€£¥%\s\u00a0]", "", cleaned)
+    if not cleaned or re.search(r"[^0-9,.\-+]", cleaned):
+        return None
+    if re.search(r"[+-]", cleaned[1:]):
+        return None
+
+    sign = ""
+    if cleaned[0] in "+-":
+        sign = cleaned[0]
+        cleaned = cleaned[1:]
+    if not cleaned or not re.search(r"\d", cleaned):
+        return None
+
+    if "," in cleaned:
+        if cleaned.count(",") > 1:
+            return None
+        integer_part, decimal_part = cleaned.split(",", 1)
+        if "." in decimal_part or not re.fullmatch(r"\d*", decimal_part):
+            return None
+        if "." in integer_part:
+            groups = integer_part.split(".")
+            if not groups[0] or len(groups[0]) > 3 or any(len(group) != 3 for group in groups[1:]):
+                return None
+            integer_part = "".join(groups)
+        if not re.fullmatch(r"\d+", integer_part) or not re.fullmatch(r"\d*", decimal_part):
+            return None
+        normalized = f"{sign}{integer_part}.{decimal_part}" if decimal_part else f"{sign}{integer_part}"
+    else:
+        if cleaned.count(".") > 1:
+            return None
+        if not re.fullmatch(r"\d+(\.\d+)?", cleaned):
+            return None
+        normalized = f"{sign}{cleaned}"
+
+    try:
+        parsed = Decimal(normalized)
+    except InvalidOperation:
+        return None
+    numeric = float(parsed)
+    return numeric if math.isfinite(numeric) else None
+
+
 def parse_number(value: Any, *, is_percent: bool = False) -> float | None:
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
         parsed = float(value)
-        if is_percent and abs(parsed) > 1:
-            return parsed / 100
-        return parsed
+        if not math.isfinite(parsed):
+            return None
+        return normalize_percent(parsed) if is_percent else parsed
 
-    text = _strip_numeric_tokens(str(value).strip())
-    if not text:
+    parsed = _parse_decimal_text(str(value))
+    if parsed is None:
         return None
 
-    if "," in text and "." in text:
-        if text.rfind(",") > text.rfind("."):
-            text = text.replace(".", "").replace(",", ".")
-        else:
-            text = text.replace(",", "")
-    elif "," in text:
-        if re.search(r",\d{1,2}$", text):
-            text = text.replace(".", "").replace(",", ".")
-        else:
-            text = text.replace(",", "")
-    elif text.count(".") > 1:
-        text = text.replace(".", "")
-
-    try:
-        parsed = float(text)
-    except ValueError:
-        return None
-
-    if is_percent and abs(parsed) > 1:
-        return parsed / 100
-    return parsed
+    return normalize_percent(parsed) if is_percent else parsed
 
 
 def _finite_float(value: Any, default: float = 0.0) -> float:
@@ -168,18 +207,12 @@ def _validate_column_type(field: str, column: dict[str, Any] | None, expected: s
     if received == expected:
         return
 
-    # The frontend still labels uploaded numeric columns as "number".
-    # Treat that legacy value as compatible with numeric metric fields.
-    if received == "number" and expected in {"monetary", "percent"}:
-        return
-
-    if received != expected:
-        raise MetricsValidationError(
-            f"A coluna selecionada para {field} não é compatível com a métrica.",
-            field=field,
-            expected=expected,
-            received=received,
-        )
+    raise MetricsValidationError(
+        f"A coluna selecionada para {field} precisa ser do tipo {expected}; recebido {received}.",
+        field=field,
+        expected=expected,
+        received=received,
+    )
 
 
 def _build_named_row(row: Any, columns: list[dict[str, Any]], row_index: int) -> dict[str, Any]:
@@ -650,6 +683,14 @@ def _format_value(value: float, metric_type: str) -> str:
     return f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _metric_unit(metric_type: str) -> str:
+    if metric_type in {"TAXA", "VARIACAO"}:
+        return "percent"
+    if metric_type == "VOLUME":
+        return "number"
+    return "currency"
+
+
 def _build_detail_items(metric_type: str, metric_rows: list[dict[str, Any]], fields: dict[str, int], columns: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if metric_type == "ECONOMIA":
         if fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0:
@@ -783,12 +824,12 @@ def _metric_field_config(config: dict[str, Any], columns: list[dict[str, Any]], 
 def _validate_metric_config(metric_type: str, fields: dict[str, int], columns: list[dict[str, Any]]) -> None:
     if metric_type == "ECONOMIA":
         if fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0:
-            _validate_column_type("Base Monetária", columns[fields["base"]], "monetary")
-            _validate_column_type("Percentual", columns[fields["percent"]], "percent")
+            _validate_column_type("baseCol", columns[fields["base"]], "monetary")
+            _validate_column_type("percentCol", columns[fields["percent"]], "percent")
             return
         if fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0:
-            _validate_column_type("Valor inicial", columns[fields["initial"]], "monetary")
-            _validate_column_type("Valor final", columns[fields["final"]], "monetary")
+            _validate_column_type("initialCol", columns[fields["initial"]], "monetary")
+            _validate_column_type("finalCol", columns[fields["final"]], "monetary")
             return
         raise MetricsValidationError(
             "A métrica ECONOMIA precisa de Base+Percentual ou Valor Inicial+Valor Final.",
@@ -803,7 +844,7 @@ def _validate_metric_config(metric_type: str, fields: dict[str, int], columns: l
                 field="valueCol",
                 expected="monetary",
             )
-        _validate_column_type("Coluna monetária", columns[value_idx], "monetary")
+        _validate_column_type("valueCol", columns[value_idx], "monetary")
         return
     if metric_type == "VARIACAO":
         if fields.get("initial", -1) < 0 or fields.get("final", -1) < 0:
@@ -812,8 +853,8 @@ def _validate_metric_config(metric_type: str, fields: dict[str, int], columns: l
                 field="saving",
                 expected="initial+final",
             )
-        _validate_column_type("Coluna inicial", columns[fields["initial"]], "monetary")
-        _validate_column_type("Coluna final", columns[fields["final"]], "monetary")
+        _validate_column_type("initialCol", columns[fields["initial"]], "monetary")
+        _validate_column_type("finalCol", columns[fields["final"]], "monetary")
         return
     if metric_type == "TAXA":
         if fields.get("category", -1) < 0:
@@ -822,6 +863,7 @@ def _validate_metric_config(metric_type: str, fields: dict[str, int], columns: l
                 field="categoryCol",
                 expected="category",
             )
+        _validate_column_type("categoryCol", columns[fields["category"]], "category")
 
 
 def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, Any]:
@@ -927,10 +969,9 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
         )
 
     if metric_type == "TAXA":
-        counts = Counter(row["category"] for row in metric_rows)
-        total = sum(counts.values()) or 1
+        total = len(metric_rows) or 1
         for row in metric_rows:
-            row["metric_value"] = round((counts[row["category"]] / total) * 100, 2)
+            row["metric_value"] = 100 / total
 
     metric_total = round(_sum(row["metric_value"] for row in metric_rows), 2)
     if metric_type == "TAXA" and not metric_rows:
@@ -981,7 +1022,10 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
         "value": metric_total,
         "label": metric_label,
         "color": METRIC_META[metric_type]["color"],
+        "unit": _metric_unit(metric_type),
     }
+
+    assert round(sum(row["metric_value"] for row in metric_rows), 2) == metric["value"]
 
     dataset = {
         "rows": metric_rows,
