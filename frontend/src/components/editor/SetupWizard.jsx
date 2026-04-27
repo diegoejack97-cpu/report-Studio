@@ -2,6 +2,24 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronRight, ChevronLeft, X, Sparkles } from 'lucide-react'
 
+const METRIC_LABELS = {
+  ECONOMIA: 'Economia',
+  TOTAL: 'Total Financeiro',
+  VARIACAO: 'Variação',
+  TAXA: 'Taxa',
+  VOLUME: 'Volume',
+}
+
+const METRIC_COLORS = {
+  ECONOMIA: '#16A34A',
+  TOTAL: '#2563EB',
+  VARIACAO: '#F59E0B',
+  TAXA: '#7C3AED',
+  VOLUME: '#6B7280',
+}
+
+const DEFAULT_LABELS = new Set(Object.values(METRIC_LABELS))
+
 // ── Utilitários de detecção ────────────────────────────────────────
 function detectColumns(cols, rows) {
   return cols.map((name, i) => {
@@ -28,6 +46,163 @@ function detectColumns(cols, rows) {
 
 function isNumericType(type) {
   return ['number', 'monetary', 'percent'].includes(type)
+}
+
+function getMetricDisplayMode(metricType) {
+  if (metricType === 'TAXA' || metricType === 'VARIACAO') return 'percent'
+  if (metricType === 'VOLUME') return 'number'
+  return 'currency'
+}
+
+function formatMetricValue(metricType, value) {
+  const mode = getMetricDisplayMode(metricType)
+  const numeric = Number(value ?? 0)
+  if (mode === 'percent') return `${numeric.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+  if (mode === 'number') return numeric.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  return numeric.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
+}
+
+function isColumnReady(profile, expectedKind) {
+  if (!profile) return false
+  if (expectedKind === 'percent') return !!profile.isPercent
+  if (expectedKind === 'monetary') return !!profile.isMonetary
+  return true
+}
+
+function getSavingValidation({
+  metricType,
+  enabled,
+  rows,
+  nums,
+  cats,
+  valueCol,
+  percentCol,
+  baseCol,
+  initialCol,
+  finalCol,
+  categoryCol,
+}) {
+  if (!enabled) {
+    return { ok: true, message: '' }
+  }
+
+  if (!rows.length) {
+    return {
+      ok: false,
+      message: 'A planilha está vazia. Importe linhas de dados para calcular esta métrica.',
+    }
+  }
+
+  const profileByIndex = new Map(nums.map(profile => [String(profile.i), profile]))
+  const getProfile = index => {
+    if (index === '' || index == null) return null
+    return profileByIndex.get(String(index)) || null
+  }
+
+  if (metricType === 'ECONOMIA') {
+    if (!nums.length) {
+      return {
+        ok: false,
+        message: 'Não encontrei colunas numéricas ou monetárias suficientes para calcular Economia.',
+      }
+    }
+    const selectedBase = getProfile(baseCol)
+    const selectedPercent = getProfile(percentCol)
+    const selectedInitial = getProfile(initialCol)
+    const selectedFinal = getProfile(finalCol)
+
+    if (selectedBase || selectedPercent) {
+      if (!baseCol || !percentCol) {
+        return {
+          ok: false,
+          message: 'Economia por Base + Percentual precisa das duas colunas preenchidas.',
+        }
+      }
+      if (!isColumnReady(selectedBase, 'monetary')) {
+        return {
+          ok: false,
+          message: 'A coluna Base precisa ser monetária para calcular Economia por percentual.',
+        }
+      }
+      if (!isColumnReady(selectedPercent, 'percent')) {
+        return {
+          ok: false,
+          message: 'A coluna Percentual precisa conter percentuais válidos.',
+        }
+      }
+      return { ok: true, message: '' }
+    }
+
+    if (selectedInitial || selectedFinal) {
+      if (!initialCol || !finalCol) {
+        return {
+          ok: false,
+          message: 'Economia por Valor Inicial + Valor Final precisa das duas colunas preenchidas.',
+        }
+      }
+      if (!isColumnReady(selectedInitial, 'monetary') || !isColumnReady(selectedFinal, 'monetary')) {
+        return {
+          ok: false,
+          message: 'As colunas Inicial e Final precisam ser monetárias para calcular a Economia.',
+        }
+      }
+      return { ok: true, message: '' }
+    }
+
+    return {
+      ok: false,
+      message: 'Escolha Base + Percentual ou Valor Inicial + Valor Final para calcular Economia.',
+    }
+  }
+
+  if (metricType === 'TOTAL') {
+    const selected = getProfile(valueCol)
+    if (!nums.length) {
+      return { ok: false, message: 'Não encontrei colunas numéricas ou monetárias suficientes para calcular Total Financeiro.' }
+    }
+    if (!valueCol) {
+      return { ok: false, message: 'Selecione uma coluna monetária para calcular o total financeiro.' }
+    }
+    if (!isColumnReady(selected, 'monetary')) {
+      return { ok: false, message: 'A coluna escolhida para Total Financeiro precisa ser monetária.' }
+    }
+    return { ok: true, message: '' }
+  }
+
+  if (metricType === 'VARIACAO') {
+    const selectedInitial = getProfile(initialCol)
+    const selectedFinal = getProfile(finalCol)
+    if (nums.length < 2) {
+      return { ok: false, message: 'Não encontrei duas colunas numéricas ou monetárias para calcular Variação.' }
+    }
+    if (!initialCol || !finalCol) {
+      return { ok: false, message: 'Variação precisa de coluna Inicial e coluna Final.' }
+    }
+    if (!isColumnReady(selectedInitial, 'monetary') || !isColumnReady(selectedFinal, 'monetary')) {
+      return { ok: false, message: 'As colunas Inicial e Final precisam ser monetárias para calcular Variação.' }
+    }
+    return { ok: true, message: '' }
+  }
+
+  if (metricType === 'TAXA') {
+    if (!cats.length) {
+      return { ok: false, message: 'Não encontrei colunas categóricas suficientes para calcular Taxa.' }
+    }
+    if (!categoryCol) {
+      return { ok: false, message: 'Taxa precisa de uma coluna de categoria ou agrupamento.' }
+    }
+    const selectedCategory = cats.find(cat => String(cat.i) === String(categoryCol))
+    if (!selectedCategory) {
+      return { ok: false, message: 'A coluna escolhida para Taxa não foi encontrada no arquivo.' }
+    }
+    return { ok: true, message: '' }
+  }
+
+  if (metricType === 'VOLUME') {
+    return { ok: true, message: '' }
+  }
+
+  return { ok: true, message: '' }
 }
 
 function parseNumericValue(value) {
@@ -318,7 +493,7 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip, pr
 
   const [enabled, setEnabled] = useState(data.savingEnabled !== false)
   const [metricType, setMetricType] = useState(data.metricType || data.type || 'ECONOMIA')
-  const [label, setLabel] = useState(data.label || 'Economia')
+  const [label, setLabel] = useState(data.label || METRIC_LABELS[data.metricType || data.type || 'ECONOMIA'] || METRIC_LABELS.ECONOMIA)
   const [valueCol, setValueCol] = useState(data.valueCol ?? data.savingCol ?? '')
   const [percentCol, setPercentCol] = useState(data.percentCol ?? data.savingPercentCol ?? String(auto.savingCol))
   const [baseCol, setBaseCol] = useState(data.baseCol ?? data.savingBaseCol ?? String(auto.base))
@@ -331,9 +506,36 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip, pr
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
   const fmtN = v => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+  const displayMode = getMetricDisplayMode(metricType)
+  const metricTitle = METRIC_LABELS[metricType] || METRIC_LABELS.ECONOMIA
+  const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
   const saving = previewData?.metric?.value
   const detailItems = previewData?.dataset?.detail_items || []
-  const nextDisabled = enabled && !!previewError
+  const localValidation = getSavingValidation({
+    metricType,
+    enabled,
+    rows,
+    nums,
+    cats,
+    valueCol,
+    percentCol,
+    baseCol,
+    initialCol,
+    finalCol,
+    categoryCol,
+  })
+  const validationMessage = previewError || (enabled && !localValidation.ok ? localValidation.message : '')
+  const nextDisabled = enabled && !!validationMessage
+
+  useEffect(() => {
+    setLabel(current => {
+      const trimmed = String(current || '').trim()
+      if (!trimmed || DEFAULT_LABELS.has(trimmed)) {
+        return metricTitle
+      }
+      return current
+    })
+  }, [metricType, metricTitle])
 
   const next = () => {
     onChange({
@@ -353,12 +555,14 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip, pr
     onNext()
   }
 
+  const cardBg = `linear-gradient(135deg, ${metricColor} 0%, ${metricColor}cc 100%)`
+
   return (
     <>
-      <StepTitle emoji="💰" title="Métrica principal" desc="Escolha o tipo de métrica e as colunas necessárias. Cálculo, gráficos e insights usarão exatamente essa mesma base." />
+      <StepTitle emoji="💰" title={metricTitle} desc="Escolha o tipo de métrica e as colunas necessárias. Cálculo, gráficos e insights usarão exatamente essa mesma base." />
       <div className="px-6 pb-2 space-y-3">
         <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg bg-white/[0.03] border border-white/[0.07] hover:border-white/[0.12]">
-          <div className={`w-10 h-5 rounded-full relative transition-colors ${enabled ? 'bg-blue-600' : 'bg-white/10'}`} onClick={() => setEnabled(e => !e)}>
+          <div className={`w-10 h-5 rounded-full relative transition-colors ${enabled ? '' : 'bg-white/10'}`} style={enabled ? { backgroundColor: metricColor } : undefined} onClick={() => setEnabled(e => !e)}>
             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </div>
           <span className="text-sm font-semibold text-slate-200">Mostrar banner da métrica</span>
@@ -368,7 +572,7 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip, pr
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Tipo de métrica</label>
-              <select value={metricType} onChange={e => setMetricType(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+              <select value={metricType} onChange={e => setMetricType(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm text-white outline-none transition-colors" style={{ borderColor: metricColor, background: `${metricColor}14`, boxShadow: `0 0 0 1px ${metricColor}44 inset` }}>
                 <option value="ECONOMIA">Economia</option>
                 <option value="TOTAL">Total Financeiro</option>
                 <option value="VARIACAO">Variação</option>
@@ -378,7 +582,7 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip, pr
             </div>
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Rótulo da métrica</label>
-              <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex: Economia" className="w-full px-3 py-2 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 transition-colors" />
+              <input value={label} onChange={e => setLabel(e.target.value)} placeholder={`Ex: ${metricTitle}`} className="w-full px-3 py-2 bg-white/[0.05] border rounded-lg text-sm text-white outline-none transition-colors" style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}22 inset` }} />
             </div>
 
             {metricType === 'ECONOMIA' && (
@@ -390,7 +594,7 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip, pr
               </div>
             )}
             {metricType === 'TOTAL' && (
-              <ColSelect label="Coluna monetária" value={valueCol} onChange={setValueCol} cols={nums} />
+              <ColSelect label="Coluna monetária" value={valueCol} onChange={setValueCol} cols={nums} hint="Valor que será somado no relatório" />
             )}
             {metricType === 'VARIACAO' && (
               <div className="grid grid-cols-2 gap-2">
@@ -405,19 +609,21 @@ function StepSaving({ data, rows, analyzed, onChange, onNext, onBack, onSkip, pr
               <ColSelect label="Data" value={dateCol} onChange={setDateCol} cols={dates} placeholder="— opcional —" />
             </div>
 
-            {previewError && (
-              <div className="rounded-lg border border-rose-700/30 bg-rose-950/20 px-3 py-2 text-[11px] text-rose-200">
-                {previewError}
+            {validationMessage && (
+              <div className="rounded-lg border border-rose-700/30 bg-rose-950/30 px-3 py-2 text-[11px] text-rose-200">
+                {validationMessage}
               </div>
             )}
 
             {Number.isFinite(Number(saving)) && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gradient-to-r from-[#1a3a5c] to-[#2e5c8a] rounded-xl p-4 flex items-center justify-between">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl p-4 flex items-center justify-between" style={{ background: cardBg }}>
                 <div>
                   <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{label}</div>
-                  <div className="text-2xl font-bold text-green-400 font-mono">{metricType === 'TAXA' ? fmtPct(saving) : metricType === 'VOLUME' ? fmtN(saving) : fmtBRL(saving)}</div>
-                  <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/70">
-                    Tipo: {metricType}
+                  <div className="text-2xl font-bold font-mono" style={{ color: '#d1fae5' }}>
+                    {displayMode === 'percent' ? fmtPct(saving) : displayMode === 'number' ? fmtN(saving) : fmtBRL(saving)}
+                  </div>
+                  <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
+                    Tipo: {metricType} · {displayMode === 'percent' ? 'percentual' : displayMode === 'number' ? 'quantidade' : 'monetário'}
                   </div>
                   {detailItems.length > 0 && (
                     <div className="flex items-center gap-3 mt-2">

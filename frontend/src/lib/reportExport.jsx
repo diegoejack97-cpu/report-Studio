@@ -35,6 +35,18 @@ export function buildReportHTML(state, options = {}) {
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
   const fmtN = v => Number(v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+  const metricColor = {
+    ECONOMIA: '#16A34A',
+    TOTAL: '#2563EB',
+    VARIACAO: '#F59E0B',
+    TAXA: '#7C3AED',
+    VOLUME: '#6B7280',
+  }[metric.type || 'ECONOMIA'] || '#16A34A'
+  const formatMetricValue = (metricType, value) => {
+    if (metricType === 'TAXA' || metricType === 'VARIACAO') return fmtPct(value)
+    if (metricType === 'VOLUME') return fmtN(value)
+    return fmtBRL(value)
+  }
 
   function renderInsightsHTML(items = []) {
     if (!items.length) {
@@ -111,8 +123,8 @@ export function buildReportHTML(state, options = {}) {
     const arrow = index > 0 ? '<div>→</div>' : ''
     return `${arrow}<div><div class="sav-dv"${valueStyle}>${escapeHtml(valueText)}</div><div class="sav-dl">${escapeHtml(item.label)}</div></div>`
   }).join('')
-  const savDisplay = metricType === 'TAXA' ? fmtPct(savTotal) : metricType === 'VOLUME' ? fmtN(savTotal) : fmtBRL(savTotal)
-  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(metric.label || 'Métrica principal')}</div><div class="sav-val">${escapeHtml(savDisplay)}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
+  const savDisplay = formatMetricValue(metricType, savTotal)
+  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(metric.label || 'Métrica principal')}</div><div class="sav-val" style="color:${metricColor}">${escapeHtml(savDisplay)}</div><div style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:999px;border:1px solid ${metricColor}55;background:${metricColor}22;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.88)">${escapeHtml(metricType)} · ${escapeHtml(metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário')}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
   const insightsHTML = renderInsightsHTML(insights)
 
   const summaryHTML = sections?.summary && summary.rows.length ? `

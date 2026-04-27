@@ -102,6 +102,19 @@ const PAL_LIGHT = ['#1d4ed8', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891
 const fmtBRL = v => Number(v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
 const fmtN = v => Number(v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
 const fmtPct = v => `${fmtN(v)}%`
+const METRIC_COLORS = {
+  ECONOMIA: '#16A34A',
+  TOTAL: '#2563EB',
+  VARIACAO: '#F59E0B',
+  TAXA: '#7C3AED',
+  VOLUME: '#6B7280',
+}
+
+function formatMetricValue(metricType, value) {
+  if (metricType === 'TAXA' || metricType === 'VARIACAO') return fmtPct(value)
+  if (metricType === 'VOLUME') return fmtN(value)
+  return fmtBRL(value)
+}
 
 function getTheme(dark) {
   return {
@@ -258,6 +271,7 @@ export default function ReportPreview({ state }) {
   const textColor = dark ? '#d9e2ec' : '#1e293b'
   const subText = dark ? '#486581' : '#94a3b8'
   const metricType = metric.type || 'ECONOMIA'
+  const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
   const savTotal = metric.value ?? 0
   const summaryLabel = summary.group_index >= 0 ? cols[summary.group_index]?.name || '—' : '—'
 
@@ -316,8 +330,11 @@ export default function ReportPreview({ state }) {
             style={{ background: `linear-gradient(135deg,${p1},${p2})`, color: '#fff' }}>
             <div>
               <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{metric.label || 'Métrica principal'}</div>
-              <div className="text-4xl font-extrabold font-mono" style={{ color: acc }}>
-                {metricType === 'TAXA' ? fmtPct(savTotal) : metricType === 'VOLUME' ? fmtN(savTotal) : fmtBRL(savTotal)}
+              <div className="text-4xl font-extrabold font-mono" style={{ color: metricColor }}>
+                {formatMetricValue(metricType, savTotal)}
+              </div>
+              <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
+                {metricType} · {metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário'}
               </div>
               {detailItems.length > 0 && (
                 <div className="flex gap-6 mt-3 flex-wrap items-center">
