@@ -137,7 +137,7 @@ export function normalizeSavingConfig(saving = {}, totalColumns = Infinity) {
 
   const metricMeta = METRIC_TYPES[metricType]
   const valueCol = normalizeColumn(saving.valueCol ?? saving.savingCol, totalColumns)
-  const percentCol = normalizeColumn(saving.percentCol ?? saving.savingPercentCol ?? saving.percentualCol ?? saving.percentCol, totalColumns)
+  const percentCol = normalizeColumn(saving.percentCol ?? saving.savingPercentCol ?? saving.percentualCol, totalColumns)
   const baseCol = normalizeColumn(saving.baseCol ?? saving.savingBaseCol ?? saving.valorBaseCol, totalColumns)
   const initialCol = normalizeColumn(saving.initialCol ?? saving.originalCol ?? saving.v1Col, totalColumns)
   const finalCol = normalizeColumn(saving.finalCol ?? saving.negotiatedCol ?? saving.v2Col, totalColumns)
@@ -176,18 +176,6 @@ export function normalizeSavingConfig(saving = {}, totalColumns = Infinity) {
     entityLabel: saving.entityLabel || 'Entidade',
     dateLabel: saving.dateLabel || 'Data',
     savingMode: saving.savingMode || derivedSavingMode,
-    savingCol: metricType === 'TOTAL' ? valueCol : '',
-    savingPercentCol: metricType === 'ECONOMIA' && percentCol && baseCol ? percentCol : '',
-    savingBaseCol: metricType === 'ECONOMIA' && percentCol && baseCol ? baseCol : '',
-    originalCol: metricType === 'ECONOMIA' && (!percentCol || !baseCol) ? initialCol : '',
-    negotiatedCol: metricType === 'ECONOMIA' && (!percentCol || !baseCol) ? finalCol : '',
-    v1Col: initialCol,
-    v2Col: finalCol,
-    savingPercentLabel: saving.percentLabel || saving.savingPercentLabel || 'Saving (%)',
-    savingBaseLabel: saving.baseLabel || saving.savingBaseLabel || 'Valor Base',
-    originalLabel: saving.initialLabel || saving.originalLabel || saving.v1Label || 'Valor Original',
-    negotiatedLabel: saving.finalLabel || saving.negotiatedLabel || saving.v2Label || 'Valor Negociado',
-    directLabel: saving.valueLabel || saving.directLabel || 'Valor',
   }
 }
 
@@ -210,19 +198,12 @@ export function normalizeReportColumns(columns = [], reportConfig = {}) {
 
   const monetaryIndexes = toIndexes([
     saving.valueCol,
-    saving.savingCol,
     saving.baseCol,
-    saving.savingBaseCol,
     saving.initialCol,
-    saving.originalCol,
     saving.finalCol,
-    saving.negotiatedCol,
-    saving.v1Col,
-    saving.v2Col,
   ])
   const percentIndexes = toIndexes([
     saving.percentCol,
-    saving.savingPercentCol,
   ])
   const categoryIndexes = toIndexes([
     saving.categoryCol,

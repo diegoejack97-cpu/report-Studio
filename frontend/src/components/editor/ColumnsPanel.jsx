@@ -50,16 +50,11 @@ export default function ColumnsPanel({ state, update }) {
         </div>
       </div>
 
-      <div>
-        <p className="text-[10px] text-ink-500 font-semibold uppercase tracking-wider mb-2">Agrupamento do resumo</p>
-        <select
-          className="input-field text-xs py-1.5"
-          value={state.groupCol ?? ''}
-          onChange={e => update({ groupCol: e.target.value })}
-        >
-          <option value="">— nenhuma —</option>
-          {cols.map((c, i) => <option key={i} value={String(i)}>{c.name}</option>)}
-        </select>
+      <div className="rounded-lg border border-white/[0.08] bg-surface-2 p-2.5">
+        <p className="text-[10px] text-ink-500 font-semibold uppercase tracking-wider mb-1">Agrupamento do resumo</p>
+        <p className="text-[11px] text-ink-400">
+          O agrupamento do resumo é definido automaticamente pelo backend para manter consistência do cálculo.
+        </p>
       </div>
     </div>
   )

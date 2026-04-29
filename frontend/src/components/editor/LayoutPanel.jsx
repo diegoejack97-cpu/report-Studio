@@ -18,15 +18,6 @@ function Field({ label, children }) {
   return <div><label className="text-[10px] text-ink-500 font-medium block mb-1">{label}</label>{children}</div>
 }
 
-function Select({ id, value, onChange, options }) {
-  return (
-    <select className="input-field text-xs py-1.5" value={value ?? ''} onChange={e => onChange(e.target.value)}>
-      <option value="">— nenhuma —</option>
-      {options.map((o, i) => <option key={i} value={o.value}>{o.label}</option>)}
-    </select>
-  )
-}
-
 function Toggle({ checked, onChange, label }) {
   return (
     <label className="flex items-center justify-between cursor-pointer group">
@@ -40,9 +31,7 @@ function Toggle({ checked, onChange, label }) {
 
 export default function LayoutPanel({ state, update }) {
   const { cols = [], kpis = [], colors = {}, sections = {}, saving: savCfg = {}, exportOptions = {} } = state
-  const numOpts = cols
-    .map((c, i) => ({ ...c, value: String(i), label: c.name }))
-    .filter(c => !c.type || ['number', 'monetary', 'percent'].includes(c.type))
+  const metricMapping = state.reportData?.mapping || {}
 
   const setTitle = v => update({ title: v })
   const setSub = v => update({ subtitle: v })
@@ -79,50 +68,14 @@ export default function LayoutPanel({ state, update }) {
             <option value="VOLUME">Volume</option>
           </select>
         </Field>
-        {currentMetricType === 'ECONOMIA' && (
-          <>
-            <Field label="Base monetária">
-              <Select value={savCfg.baseCol ?? savCfg.savingBaseCol} onChange={v => setSav('baseCol', v)} options={numOpts} />
-            </Field>
-            <Field label="Percentual">
-              <Select value={savCfg.percentCol ?? savCfg.savingPercentCol} onChange={v => setSav('percentCol', v)} options={numOpts} />
-            </Field>
-            <Field label="Valor inicial">
-              <Select value={savCfg.initialCol ?? savCfg.originalCol} onChange={v => setSav('initialCol', v)} options={numOpts} />
-            </Field>
-            <Field label="Valor final">
-              <Select value={savCfg.finalCol ?? savCfg.negotiatedCol} onChange={v => setSav('finalCol', v)} options={numOpts} />
-            </Field>
-          </>
-        )}
-        {currentMetricType === 'TOTAL' && (
-          <Field label="Coluna monetária">
-            <Select value={savCfg.valueCol ?? savCfg.savingCol} onChange={v => setSav('valueCol', v)} options={numOpts} />
-          </Field>
-        )}
-        {currentMetricType === 'VARIACAO' && (
-          <>
-            <Field label="Coluna inicial">
-              <Select value={savCfg.initialCol ?? savCfg.originalCol} onChange={v => setSav('initialCol', v)} options={numOpts} />
-            </Field>
-            <Field label="Coluna final">
-              <Select value={savCfg.finalCol ?? savCfg.negotiatedCol} onChange={v => setSav('finalCol', v)} options={numOpts} />
-            </Field>
-          </>
-        )}
-        {(currentMetricType === 'TAXA' || currentMetricType === 'VOLUME' || currentMetricType === 'ECONOMIA' || currentMetricType === 'TOTAL' || currentMetricType === 'VARIACAO') && (
-          <>
-            <Field label="Categoria">
-              <Select value={savCfg.categoryCol ?? state.groupCol} onChange={v => setSav('categoryCol', v)} options={cols.map((c, i) => ({ value: String(i), label: c.name }))} />
-            </Field>
-            <Field label="Entidade / Ranking">
-              <Select value={savCfg.entityCol ?? savCfg.categoryCol ?? state.groupCol} onChange={v => setSav('entityCol', v)} options={cols.map((c, i) => ({ value: String(i), label: c.name }))} />
-            </Field>
-            <Field label="Data">
-              <Select value={savCfg.dateCol} onChange={v => setSav('dateCol', v)} options={cols.map((c, i) => ({ value: String(i), label: c.name }))} />
-            </Field>
-          </>
-        )}
+        <div className="rounded-lg p-2.5 text-[11px] border border-white/[0.08] bg-surface-2 text-ink-400">
+          O mapeamento das colunas e o cálculo da métrica principal são definidos automaticamente pelo backend.
+        </div>
+        <div className="rounded-lg p-2.5 text-[11px] border border-white/[0.08] bg-surface-2 text-ink-300 space-y-1">
+          <div>Monetária: <span className="font-semibold">{metricMapping.monetary || 'Não identificado'}</span></div>
+          <div>Percentual: <span className="font-semibold">{metricMapping.percent || 'Não identificado'}</span></div>
+          <div>Categoria: <span className="font-semibold">{metricMapping.category || 'Não identificado'}</span></div>
+        </div>
       </Accordion>
 
       <Accordion title="📊 KPIs">

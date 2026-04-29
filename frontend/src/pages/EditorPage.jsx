@@ -29,6 +29,9 @@ const DEFAULT_STATE = {
   title: 'Novo Relatório', subtitle: '', period: '', company: '',
   cols: [], rows: [], kpis: [],
   insights: [],
+  reportSchemaVersion: 0,
+  usesAutomaticMetrics: false,
+  legacyReportMode: false,
   colors: { primary: '#1a3a5c', secondary: '#2e5c8a', accent: '#4ade80', bg: '#eef1f5', text: '#1e293b' },
   sections: { saving: true, kpi: true, charts: true, summary: true, table: true, filters: true, footer: true },
   saving: {
@@ -54,6 +57,53 @@ const DEFAULT_STATE = {
   groupCol: '',
   footer: 'Relatório gerado pelo Report Flow · Uso interno',
   exportOptions: { strictParity: true, themeMode: 'follow' },
+}
+
+function getReportSchemaVersion(reportData) {
+  const schemaVersion = Number(reportData?.schemaVersion ?? 0)
+  return Number.isFinite(schemaVersion) ? schemaVersion : 0
+}
+
+// LEGACY FLOW — manter apenas para compatibilidade
+function getLegacySavingConfig(saving = {}, totalColumns = 0) {
+  return normalizeSavingConfig(saving, totalColumns)
+}
+
+// LEGACY FLOW — manter apenas para compatibilidade
+function resolveLegacyColumns(columns = [], reportConfig = {}) {
+  return normalizeReportColumns(columns, reportConfig)
+}
+
+function buildAutomaticSavingConfig(baseConfig = {}) {
+  const metricType = baseConfig?.saving?.metricType || baseConfig?.metricType || 'ECONOMIA'
+  const override = baseConfig?.saving?.override || null
+  const label = baseConfig?.saving?.label || ''
+
+  return {
+    metricType,
+    type: metricType,
+    ...(label ? { label } : {}),
+    ...(override ? { override } : {}),
+  }
+}
+
+function buildPreviewConfig(baseConfig = {}, rows = [], cols = []) {
+  const metricType = baseConfig?.saving?.metricType || baseConfig?.metricType || 'ECONOMIA'
+  const schemaVersion = Number(baseConfig?.reportSchemaVersion ?? 0)
+  const usesAutomaticMetrics = schemaVersion >= 1
+  const saving = usesAutomaticMetrics
+    ? buildAutomaticSavingConfig(baseConfig)
+    : getLegacySavingConfig(baseConfig?.saving || {}, cols.length)
+  const override = saving?.override || null
+
+  return {
+    ...baseConfig,
+    rows,
+    cols,
+    metricType,
+    saving,
+    ...(override ? { override } : {}),
+  }
 }
 
 function getApiErrorMessage(err, fallback = 'Erro ao salvar') {
@@ -97,15 +147,26 @@ export default function EditorPage() {
     }
 
     const reportData = report.report_data || report.reportData || {}
+    const schemaVersion = getReportSchemaVersion(reportData)
+    const usesAutomaticMetrics = schemaVersion >= 1
     const syncedInsights = Array.isArray(reportData?.insights)
       ? reportData.insights
       : (Array.isArray(stateRef.current.insights) ? stateRef.current.insights : [])
+    const syncedSaving = usesAutomaticMetrics
+      ? buildAutomaticSavingConfig({
+          ...report.config,
+          saving: report.config?.saving || {},
+        })
+      : getLegacySavingConfig(report.config.saving || {}, (report.config.cols || []).length)
     const syncedState = {
       ...DEFAULT_STATE,
       ...report.config,
       insights: syncedInsights,
       reportData,
-      saving: normalizeSavingConfig(report.config.saving || {}, (report.config.cols || []).length),
+      saving: syncedSaving,
+      reportSchemaVersion: schemaVersion,
+      usesAutomaticMetrics,
+      legacyReportMode: !usesAutomaticMetrics,
     }
     stateRef.current = syncedState
     setState(syncedState)
@@ -141,21 +202,15 @@ export default function EditorPage() {
     previewDebounceRef.current = window.setTimeout(async () => {
       try {
         const previewRows = wizardDraft.rows.map(cells => ({ cells: cells.map(cell => String(cell ?? '')) }))
-        const previewCols = normalizeReportColumns(
-          (wizardDraft.analyzed || []).map((col, index) => ({
-            name: col.name || wizardDraft.cols?.[index] || `col_${index}`,
-            type: col.type || 'text',
-            vis: true,
-          })),
-          wizardDraft,
-        )
+        const previewCols = (wizardDraft.analyzed || []).map((col, index) => ({
+          name: col.name || wizardDraft.cols?.[index] || `col_${index}`,
+          type: col.type || 'text',
+          vis: true,
+        }))
+        const previewConfig = buildPreviewConfig(wizardDraft, previewRows, previewCols)
         const payload = {
           data: { rows: previewRows, cols: previewCols },
-          config: {
-            ...wizardDraft,
-            rows: previewRows,
-            cols: previewCols,
-          },
+          config: previewConfig,
         }
         const { data } = await api.post('/reports/preview', payload)
         setPreviewData(data)
@@ -164,6 +219,9 @@ export default function EditorPage() {
           ...prev,
           reportData: data,
           insights: data?.insights || prev.insights,
+          reportSchemaVersion: getReportSchemaVersion(data),
+          usesAutomaticMetrics: getReportSchemaVersion(data) >= 1,
+          legacyReportMode: getReportSchemaVersion(data) < 1,
         }))
       } catch (err) {
         const message = err.response?.data?.detail?.message || err.response?.data?.detail || 'Erro ao validar a configuração no backend.'
@@ -194,12 +252,26 @@ export default function EditorPage() {
   const autoSave = async (currentState) => {
     if (!currentState.rows?.length) return
     try {
-      const normalizedSaving = normalizeSavingConfig(currentState.saving || {}, currentState.cols?.length || 0)
-      const normalizedCols = normalizeReportColumns(currentState.cols || [], currentState)
+      const schemaVersion = Number(currentState?.reportSchemaVersion ?? 0)
+      const usesAutomaticMetrics = schemaVersion >= 1
+      const normalizedSaving = usesAutomaticMetrics
+        ? buildAutomaticSavingConfig(currentState)
+        : getLegacySavingConfig(currentState.saving || {}, currentState.cols?.length || 0)
+      const normalizedCols = usesAutomaticMetrics
+        ? (currentState.cols || [])
+        : resolveLegacyColumns(currentState.cols || [], currentState)
       const { reportData: _reportData, ...editorConfig } = currentState
+      const config = buildPreviewConfig(
+        {
+          ...editorConfig,
+          saving: normalizedSaving,
+        },
+        currentState.rows || [],
+        normalizedCols,
+      )
       const payload = {
         title: currentState.title || 'Relatório',
-        config: { ...editorConfig, saving: normalizedSaving, cols: normalizedCols },
+        config,
         row_count: currentState.rows?.length || 0,
         col_count: normalizedCols.length,
       }
@@ -332,17 +404,15 @@ export default function EditorPage() {
       return { name, type, vis: true, w: type === 'number' ? 110 : name.length > 18 ? 160 : 130 }
     })
     const detectedRows = pendingRows.map(r => ({ cells: pendingCols.map((_, i) => String(r[i] ?? '')) }))
-    const normalizedCols = normalizeReportColumns(detectedCols, {
-      ...state,
-      ...wizardState,
-      cols: detectedCols,
-    })
     const nextState = {
       ...state,
       ...wizardState,
-      cols: normalizedCols,
+      cols: detectedCols,
       rows: detectedRows,
       reportData: previewData || (previewError ? { error: previewError } : {}),
+      reportSchemaVersion: getReportSchemaVersion(previewData),
+      usesAutomaticMetrics: getReportSchemaVersion(previewData) >= 1,
+      legacyReportMode: getReportSchemaVersion(previewData) < 1,
     }
 
     setState(nextState)
@@ -451,7 +521,7 @@ export default function EditorPage() {
               exit={{ opacity: 0 }}
               className="flex-1 overflow-auto min-w-0" style={{background:"var(--s0)"}}
             >
-              <ReportPreview state={state} />
+              <ReportPreview state={{ ...state, update }} />
             </motion.div>
           )}
         </AnimatePresence>
