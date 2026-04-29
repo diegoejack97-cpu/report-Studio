@@ -191,6 +191,58 @@ export function normalizeSavingConfig(saving = {}, totalColumns = Infinity) {
   }
 }
 
+export function normalizeReportColumns(columns = [], reportConfig = {}) {
+  const totalColumns = columns.length
+  const nestedSaving = reportConfig.saving && typeof reportConfig.saving === 'object'
+    ? reportConfig.saving
+    : {}
+  const sourceConfig = {
+    ...nestedSaving,
+    ...reportConfig,
+  }
+  delete sourceConfig.saving
+  const saving = normalizeSavingConfig(sourceConfig || {}, totalColumns)
+  const toIndexes = values => new Set(
+    values
+      .map(value => getColumnIndex(value, totalColumns))
+      .filter(index => index >= 0)
+  )
+
+  const monetaryIndexes = toIndexes([
+    saving.valueCol,
+    saving.savingCol,
+    saving.baseCol,
+    saving.savingBaseCol,
+    saving.initialCol,
+    saving.originalCol,
+    saving.finalCol,
+    saving.negotiatedCol,
+    saving.v1Col,
+    saving.v2Col,
+  ])
+  const percentIndexes = toIndexes([
+    saving.percentCol,
+    saving.savingPercentCol,
+  ])
+  const categoryIndexes = toIndexes([
+    saving.categoryCol,
+    saving.entityCol,
+    reportConfig.groupCol,
+  ])
+  const dateIndexes = toIndexes([
+    saving.dateCol,
+  ])
+
+  return columns.map((column, index) => {
+    const currentType = String(column?.type || 'text').toLowerCase()
+    if (dateIndexes.has(index)) return { ...column, type: 'date' }
+    if (percentIndexes.has(index)) return { ...column, type: 'percent' }
+    if (monetaryIndexes.has(index)) return { ...column, type: 'monetary' }
+    if (categoryIndexes.has(index)) return { ...column, type: 'category' }
+    return { ...column, type: currentType }
+  })
+}
+
 export function detectSavingColumnKind(rows = [], colIndex, columnName = '') {
   if (colIndex < 0) return 'unknown'
   const values = rows.map(row => getRowCell(row, colIndex))

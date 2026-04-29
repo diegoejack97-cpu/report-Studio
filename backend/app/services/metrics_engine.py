@@ -204,7 +204,12 @@ def _validate_column_type(field: str, column: dict[str, Any] | None, expected: s
     if column is None:
         return
     received = str(column.get("type") or "text").lower()
-    if received == expected:
+    allowed_aliases = {
+        "monetary": {"number"},
+        "percent": {"number"},
+        "category": {"text"},
+    }
+    if received == expected or received in allowed_aliases.get(expected, set()):
         return
 
     raise MetricsValidationError(

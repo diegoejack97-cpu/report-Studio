@@ -253,6 +253,7 @@ export default function ReportPreview({ state }) {
   const { dark } = useThemeStore()
   const { cols = [], colors = {}, sections = {}, reportData = {} } = state
   const safeReportData = reportData || {}
+  const previewError = safeReportData.error || state.previewError || ''
   const dataset = safeReportData.dataset || {}
   const datasetRows = Array.isArray(dataset.rows) ? dataset.rows : []
   const summary = dataset.summary || { rows: [], totals: {}, group_index: -1 }
@@ -276,6 +277,23 @@ export default function ReportPreview({ state }) {
   const savTotal = metric.value ?? 0
   const recordCount = summary.totals?.count ?? datasetRows.length
   const summaryLabel = summary.group_index >= 0 ? cols[summary.group_index]?.name || '—' : '—'
+
+  if (previewError) {
+    return (
+      <div className="p-4" style={{ background: bgColor, minHeight: '100%', color: textColor }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+          <div className="rounded-2xl p-5" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
+            <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#f87171' }}>
+              Falha ao calcular o relatório
+            </div>
+            <div style={{ color: subText, fontSize: '0.9rem', lineHeight: 1.5 }}>
+              {previewError}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!safeReportData?.dataset) {
     return (

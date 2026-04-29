@@ -16,7 +16,7 @@ import ColumnsPanel from '@/components/editor/ColumnsPanel'
 import ReportPreview from '@/components/editor/ReportPreview'
 import SetupWizard from '@/components/editor/SetupWizard'
 import { buildReportHTML } from '@/lib/reportExport'
-import { normalizeSavingConfig } from '@/lib/saving'
+import { normalizeReportColumns, normalizeSavingConfig } from '@/lib/saving'
 
 const TABS = [
   { id: 'data',    label: '📊 Dados' },
@@ -141,11 +141,14 @@ export default function EditorPage() {
     previewDebounceRef.current = window.setTimeout(async () => {
       try {
         const previewRows = wizardDraft.rows.map(cells => ({ cells: cells.map(cell => String(cell ?? '')) }))
-        const previewCols = (wizardDraft.analyzed || []).map((col, index) => ({
-          name: col.name || wizardDraft.cols?.[index] || `col_${index}`,
-          type: col.type || 'text',
-          vis: true,
-        }))
+        const previewCols = normalizeReportColumns(
+          (wizardDraft.analyzed || []).map((col, index) => ({
+            name: col.name || wizardDraft.cols?.[index] || `col_${index}`,
+            type: col.type || 'text',
+            vis: true,
+          })),
+          wizardDraft,
+        )
         const payload = {
           data: { rows: previewRows, cols: previewCols },
           config: {
@@ -166,6 +169,10 @@ export default function EditorPage() {
         const message = err.response?.data?.detail?.message || err.response?.data?.detail || 'Erro ao validar a configuração no backend.'
         setPreviewError(message)
         setPreviewData(null)
+        setState(prev => ({
+          ...prev,
+          reportData: { error: message },
+        }))
       }
     }, 350)
 
@@ -188,12 +195,13 @@ export default function EditorPage() {
     if (!currentState.rows?.length) return
     try {
       const normalizedSaving = normalizeSavingConfig(currentState.saving || {}, currentState.cols?.length || 0)
+      const normalizedCols = normalizeReportColumns(currentState.cols || [], currentState)
       const { reportData: _reportData, ...editorConfig } = currentState
       const payload = {
         title: currentState.title || 'Relatório',
-        config: { ...editorConfig, saving: normalizedSaving },
+        config: { ...editorConfig, saving: normalizedSaving, cols: normalizedCols },
         row_count: currentState.rows?.length || 0,
-        col_count: currentState.cols?.length || 0,
+        col_count: normalizedCols.length,
       }
       if (reportId) {
         const { data } = await api.put(`/reports/${reportId}`, payload)
@@ -324,12 +332,17 @@ export default function EditorPage() {
       return { name, type, vis: true, w: type === 'number' ? 110 : name.length > 18 ? 160 : 130 }
     })
     const detectedRows = pendingRows.map(r => ({ cells: pendingCols.map((_, i) => String(r[i] ?? '')) }))
-    const nextState = {
+    const normalizedCols = normalizeReportColumns(detectedCols, {
       ...state,
       ...wizardState,
       cols: detectedCols,
+    })
+    const nextState = {
+      ...state,
+      ...wizardState,
+      cols: normalizedCols,
       rows: detectedRows,
-      reportData: previewData || {},
+      reportData: previewData || (previewError ? { error: previewError } : {}),
     }
 
     setState(nextState)
