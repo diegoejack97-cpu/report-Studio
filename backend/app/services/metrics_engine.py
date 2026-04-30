@@ -34,7 +34,7 @@ METRIC_RULES = {
             "percent_missing": "Nenhuma coluna percentual encontrada",
         },
         "warnings": {
-            "percent_unit": "Possível inconsistência de unidade percentual",
+            "percent_unit": "Valores percentuais foram normalizados automaticamente de escala 0-100 para 0-1",
         },
     },
     "TOTAL": {
@@ -387,6 +387,7 @@ def _resolve_effective_mapping(
 ) -> dict[str, str | None]:
     saving_cfg = config.get("saving") if isinstance(config.get("saving"), dict) else {}
     effective = dict(auto_mapping)
+    override_cfg = saving_cfg.get("override") if isinstance(saving_cfg.get("override"), dict) else {}
 
     def _fallback_name(field: str, *keys: str) -> str | None:
         for key in keys:
@@ -409,6 +410,24 @@ def _resolve_effective_mapping(
     for field, fallback_value in fallback_values.items():
         if effective.get(field) is None and fallback_value is not None:
             effective[field] = fallback_value
+
+    expected_kind_by_field = {
+        "monetary": "monetary",
+        "percent": "percent",
+        "category": "category",
+    }
+    for field, expected_kind in expected_kind_by_field.items():
+        override_column = override_cfg.get(field)
+        override_idx = _resolve_column_index(override_column, columns)
+        if override_idx < 0:
+            continue
+        override_type = str(columns[override_idx].get("type") or "").lower()
+        compatible = (
+            (expected_kind in ("monetary", "percent") and override_type in {"number", expected_kind})
+            or (expected_kind == "category" and override_type in {"text", expected_kind})
+        )
+        if compatible:
+            effective[field] = columns[override_idx]["name"]
 
     return effective
 
@@ -441,9 +460,8 @@ def _build_validation(metric_type: str, analysis: dict[str, dict[str, Any]], map
     for column_name, payload in (analysis.get("columns") or {}).items():
         if payload.get("kind") == "score" and column_name == mapping.get("percent"):
             errors.append("score não pode ser usado como percentual financeiro")
-        warnings.extend(payload.get("warnings") or [])
-
-    return {"errors": errors, "warnings": warnings}
+    deduped_warnings = list(dict.fromkeys(warnings))
+    return {"errors": errors, "warnings": deduped_warnings}
 
 
 def _build_runtime_fields(metric_type: str, columns: list[dict[str, Any]], analysis: dict[str, dict[str, Any]], legacy_fields: dict[str, int], mapping: dict[str, str | None]) -> dict[str, int]:
@@ -1347,13 +1365,6 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
                 base_value = parse_number(row.get(columns[fields["base"]]["name"]))
                 raw_percent_value = parse_number(row.get(columns[fields["percent"]]["name"]))
                 percent_value = normalize_percent(raw_percent_value)
-                if raw_percent_value is not None and 1 < raw_percent_value < 100:
-                    unit_warning = METRIC_RULES["ECONOMIA"]["warnings"]["percent_unit"]
-                    validation["warnings"].append(unit_warning)
-                    percent_column_name = columns[fields["percent"]]["name"]
-                    column_warnings = analysis["columns"][percent_column_name]["warnings"]
-                    if unit_warning not in column_warnings:
-                        column_warnings.append(unit_warning)
                 if base_value is None or percent_value is None:
                     skipped_rows += 1
                     continue
@@ -1420,6 +1431,21 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
                 "formula": formula,
             }
         )
+
+    if metric_type == "ECONOMIA" and fields.get("percent", -1) >= 0:
+        percent_column_name = columns[fields["percent"]]["name"]
+        percent_values = [parse_number(row.get(percent_column_name)) for row in named_rows]
+        if any(value is not None and 1 < value < 100 for value in percent_values):
+            unit_warning = METRIC_RULES["ECONOMIA"]["warnings"]["percent_unit"]
+            column_warnings = analysis["columns"].get(percent_column_name, {}).get("warnings")
+            if isinstance(column_warnings, list) and unit_warning not in column_warnings:
+                column_warnings.append(unit_warning)
+
+    for column_payload in (analysis.get("columns") or {}).values():
+        column_warnings = column_payload.get("warnings")
+        if isinstance(column_warnings, list):
+            column_payload["warnings"] = list(dict.fromkeys(column_warnings))
+    validation["warnings"] = list(dict.fromkeys(validation.get("warnings") or []))
 
     if metric_type == "TAXA":
         total = len(metric_rows) or 1

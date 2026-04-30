@@ -385,7 +385,8 @@ def test_metric_report_data_contains_persisted_metadata():
         "score": None,
     }
     assert artifact["analysis"]["columns"]["saving_percent"]["kind"] == "percent"
-    assert "Possível inconsistência de unidade percentual" in artifact["analysis"]["columns"]["saving_percent"]["warnings"]
+    assert "Valores percentuais foram normalizados automaticamente de escala 0-100 para 0-1" in artifact["analysis"]["columns"]["saving_percent"]["warnings"]
+    assert artifact["validation"]["warnings"] == []
 
 
 def test_auto_mapping_takes_precedence_over_manual_config():
@@ -428,14 +429,35 @@ def test_low_confidence_classification_emits_warning():
 
     result = build_metric_dataset(data, config)
 
-    assert any(
-        "Baixa confiança na classificação da coluna 'descricao'" in warning
-        for warning in result["validation"]["warnings"]
-    )
+    assert result["validation"]["warnings"] == []
     assert any(
         "Baixa confiança na classificação da coluna 'descricao'" in warning
         for warning in result["analysis"]["columns"]["descricao"]["warnings"]
     )
+
+
+def test_override_applies_before_final_mapping():
+    data = {
+        "cols": [
+            {"name": "valor_pago", "type": "monetary"},
+            {"name": "saving_percent", "type": "percent"},
+            {"name": "percent_manual", "type": "percent"},
+        ],
+        "rows": [
+            {"cells": ["1000", "10", "25"]},
+        ],
+    }
+    config = {
+        "saving": {
+            "metricType": "ECONOMIA",
+            "override": {"percent": "percent_manual"},
+        }
+    }
+
+    result = build_metric_dataset(data, config)
+
+    assert result["mapping"]["percent"] == "percent_manual"
+    assert math.isclose(result["dataset"][0]["percent_value"], 0.25)
 
 
 def test_score_is_not_classified_as_percent():

@@ -2,6 +2,8 @@ import logging
 from datetime import datetime
 from collections import OrderedDict
 import copy
+import hashlib
+import json
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -93,11 +95,57 @@ def _public_preview_response(report_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _preview_cache_key(source_hash: str, metric_type: str) -> str:
-    return f"{source_hash}:{metric_type}"
+def _stable_digest(payload: Any) -> str:
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
-def _preview_cache_lookup(cache_key: str) -> dict[str, Any] | None:
+def _preview_cache_key(source_hash: str, metric_type: str, effective_config: dict[str, Any], mapping: dict[str, Any]) -> str:
+    config_digest = _stable_digest(effective_config)
+    mapping_digest = _stable_digest(mapping)
+    return f"{source_hash}:{metric_type}:{config_digest}:{mapping_digest}"
+
+
+def _preview_effective_config(config: dict[str, Any] | None) -> dict[str, Any]:
+    saving = (config or {}).get("saving")
+    saving_cfg = saving if isinstance(saving, dict) else {}
+    override_cfg = saving_cfg.get("override") if isinstance(saving_cfg.get("override"), dict) else {}
+    mapping_inputs = {
+        key: saving_cfg.get(key)
+        for key in (
+            "baseCol",
+            "savingBaseCol",
+            "valueCol",
+            "savingCol",
+            "percentCol",
+            "savingPercentCol",
+            "categoryCol",
+            "dateCol",
+            "initialCol",
+            "originalCol",
+            "v1Col",
+        )
+        if saving_cfg.get(key) not in (None, "")
+    }
+    return {
+        "metricType": _extract_metric_type(config),
+        "mappingInputs": mapping_inputs,
+        "override": override_cfg,
+    }
+
+
+def _preview_cache_lookup(cache_key: str | None = None, cache_key_prefix: str | None = None) -> dict[str, Any] | None:
+    if cache_key_prefix:
+        for existing_key, existing_value in reversed(_PREVIEW_CACHE.items()):
+            if existing_key.startswith(cache_key_prefix) and isinstance(existing_value, dict):
+                _PREVIEW_CACHE.move_to_end(existing_key)
+                logger.info("preview cache hit: key=%s", existing_key)
+                return copy.deepcopy(existing_value)
+        logger.info("preview cache miss: key_prefix=%s", cache_key_prefix)
+        return None
+
+    if not cache_key:
+        return None
     cached = _PREVIEW_CACHE.get(cache_key)
     if not isinstance(cached, dict):
         logger.info("preview cache miss: key=%s", cache_key)
@@ -245,10 +293,14 @@ async def preview_report(
         config = payload.get("config") if isinstance(payload, dict) and isinstance(payload.get("config"), dict) else payload
         metric_type = _extract_metric_type(config)
         source_hash = resolve_source_hash(source, None)
-        cache_key = _preview_cache_key(source_hash, metric_type)
-        cached_report_data = _preview_cache_lookup(cache_key)
+        effective_config = _preview_effective_config(config)
+        config_digest = _stable_digest(effective_config)
+        cache_prefix = f"{source_hash}:{metric_type}:{config_digest}:"
+        cached_report_data = _preview_cache_lookup(cache_key_prefix=cache_prefix)
         if cached_report_data is None:
             cached_report_data = _build_report_data(source, config)
+            final_mapping = cached_report_data.get("mapping") if isinstance(cached_report_data.get("mapping"), dict) else {}
+            cache_key = _preview_cache_key(source_hash, metric_type, effective_config, final_mapping)
             _preview_cache_store(cache_key, cached_report_data)
         report_preview = _public_preview_response(cached_report_data)
         report_id = payload.get("reportId") if isinstance(payload, dict) else None

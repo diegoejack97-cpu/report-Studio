@@ -187,11 +187,19 @@ function humanizeEvidence(pattern) {
   return map[pattern] || 'Padrão identificado automaticamente'
 }
 
+function dedupeWarnings(values) {
+  if (!Array.isArray(values)) return []
+  const normalized = values
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+  return [...new Set(normalized)]
+}
+
 function getDiagnosticMeta(columnName, columnInfo, mapping) {
   const kind = columnInfo?.kind || 'text'
   const confidence = columnInfo?.confidence ?? 0
   const evidence = columnInfo?.evidence || {}
-  const warnings = Array.isArray(columnInfo?.warnings) ? columnInfo.warnings : []
+  const warnings = dedupeWarnings(columnInfo?.warnings)
   const mappingLabel = Object.entries(mapping || {}).find(([, value]) => value === columnName)?.[0] || null
 
   return {
@@ -287,7 +295,7 @@ function DiagnosticsPanel({ reportData, dark, cardBg, bdColor, textColor, subTex
   const mapping = reportData?.mapping || {}
   const validation = reportData?.validation || { errors: [], warnings: [] }
   const columnEntries = Object.entries(analysisColumns)
-  const globalWarnings = Array.isArray(validation.warnings) ? validation.warnings : []
+  const globalWarnings = dedupeWarnings(validation.warnings)
   const globalErrors = Array.isArray(validation.errors) ? validation.errors : []
   const summaryItems = [
     ['Valor', mapping.monetary || '—'],
@@ -584,7 +592,8 @@ export default function ReportPreview({ state }) {
 
   const hasDataset = Array.isArray(datasetRows)
   const hasValidationErrors = Array.isArray(validation.errors) && validation.errors.length > 0
-  const hasValidationWarnings = Array.isArray(validation.warnings) && validation.warnings.length > 0
+  const dedupedValidationWarnings = dedupeWarnings(validation.warnings)
+  const hasValidationWarnings = dedupedValidationWarnings.length > 0
   const hasAnalysis = Object.keys(analysisColumns).length > 0
 
   const p1 = colors.primary || '#1a3a5c'
@@ -649,7 +658,7 @@ export default function ReportPreview({ state }) {
               <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#f59e0b' }}>
                 Warnings globais
               </div>
-              {validation.warnings.map((warning, index) => (
+              {dedupedValidationWarnings.map((warning, index) => (
                 <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }}>
                   ⚠ {warning}
                 </div>
@@ -679,7 +688,7 @@ export default function ReportPreview({ state }) {
               <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#f59e0b' }}>
                 Warnings globais
               </div>
-              {validation.warnings.map((warning, index) => (
+              {dedupedValidationWarnings.map((warning, index) => (
                 <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }}>
                   ⚠ {warning}
                 </div>
@@ -736,7 +745,7 @@ export default function ReportPreview({ state }) {
             <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#f59e0b' }}>
               Warnings globais
             </div>
-            {validation.warnings.map((warning, index) => (
+            {dedupedValidationWarnings.map((warning, index) => (
               <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }}>
                 ⚠ {warning}
               </div>
