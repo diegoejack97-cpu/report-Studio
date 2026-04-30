@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+import json
 import math
 import re
 from typing import Any, Iterable
@@ -20,6 +22,53 @@ METRIC_META = {
 }
 
 MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+SCHEMA_VERSION = 1
+CLASSIFICATION_SAMPLE_SIZE = 25
+
+METRIC_RULES = {
+    "ECONOMIA": {
+        "requires": ["monetary", "percent"],
+        "formula": "base_value * percent_value",
+        "errors": {
+            "monetary_missing": "Nenhuma coluna monetária encontrada",
+            "percent_missing": "Nenhuma coluna percentual encontrada",
+        },
+        "warnings": {
+            "percent_unit": "Possível inconsistência de unidade percentual",
+        },
+    },
+    "TOTAL": {
+        "requires": ["monetary"],
+        "formula": "sum(value)",
+        "errors": {
+            "monetary_missing": "Nenhuma coluna monetária encontrada",
+        },
+        "warnings": {},
+    },
+    "VARIACAO": {
+        "requires": ["monetary", "monetary"],
+        "formula": "(final_value - initial_value) / initial_value * 100",
+        "errors": {
+            "monetary_missing": "Nenhuma coluna monetária encontrada",
+            "monetary_pair_missing": "Nenhuma segunda coluna monetária encontrada",
+        },
+        "warnings": {},
+    },
+    "TAXA": {
+        "requires": ["category"],
+        "formula": "category_share",
+        "errors": {
+            "category_missing": "Nenhuma coluna categórica encontrada",
+        },
+        "warnings": {},
+    },
+    "VOLUME": {
+        "requires": [],
+        "formula": "count_rows",
+        "errors": {},
+        "warnings": {},
+    },
+}
 
 
 class MetricsValidationError(ValueError):
@@ -126,6 +175,382 @@ def parse_number(value: Any, *, is_percent: bool = False) -> float | None:
         return None
 
     return normalize_percent(parsed) if is_percent else parsed
+
+
+def _stable_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def _compute_source_hash(rows: list[dict[str, Any]], cols: list[dict[str, Any]]) -> str:
+    payload = {"rows": rows, "cols": cols}
+    return hashlib.sha256(_stable_json(payload).encode("utf-8")).hexdigest()
+
+
+def _row_cells(row: Any) -> list[Any]:
+    if isinstance(row, dict):
+        cells = row.get("cells")
+        return cells if isinstance(cells, list) else []
+    return row if isinstance(row, list) else []
+
+
+def _sample_column_values(rows: list[dict[str, Any]], column_index: int, sample_size: int = CLASSIFICATION_SAMPLE_SIZE) -> list[Any]:
+    values: list[Any] = []
+    for row in rows[:sample_size]:
+        cells = _row_cells(row)
+        if column_index < len(cells):
+            value = cells[column_index]
+            if value not in (None, ""):
+                values.append(value)
+    return values
+
+
+def _count_matches(values: list[Any], predicate) -> int:
+    return sum(1 for value in values if predicate(value))
+
+
+def _looks_like_percent_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(percent|percentual|pct|taxa|desconto|saving|economia|%)", name))
+
+
+def _looks_like_money_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(valor|price|custo|amount|receita|despesa|gasto|money|currency|total|base|pago|negociado)", name))
+
+
+def _looks_like_date_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(data|date|venc|mes|mês|ano|period)", name))
+
+
+def _looks_like_score_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(score|nota|rating|avaliacao|avaliação|performance)", name))
+
+
+def _looks_like_category_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(categoria|category|tipo|fornecedor|empresa|cliente|grupo|setor)", name))
+
+
+def _parse_numeric_like(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+        return numeric if math.isfinite(numeric) else None
+    text = str(value).strip()
+    if not text:
+        return None
+    return _parse_decimal_text(text)
+
+
+def _parse_date_like(value: Any) -> bool:
+    raw = str(value or "").strip()
+    if not raw:
+        return False
+    if re.match(r"^\d{1,4}[/-]\d{1,2}([/-]\d{1,4})?$", raw):
+        return True
+    try:
+        datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return True
+    except Exception:
+        return False
+
+
+def _classify_column(name: str, values: list[Any]) -> dict[str, Any]:
+    normalized_name = _normalize_text(name)
+    sample_values = [str(v) for v in values[:5]]
+    non_empty = [value for value in values if value not in (None, "")]
+    string_values = [str(value).strip() for value in non_empty]
+    numeric_values = [numeric for numeric in (_parse_numeric_like(value) for value in non_empty) if numeric is not None]
+    date_matches = _count_matches(non_empty, _parse_date_like)
+    percent_hint = _looks_like_percent_name(normalized_name)
+    money_hint = _looks_like_money_name(normalized_name)
+    date_hint = _looks_like_date_name(normalized_name)
+    score_hint = _looks_like_score_name(normalized_name)
+    category_hint = _looks_like_category_name(normalized_name)
+    unique_ratio = 1.0
+    if string_values:
+        unique_ratio = len({_normalize_text(value) for value in string_values if value}) / len(string_values)
+
+    kind = "text"
+    confidence = 0.35
+    name_pattern = "none"
+    numeric_pattern = "none"
+    warnings: list[str] = []
+
+    if date_hint or (date_matches and date_matches / max(len(non_empty), 1) >= 0.6):
+        kind = "date"
+        confidence = 0.92 if date_hint else 0.78
+        name_pattern = "date_keyword"
+        numeric_pattern = f"date_match_rate={date_matches / max(len(non_empty), 1):.2f}"
+    elif score_hint:
+        kind = "score"
+        confidence = 0.91
+        name_pattern = "score_keyword"
+        numeric_pattern = f"numeric_rate={len(numeric_values) / max(len(non_empty), 1):.2f}"
+    elif percent_hint:
+        kind = "percent"
+        confidence = 0.88
+        name_pattern = "percent_keyword"
+        numeric_pattern = f"numeric_rate={len(numeric_values) / max(len(non_empty), 1):.2f}"
+    elif money_hint or (numeric_values and sum(1 for value in numeric_values if abs(value) >= 1000) / len(numeric_values) >= 0.4):
+        kind = "monetary"
+        confidence = 0.84 if money_hint else 0.72
+        name_pattern = "money_keyword" if money_hint else "numeric_magnitude"
+        numeric_pattern = f"high_value_rate={sum(1 for value in numeric_values if abs(value) >= 1000) / max(len(numeric_values), 1):.2f}"
+    elif category_hint or (string_values and unique_ratio <= 0.5):
+        kind = "category"
+        confidence = 0.74 if category_hint else 0.62
+        name_pattern = "category_keyword" if category_hint else "low_cardinality"
+        numeric_pattern = f"unique_ratio={unique_ratio:.2f}"
+    else:
+        numeric_rate = len(numeric_values) / max(len(non_empty), 1)
+        confidence = 0.45 + min(numeric_rate * 0.2, 0.2)
+        name_pattern = "text_fallback"
+        numeric_pattern = f"numeric_rate={numeric_rate:.2f}"
+
+    if kind == "percent":
+        percent_numbers = [value for value in numeric_values if 1 < value < 100]
+        if percent_numbers:
+            warnings.append(METRIC_RULES["ECONOMIA"]["warnings"]["percent_unit"])
+
+    if confidence < 0.7:
+        warnings.append(f"Baixa confiança na classificação da coluna '{name}'")
+
+    return {
+        "kind": kind,
+        "confidence": round(min(confidence, 0.99), 2),
+        "evidence": {
+            "sample_values": sample_values,
+            "name_pattern": name_pattern,
+            "numeric_pattern": numeric_pattern,
+        },
+        "warnings": warnings,
+    }
+
+
+def _classify_columns(rows: list[dict[str, Any]], columns: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    analysis: dict[str, dict[str, Any]] = {"columns": {}}
+    for column in columns:
+        values = _sample_column_values(rows, int(column["index"]))
+        analysis["columns"][column["name"]] = _classify_column(column["name"], values)
+    return analysis
+
+
+def _rank_columns_by_kind(analysis: dict[str, dict[str, Any]], kind: str) -> list[str]:
+    columns = analysis.get("columns") or {}
+    ranked = [
+        (name, payload)
+        for name, payload in columns.items()
+        if payload.get("kind") == kind
+    ]
+    ranked.sort(key=lambda item: (float(item[1].get("confidence") or 0), len(item[1].get("evidence", {}).get("sample_values") or [])), reverse=True)
+    return [name for name, _ in ranked]
+
+
+def _analysis_by_name(analysis: dict[str, dict[str, Any]], column_name: str) -> dict[str, Any] | None:
+    return (analysis.get("columns") or {}).get(column_name)
+
+
+def _resolve_primary_mapping(metric_type: str, analysis: dict[str, dict[str, Any]], columns: list[dict[str, Any]]) -> dict[str, str | None]:
+    ranked_monetary = _rank_columns_by_kind(analysis, "monetary")
+    ranked_percent = _rank_columns_by_kind(analysis, "percent")
+    ranked_category = _rank_columns_by_kind(analysis, "category")
+    ranked_date = _rank_columns_by_kind(analysis, "date")
+    ranked_score = _rank_columns_by_kind(analysis, "score")
+
+    mapping = {
+        "monetary": ranked_monetary[0] if ranked_monetary else None,
+        "percent": ranked_percent[0] if ranked_percent else None,
+        "category": ranked_category[0] if ranked_category else None,
+        "date": ranked_date[0] if ranked_date else None,
+        "score": ranked_score[0] if ranked_score else None,
+    }
+
+    if metric_type == "TOTAL":
+        mapping["percent"] = None
+        mapping["category"] = mapping["category"]
+    if metric_type == "VARIACAO":
+        mapping["percent"] = None
+    if metric_type == "TAXA":
+        mapping["monetary"] = None
+        mapping["percent"] = None
+    if metric_type == "VOLUME":
+        mapping["monetary"] = None
+        mapping["percent"] = None
+
+    return mapping
+
+
+def _resolve_effective_mapping(
+    auto_mapping: dict[str, str | None],
+    columns: list[dict[str, Any]],
+    config: dict[str, Any],
+    metric_type: str,
+) -> dict[str, str | None]:
+    saving_cfg = config.get("saving") if isinstance(config.get("saving"), dict) else {}
+    effective = dict(auto_mapping)
+
+    def _fallback_name(field: str, *keys: str) -> str | None:
+        for key in keys:
+            idx = _resolve_column_index(saving_cfg.get(key), columns)
+            if idx >= 0:
+                return columns[idx]["name"]
+        return None
+
+    fallback_values = {
+        "monetary": _fallback_name("monetary", "baseCol", "savingBaseCol", "valueCol", "savingCol"),
+        "percent": _fallback_name("percent", "percentCol", "savingPercentCol"),
+        "category": _fallback_name("category", "categoryCol"),
+        "date": _fallback_name("date", "dateCol"),
+        "score": None,
+    }
+
+    if metric_type == "VARIACAO":
+        fallback_values["monetary"] = fallback_values["monetary"] or _fallback_name("monetary", "initialCol", "originalCol", "v1Col")
+
+    for field, fallback_value in fallback_values.items():
+        if effective.get(field) is None and fallback_value is not None:
+            effective[field] = fallback_value
+
+    return effective
+
+
+def _build_validation(metric_type: str, analysis: dict[str, dict[str, Any]], mapping: dict[str, str | None]) -> dict[str, list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    rules = METRIC_RULES.get(metric_type, {})
+
+    if metric_type == "ECONOMIA":
+        if not mapping.get("monetary"):
+            errors.append(rules["errors"]["monetary_missing"])
+        if not mapping.get("percent"):
+            errors.append(rules["errors"]["percent_missing"])
+    elif metric_type == "TOTAL":
+        if not mapping.get("monetary"):
+            errors.append(rules["errors"]["monetary_missing"])
+    elif metric_type == "VARIACAO":
+        ranked_monetary = _rank_columns_by_kind(analysis, "monetary")
+        if not ranked_monetary:
+            errors.append(rules["errors"]["monetary_missing"])
+        elif len(ranked_monetary) < 2:
+            errors.append(rules["errors"]["monetary_pair_missing"])
+        elif len(ranked_monetary) >= 2:
+            warnings.append(f"Colunas monetárias usadas: {ranked_monetary[0]} e {ranked_monetary[1]}")
+    elif metric_type == "TAXA":
+        if not mapping.get("category"):
+            errors.append(rules["errors"]["category_missing"])
+
+    for column_name, payload in (analysis.get("columns") or {}).items():
+        if payload.get("kind") == "score" and column_name == mapping.get("percent"):
+            errors.append("score não pode ser usado como percentual financeiro")
+        warnings.extend(payload.get("warnings") or [])
+
+    return {"errors": errors, "warnings": warnings}
+
+
+def _build_runtime_fields(metric_type: str, columns: list[dict[str, Any]], analysis: dict[str, dict[str, Any]], legacy_fields: dict[str, int], mapping: dict[str, str | None]) -> dict[str, int]:
+    name_to_index = {column["name"]: int(column["index"]) for column in columns}
+    active_fields: dict[str, int] = {}
+
+    def _pick_index(*names: str, fallback_keys: tuple[str, ...] = ()) -> int:
+        for name in names:
+            if name and name in name_to_index:
+                return name_to_index[name]
+        for key in fallback_keys:
+            idx = legacy_fields.get(key, -1)
+            if idx >= 0:
+                return idx
+        return -1
+
+    if metric_type == "ECONOMIA":
+        active_fields["base"] = _pick_index(
+            mapping.get("monetary") or "",
+            fallback_keys=("base", "value", "initial"),
+        )
+        active_fields["percent"] = _pick_index(
+            mapping.get("percent") or "",
+            fallback_keys=("percent",),
+        )
+        if active_fields["base"] < 0 and active_fields["percent"] < 0:
+            active_fields["initial"] = _pick_index(fallback_keys=("initial",))
+            active_fields["final"] = _pick_index(fallback_keys=("final",))
+    elif metric_type == "TOTAL":
+        active_fields["value"] = _pick_index(
+            mapping.get("monetary") or "",
+            fallback_keys=("value", "base"),
+        )
+    elif metric_type == "VARIACAO":
+        ranked_monetary = _rank_columns_by_kind(analysis, "monetary")
+        active_fields["initial"] = name_to_index.get(ranked_monetary[0], -1) if ranked_monetary else legacy_fields.get("initial", -1)
+        active_fields["final"] = name_to_index.get(ranked_monetary[1], -1) if len(ranked_monetary) >= 2 else legacy_fields.get("final", -1)
+        if active_fields["initial"] < 0:
+            active_fields["initial"] = legacy_fields.get("initial", -1)
+        if active_fields["final"] < 0:
+            active_fields["final"] = legacy_fields.get("final", -1)
+    elif metric_type == "TAXA":
+        active_fields["category"] = _pick_index(
+            mapping.get("category") or "",
+            fallback_keys=("category",),
+        )
+
+    return active_fields
+
+
+def _runtime_fields_valid_for_metric(metric_type: str, fields: dict[str, int]) -> bool:
+    if metric_type == "ECONOMIA":
+        return (
+            (fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0)
+            or (fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0)
+        )
+    if metric_type == "TOTAL":
+        return fields.get("value", -1) >= 0
+    if metric_type == "VARIACAO":
+        return fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0
+    if metric_type == "TAXA":
+        return fields.get("category", -1) >= 0
+    return True
+
+
+def resolve_source_hash(data: Any, config: dict[str, Any] | None = None) -> str:
+    rows, cols, _ = _resolve_payload(data, config)
+    columns = _normalize_columns(cols)
+    return _compute_source_hash(rows, columns)
+
+
+def _empty_metric_response(
+    analysis: dict[str, Any] | None = None,
+    validation: dict[str, list[str]] | None = None,
+    mapping: dict[str, str | None] | None = None,
+) -> dict[str, Any]:
+    return {
+        "analysis": analysis or {"columns": {}},
+        "validation": validation or {"errors": [], "warnings": []},
+        "mapping": mapping or {
+            "monetary": None,
+            "percent": None,
+            "category": None,
+            "date": None,
+            "score": None,
+        },
+        "dataset": [],
+        "charts": [],
+        "insights": [],
+    }
+
+
+def _public_metric_response(artifact: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "analysis": artifact.get("analysis") or {"columns": {}},
+        "validation": artifact.get("validation") or {"errors": [], "warnings": []},
+        "mapping": artifact.get("mapping") or {
+            "monetary": None,
+            "percent": None,
+            "category": None,
+            "date": None,
+            "score": None,
+        },
+        "dataset": artifact.get("dataset") or [],
+        "charts": artifact.get("charts") or [],
+        "insights": artifact.get("insights") or [],
+    }
 
 
 def _finite_float(value: Any, default: float = 0.0) -> float:
@@ -702,7 +1127,7 @@ def _build_detail_items(metric_type: str, metric_rows: list[dict[str, Any]], fie
             base_name = columns[fields["base"]]["name"]
             percent_name = columns[fields["percent"]]["name"]
             base_total = round(_sum(float(row.get(base_name) or 0) for row in metric_rows), 2)
-            percent_avg = round(_mean([float(row.get("saving (%)") or 0) for row in metric_rows]), 2)
+            percent_avg = round(_mean([float(row.get("percent_value") or 0) for row in metric_rows]) * 100, 2)
             return [
                 {"kind": "currency", "label": columns[fields["base"]]["name"], "value": base_total},
                 {"kind": "percent", "label": columns[fields["percent"]]["name"], "value": percent_avg, "accent": True},
@@ -871,18 +1296,39 @@ def _validate_metric_config(metric_type: str, fields: dict[str, int], columns: l
         _validate_column_type("categoryCol", columns[fields["category"]], "category")
 
 
-def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, Any]:
+def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str, Any]:
     rows, cols, payload_config = _resolve_payload(data, config)
     metric_type = normalize_metric_type((payload_config.get("saving") or {}).get("metricType") if isinstance(payload_config.get("saving"), dict) else payload_config.get("metricType"))
     columns = _normalize_columns(cols)
-    fields = _metric_field_config(payload_config, columns, metric_type)
-    _validate_metric_config(metric_type, fields, columns)
+    source_hash = _compute_source_hash(rows, columns)
+    analysis = _classify_columns(rows, columns)
+    auto_mapping = _resolve_primary_mapping(metric_type, analysis, columns)
+    mapping = _resolve_effective_mapping(auto_mapping, columns, payload_config, metric_type)
+    validation = _build_validation(metric_type, analysis, mapping)
+    legacy_fields = _metric_field_config(payload_config, columns, metric_type)
+    fields = _build_runtime_fields(metric_type, columns, analysis, legacy_fields, mapping)
+
+    if validation["errors"] and not any(index >= 0 for index in legacy_fields.values()) and not any(value is not None for value in auto_mapping.values()):
+        artifact = _empty_metric_response(analysis, validation, mapping)
+        artifact["schemaVersion"] = SCHEMA_VERSION
+        artifact["sourceHash"] = source_hash
+        return artifact
+
+    if any(index >= 0 for index in legacy_fields.values()):
+        _validate_metric_config(metric_type, fields, columns)
+
+    if validation["errors"] and not _runtime_fields_valid_for_metric(metric_type, fields):
+        artifact = _empty_metric_response(analysis, validation, mapping)
+        artifact["schemaVersion"] = SCHEMA_VERSION
+        artifact["sourceHash"] = source_hash
+        return artifact
 
     named_rows = [_build_named_row(row, columns, index) for index, row in enumerate(rows)]
 
-    category_idx = _resolve_column_index((payload_config.get("saving") or {}).get("categoryCol") if isinstance(payload_config.get("saving"), dict) else payload_config.get("categoryCol"), columns)
-    entity_idx = _resolve_column_index((payload_config.get("saving") or {}).get("entityCol") if isinstance(payload_config.get("saving"), dict) else payload_config.get("entityCol"), columns)
-    date_idx = _resolve_column_index((payload_config.get("saving") or {}).get("dateCol") if isinstance(payload_config.get("saving"), dict) else payload_config.get("dateCol"), columns)
+    saving_cfg = payload_config.get("saving") if isinstance(payload_config.get("saving"), dict) else {}
+    category_idx = _resolve_column_index(saving_cfg.get("categoryCol") or mapping.get("category"), columns)
+    entity_idx = _resolve_column_index(saving_cfg.get("entityCol") or saving_cfg.get("categoryCol") or mapping.get("category"), columns)
+    date_idx = _resolve_column_index(saving_cfg.get("dateCol") or mapping.get("date"), columns)
 
     metric_rows: list[dict[str, Any]] = []
     skipped_rows = 0
@@ -894,20 +1340,26 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
         date_bucket = _parse_date_bucket(date_value)
 
         metric_value: float | None = None
-        aux_value: float | None = None
         formula = ""
 
         if metric_type == "ECONOMIA":
             if fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0:
                 base_value = parse_number(row.get(columns[fields["base"]]["name"]))
-                percent_value = parse_number(row.get(columns[fields["percent"]]["name"]), is_percent=True)
+                raw_percent_value = parse_number(row.get(columns[fields["percent"]]["name"]))
+                percent_value = normalize_percent(raw_percent_value)
+                if raw_percent_value is not None and 1 < raw_percent_value < 100:
+                    unit_warning = METRIC_RULES["ECONOMIA"]["warnings"]["percent_unit"]
+                    validation["warnings"].append(unit_warning)
+                    percent_column_name = columns[fields["percent"]]["name"]
+                    column_warnings = analysis["columns"][percent_column_name]["warnings"]
+                    if unit_warning not in column_warnings:
+                        column_warnings.append(unit_warning)
                 if base_value is None or percent_value is None:
                     skipped_rows += 1
                     continue
                 metric_value = base_value * percent_value
-                aux_value = percent_value
                 formula = "percent_x_base"
-                row["saving (%)"] = percent_value * 100 if abs(percent_value) <= 1 else percent_value
+                row["percent_value"] = percent_value
             else:
                 initial_value = parse_number(row.get(columns[fields["initial"]]["name"]))
                 final_value = parse_number(row.get(columns[fields["final"]]["name"]))
@@ -915,7 +1367,6 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
                     skipped_rows += 1
                     continue
                 metric_value = initial_value - final_value
-                aux_value = final_value
                 formula = "original_minus_final"
         elif metric_type == "TOTAL":
             value = parse_number(row.get(columns[fields["value"]]["name"]))
@@ -923,7 +1374,6 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
                 skipped_rows += 1
                 continue
             metric_value = value
-            aux_value = value
             formula = "sum"
         elif metric_type == "VARIACAO":
             initial_value = parse_number(row.get(columns[fields["initial"]]["name"]))
@@ -934,7 +1384,6 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
             metric_value = ((final_value - initial_value) / initial_value) * 100 if initial_value else 0.0
             if not math.isfinite(metric_value):
                 metric_value = 0.0
-            aux_value = final_value - initial_value
             formula = "variation_rate"
         elif metric_type == "TAXA":
             metric_value = 0.0
@@ -968,7 +1417,6 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
                 "dateKey": date_bucket["key"] if date_bucket else "",
                 "dateLabel": f"{date_bucket['label']}/{date_bucket['year']}" if date_bucket else "",
                 "metric_value": metric_value,
-                "aux_value": aux_value,
                 "formula": formula,
             }
         )
@@ -1021,18 +1469,7 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
             bucket["value"] += float(row.get("metric_value") or 0)
         summary_rows = sorted(summary_buckets.values(), key=lambda item: item["count"], reverse=True)
 
-    metric_label = str(((payload_config.get("saving") or {}) if isinstance(payload_config.get("saving"), dict) else payload_config).get("label") or METRIC_META[metric_type]["label"])
-    metric = {
-        "type": metric_type,
-        "value": metric_total,
-        "label": metric_label,
-        "color": METRIC_META[metric_type]["color"],
-        "unit": _metric_unit(metric_type),
-    }
-
-    assert round(sum(row["metric_value"] for row in metric_rows), 2) == metric["value"]
-
-    dataset = {
+    dataset_context = {
         "rows": metric_rows,
         "aggregations": {
             "by_category": by_category,
@@ -1056,18 +1493,42 @@ def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, 
         },
     }
 
-    charts = _build_charts(payload_config, dataset)
+    charts = _build_charts(payload_config, dataset_context)
 
-    insights_input = [row for row in metric_rows]
+    insights_input = [
+        {
+            **row,
+            **(
+                {"saving_percent": round(float(row.get("percent_value") or 0) * 100, 2)}
+                if row.get("percent_value") is not None
+                else {}
+            ),
+        }
+        for row in metric_rows
+    ]
     try:
         insights_result = generate_insights(insights_input)
         insights = insights_result.get("insights", [])
     except Exception:
         insights = []
 
-    return {
-        "metric": metric,
-        "dataset": dataset,
+    artifact = {
+        "schemaVersion": SCHEMA_VERSION,
+        "sourceHash": source_hash,
+        "analysis": analysis,
+        "validation": validation,
+        "mapping": mapping,
+        "dataset": metric_rows,
         "charts": charts,
         "insights": insights,
     }
+    return artifact
+
+
+def build_metric_report_data(data: Any, config: dict[str, Any] | None) -> dict[str, Any]:
+    return _build_metric_artifact(data, config)
+
+
+def build_metric_dataset(data: Any, config: dict[str, Any] | None) -> dict[str, Any]:
+    artifact = _build_metric_artifact(data, config)
+    return _public_metric_response(artifact)

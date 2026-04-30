@@ -417,7 +417,6 @@ function DiagnosticsPanel({ reportData, dark, cardBg, bdColor, textColor, subTex
           </div>
         </>
       )}
-      </div>
     </div>
   )
 }

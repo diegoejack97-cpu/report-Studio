@@ -16,6 +16,10 @@ USER_TABLE_PATCHES = [
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS pending_price_id VARCHAR(255)",
 ]
 
+REPORT_TABLE_PATCHES = [
+    "ALTER TABLE reports ADD COLUMN IF NOT EXISTS report_data JSON",
+]
+
 
 USER_TABLE_DATA_SYNC = [
     "UPDATE users SET reports_limit = COALESCE(reports_limit, 3)",
@@ -28,6 +32,8 @@ USER_TABLE_DATA_SYNC = [
 async def ensure_schema(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
         for statement in USER_TABLE_PATCHES:
+            await conn.execute(text(statement))
+        for statement in REPORT_TABLE_PATCHES:
             await conn.execute(text(statement))
         for statement in USER_TABLE_DATA_SYNC:
             await conn.execute(text(statement))

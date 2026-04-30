@@ -16,6 +16,7 @@ class Report(Base):
 
     # Config JSON — stores all editor state (columns, rows, KPIs, chart configs, colors)
     config: Mapped[dict] = mapped_column(JSON, default=dict)
+    report_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Storage — original file path if uploaded
     source_file: Mapped[str] = mapped_column(String(500), nullable=True)

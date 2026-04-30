@@ -10,8 +10,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.services.metrics_engine import (  # noqa: E402
     MetricsValidationError,
     build_metric_dataset,
+    build_metric_report_data,
     normalize_percent,
     parse_number,
+    resolve_source_hash,
 )
 
 
@@ -109,9 +111,12 @@ def test_economia_metric_uses_base_times_percent():
 
     result = build_metric_dataset(data, config)
 
-    assert result["metric"]["value"] == 100.0
+    assert result["mapping"]["monetary"] == "Base"
+    assert result["mapping"]["percent"] == "Pct"
+    assert result["dataset"][0]["metric_value"] == 100.0
     assert result["charts"]
-    assert result["charts"][0]["labels"] == result["dataset"]["aggregations"]["by_category"]["labels"]
+    assert result["analysis"]["columns"]["Base"]["kind"] == "monetary"
+    assert result["analysis"]["columns"]["Pct"]["kind"] == "percent"
     _assert_all_numbers_finite(result)
 
 
@@ -130,7 +135,7 @@ def test_total_metric_sums_values():
 
     result = build_metric_dataset(data, config)
 
-    assert result["metric"]["value"] == 4000.5
+    assert sum(row["metric_value"] for row in result["dataset"]) == 4000.5
     _assert_all_numbers_finite(result)
 
 
@@ -149,8 +154,9 @@ def test_variacao_handles_division_by_zero():
 
     result = build_metric_dataset(data, config)
 
-    assert math.isfinite(result["metric"]["value"])
-    assert result["metric"]["value"] == 50.0
+    metric_total = sum(row["metric_value"] for row in result["dataset"])
+    assert math.isfinite(metric_total)
+    assert metric_total == 50.0
     _assert_all_numbers_finite(result)
 
 
@@ -168,8 +174,8 @@ def test_taxa_and_volume_metrics():
     taxa_config = _base_config("TAXA", categoryCol="0")
     taxa_result = build_metric_dataset(taxa_data, taxa_config)
 
-    assert taxa_result["metric"]["value"] == 100.0
-    assert taxa_result["charts"][0]["labels"] == taxa_result["dataset"]["aggregations"]["by_category"]["labels"]
+    assert sum(row["metric_value"] for row in taxa_result["dataset"]) == 100.0
+    assert taxa_result["mapping"]["category"] == "Categoria"
 
     volume_data = {
         "cols": [
@@ -185,7 +191,7 @@ def test_taxa_and_volume_metrics():
     volume_config["saving"] = {"metricType": "VOLUME", "label": "Volume"}
     volume_result = build_metric_dataset(volume_data, volume_config)
 
-    assert volume_result["metric"]["value"] == 3.0
+    assert sum(row["metric_value"] for row in volume_result["dataset"]) == 3.0
     _assert_all_numbers_finite(volume_result)
 
 
@@ -324,6 +330,136 @@ def test_missing_aggregation_for_chart_raises_structured_error():
 def test_mixed_and_missing_values_do_not_create_nan_or_infinity():
     result = build_metric_dataset(_economia_data(), _base_config("ECONOMIA", baseCol="0", percentCol="1"))
 
-    assert result["metric"]["value"] == 200.0
-    assert result["dataset"]["validation"]["skipped_rows"] == 2
+    assert sum(row["metric_value"] for row in result["dataset"]) == 200.0
     _assert_all_numbers_finite(result)
+
+
+def test_economia_percent_values_are_normalized_to_fraction():
+    data = {
+        "cols": [
+            {"name": "Base", "type": "monetary"},
+            {"name": "Pct", "type": "percent"},
+        ],
+        "rows": [
+            {"cells": ["1000", "37"]},
+            {"cells": ["1000", "0.37"]},
+        ],
+    }
+    config = _base_config("ECONOMIA", baseCol="0", percentCol="1")
+
+    result = build_metric_dataset(data, config)
+    artifact = build_metric_report_data(data, config)
+
+    assert sum(row["metric_value"] for row in result["dataset"]) == 740.0
+    assert all(math.isclose(row["percent_value"], 0.37) for row in result["dataset"])
+    assert all(math.isclose(row["metric_value"], 370.0) for row in result["dataset"])
+    assert all("aux_value" not in row for row in result["dataset"])
+    assert all("saving (%)" not in row for row in result["dataset"])
+    assert artifact["schemaVersion"] == 1
+    assert artifact["sourceHash"] == resolve_source_hash(data, config)
+
+
+def test_metric_report_data_contains_persisted_metadata():
+    data = {
+        "cols": [
+            {"name": "valor_pago", "type": "monetary"},
+            {"name": "saving_percent", "type": "percent"},
+            {"name": "fornecedor", "type": "text"},
+        ],
+        "rows": [
+            {"cells": ["1000", "15", "A"]},
+            {"cells": ["500", "0.2", "B"]},
+        ],
+    }
+    config = _base_config("ECONOMIA", baseCol="0", percentCol="1", categoryCol="2")
+
+    artifact = build_metric_report_data(data, config)
+
+    assert artifact["schemaVersion"] == 1
+    assert artifact["sourceHash"] == resolve_source_hash(data, config)
+    assert artifact["mapping"] == {
+        "monetary": "valor_pago",
+        "percent": "saving_percent",
+        "category": "fornecedor",
+        "date": None,
+        "score": None,
+    }
+    assert artifact["analysis"]["columns"]["saving_percent"]["kind"] == "percent"
+    assert "Possível inconsistência de unidade percentual" in artifact["analysis"]["columns"]["saving_percent"]["warnings"]
+
+
+def test_auto_mapping_takes_precedence_over_manual_config():
+    data = {
+        "cols": [
+            {"name": "valor_pago", "type": "monetary"},
+            {"name": "saving_percent", "type": "percent"},
+            {"name": "percent_manual", "type": "percent"},
+        ],
+        "rows": [
+            {"cells": ["1000", "15", "99"]},
+        ],
+    }
+    config = {
+        "saving": {
+            "metricType": "ECONOMIA",
+            "baseCol": "0",
+            "percentCol": "2",
+        }
+    }
+
+    result = build_metric_dataset(data, config)
+
+    assert result["mapping"]["monetary"] == "valor_pago"
+    assert result["mapping"]["percent"] == "saving_percent"
+    assert result["dataset"][0]["percent_value"] == 0.15
+
+
+def test_low_confidence_classification_emits_warning():
+    data = {
+        "cols": [
+            {"name": "descricao", "type": "text"},
+        ],
+        "rows": [
+            {"cells": ["A"]},
+            {"cells": ["B"]},
+        ],
+    }
+    config = {"saving": {"metricType": "VOLUME"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert any(
+        "Baixa confiança na classificação da coluna 'descricao'" in warning
+        for warning in result["validation"]["warnings"]
+    )
+    assert any(
+        "Baixa confiança na classificação da coluna 'descricao'" in warning
+        for warning in result["analysis"]["columns"]["descricao"]["warnings"]
+    )
+
+
+def test_score_is_not_classified_as_percent():
+    data = {
+        "cols": [
+            {"name": "score_risco", "type": "number"},
+            {"name": "valor_pago", "type": "monetary"},
+        ],
+        "rows": [
+            {"cells": ["82", "1000"]},
+            {"cells": ["91", "1500"]},
+        ],
+    }
+    config = {"saving": {"metricType": "TOTAL"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert result["analysis"]["columns"]["score_risco"]["kind"] == "score"
+    assert result["mapping"]["percent"] is None
+
+
+def test_report_data_helper_validates_persisted_payload():
+    from app.routers.reports import _report_data_ready_for_export  # noqa: PLC0415
+
+    assert _report_data_ready_for_export({"schemaVersion": 1, "sourceHash": "abc"})
+    assert not _report_data_ready_for_export({"schemaVersion": 1})
+    assert not _report_data_ready_for_export(None)
