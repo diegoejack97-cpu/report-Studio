@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronRight, ChevronLeft, X, Sparkles } from 'lucide-react'
 
@@ -635,7 +635,7 @@ const TOTAL_STEPS = 5
 export default function SetupWizard({ rows, cols, onComplete, onDismiss, previewData, previewError, previewLoading, onDraftChange }) {
   const [step, setStep]     = useState(1)
   const [wdata, setWdata]   = useState({})
-  const analyzed            = detectColumns(cols, rows)
+  const analyzed            = useMemo(() => detectColumns(cols, rows), [cols, rows])
 
   const update = useCallback((patch) => {
     setWdata(d => ({ ...d, ...patch }))

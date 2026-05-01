@@ -204,10 +204,11 @@ export default function EditorPage() {
     }
 
     window.clearTimeout(previewDebounceRef.current)
-    setPreviewLoading(true)
     previewDebounceRef.current = window.setTimeout(async () => {
       const requestId = Date.now()
       previewRequestRef.current = requestId
+      setPreviewLoading(true)
+      console.info('[wizard-preview] start', { requestId, endpoint: '/reports/preview' })
       try {
         const previewRows = wizardDraft.rows.map(cells => ({ cells: cells.map(cell => String(cell ?? '')) }))
         const previewCols = (wizardDraft.analyzed || []).map((col, index) => ({
@@ -222,6 +223,7 @@ export default function EditorPage() {
         }
         const { data } = await api.post('/reports/preview', payload)
         if (previewRequestRef.current !== requestId) return
+        console.info('[wizard-preview] success', { requestId })
         setPreviewData(data)
         setPreviewError('')
         setState(prev => ({
@@ -235,6 +237,7 @@ export default function EditorPage() {
       } catch (err) {
         if (previewRequestRef.current !== requestId) return
         const message = err.response?.data?.detail?.message || err.response?.data?.detail || 'Erro ao validar a configuração no backend.'
+        console.error('[wizard-preview] error', { requestId, error: message })
         setPreviewError(message)
         setPreviewData(null)
         setState(prev => ({
@@ -244,11 +247,14 @@ export default function EditorPage() {
       } finally {
         if (previewRequestRef.current === requestId) {
           setPreviewLoading(false)
+          console.info('[wizard-preview] finish', { requestId })
         }
       }
     }, 350)
 
-    return () => window.clearTimeout(previewDebounceRef.current)
+    return () => {
+      window.clearTimeout(previewDebounceRef.current)
+    }
   }, [showWizard, wizardDraft])
 
   const update = useCallback((patch) => {
