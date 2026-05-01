@@ -12,12 +12,16 @@ export function buildReportHTML(state, options = {}) {
   const { title, subtitle, period, company, cols = [], colors, sections, footer } = state
   const reportData = state.reportData || {}
   const safeReportData = reportData || {}
-  const dataset = safeReportData.dataset || {}
-  const rows = Array.isArray(dataset.rows) ? dataset.rows : []
-  const metric = safeReportData.metric || { type: 'ECONOMIA', value: 0, label: 'Saving Total' }
-  const kpis = dataset.kpis || []
-  const summary = dataset.summary || { labels: [], rows: [], totals: {} }
-  const detailItems = dataset.detail_items || []
+  const dataset = safeReportData.dataset
+  const rows = Array.isArray(dataset)
+    ? dataset
+    : Array.isArray(dataset?.rows)
+      ? dataset.rows
+      : []
+  const summary = safeReportData.summary || dataset?.summary || { labels: [], rows: [], totals: {} }
+  const kpis = safeReportData.kpis || dataset?.kpis || []
+  const detailItems = safeReportData.detail_items || dataset?.detail_items || []
+  const metric = safeReportData.metric || summary?.primary_metric || { type: 'ECONOMIA', value: 0, label: 'Saving Total' }
   const insights = safeReportData.insights || []
   const p1 = colors?.primary || '#1a3a5c'
   const p2 = colors?.secondary || '#2e5c8a'
@@ -36,7 +40,7 @@ export function buildReportHTML(state, options = {}) {
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
   const fmtN = v => Number(v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
-  const recordCount = summary.totals?.count ?? rows.length
+  const recordCount = summary?.totals?.count ?? rows.length
   const metricColor = {
     ECONOMIA: '#16A34A',
     TOTAL: '#2563EB',
@@ -113,7 +117,7 @@ export function buildReportHTML(state, options = {}) {
     return isNaN(n) || n < 0 || n >= cols.length ? -1 : n
   }
   const metricType = metric.type || 'ECONOMIA'
-  const savTotal = metric.value ?? 0
+  const savTotal = metric.value ?? summary?.primary_metric?.value ?? 0
 
   const kpiHTML = sections?.kpi && kpis.length ? `<div class="kpi-row">${kpis.map(k => {
     return `<div class="kpi" style="border-top-color:${k.color || p2}"><div class="kpi-ico">${escapeHtml(k.icon || '📊')}</div><div class="kpi-v" style="color:${k.color || p2}">${escapeHtml(k.display ?? k.value ?? '—')}</div><div class="kpi-l">${escapeHtml(k.label || 'KPI')}</div></div>`
@@ -125,8 +129,9 @@ export function buildReportHTML(state, options = {}) {
     const arrow = index > 0 ? '<div>→</div>' : ''
     return `${arrow}<div><div class="sav-dv"${valueStyle}>${escapeHtml(valueText)}</div><div class="sav-dl">${escapeHtml(item.label)}</div></div>`
   }).join('')
-  const savDisplay = formatMetricValue(metricType, savTotal, metric.unit)
-  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(metric.label || 'Métrica principal')}</div><div class="sav-val" style="color:${metricColor}">${escapeHtml(savDisplay)}</div><div style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:999px;border:1px solid ${metricColor}55;background:${metricColor}22;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.88)">${escapeHtml(metricType)} · ${escapeHtml(metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário')}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
+  const savDisplay = metric.formatted_value || summary?.primary_metric?.formatted_value || formatMetricValue(metricType, savTotal, metric.unit)
+  const metricDisplayType = summary?.primary_metric?.type || (metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário')
+  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(metric.label || summary?.primary_metric?.label || 'Métrica principal')}</div><div class="sav-val" style="color:${metricColor}">${escapeHtml(savDisplay)}</div><div style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:999px;border:1px solid ${metricColor}55;background:${metricColor}22;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.88)">${escapeHtml(metricType)} · ${escapeHtml(metricDisplayType)}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
   const insightsHTML = renderInsightsHTML(insights)
 
   const summaryHTML = sections?.summary && summary.rows.length ? `
@@ -155,15 +160,15 @@ export function buildReportHTML(state, options = {}) {
 
   const visCols = cols.map((c, i) => ({ ...c, i })).filter(c => c.vis !== false)
   const catCols = visCols.filter(vc => {
-    const vals = new Set(rows.map(r => String(r.cells?.[vc.i] ?? '').trim()).filter(Boolean))
+    const vals = new Set(rows.map(r => String(r?.cells?.[vc.i] ?? r?.[vc.i] ?? '').trim()).filter(Boolean))
     return vals.size >= 2 && vals.size <= 40
   }).map(vc => ({
     i: vc.i,
     name: vc.name,
-    vals: [...new Set(rows.map(r => String(r.cells?.[vc.i] ?? '').trim()).filter(Boolean))].sort(),
+    vals: [...new Set(rows.map(r => String(r?.cells?.[vc.i] ?? r?.[vc.i] ?? '').trim()).filter(Boolean))].sort(),
   }))
 
-  const rowsJSON = JSON.stringify(rows.map(r => visCols.map(vc => r.cells?.[vc.i] ?? '')))
+  const rowsJSON = JSON.stringify(rows.map(r => visCols.map(vc => r?.cells?.[vc.i] ?? r?.[vc.i] ?? '')))
   const catJSON = JSON.stringify(catCols.map(c => ({ i: visCols.findIndex(vc => vc.i === c.i), name: c.name, vals: c.vals })))
   const filterInputStyle = `background:${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'};border:1px solid ${bdColor};border-radius:999px;color:${txt};font-size:12px;padding:7px 12px;outline:none;width:100%;font-family:inherit;`
 
