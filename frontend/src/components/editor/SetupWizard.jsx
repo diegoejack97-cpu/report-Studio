@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronRight, ChevronLeft, X, Sparkles } from 'lucide-react'
 
@@ -248,7 +248,7 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
 }
 
 // Step 2: Saving Banner
-function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previewError }) {
+function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previewError, previewLoading }) {
   const [enabled, setEnabled] = useState(data.savingEnabled !== false)
   const [metricType, setMetricType] = useState(data.metricType || data.type || 'ECONOMIA')
   const [label, setLabel] = useState(data.label || METRIC_LABELS[data.metricType || data.type || 'ECONOMIA'] || METRIC_LABELS.ECONOMIA)
@@ -260,11 +260,16 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
   const metricTitle = METRIC_LABELS[metricType] || METRIC_LABELS.ECONOMIA
   const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
   const primaryMetric = previewData?.summary?.primary_metric || null
+  const previewMetricType = previewData?.metric?.type || ''
+  const isPreviewStale = Boolean(previewMetricType) && previewMetricType !== metricType
+  const isWaitingPreview = Boolean(previewLoading || isPreviewStale)
   const saving = primaryMetric?.value
+  const breakdown = primaryMetric?.breakdown || null
   const detailItems = previewData?.detail_items || []
   const validationErrors = Array.isArray(previewData?.validation?.errors) ? previewData.validation.errors : []
+  const validationWarnings = Array.isArray(previewData?.validation?.warnings) ? previewData.validation.warnings : []
   const validationMessage = previewError || validationErrors[0] || ''
-  const hasBlockingValidation = Boolean(validationMessage)
+  const hasBlockingValidation = Boolean(validationMessage) || isWaitingPreview
 
   useEffect(() => {
     setLabel(current => {
@@ -275,6 +280,14 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
       return current
     })
   }, [metricType, metricTitle])
+
+  useEffect(() => {
+    onChange({
+      savingEnabled: enabled,
+      metricType,
+      type: metricType,
+    })
+  }, [enabled, metricType, onChange])
 
   const next = () => {
     onChange({
@@ -316,22 +329,48 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
               <input value={label} onChange={e => setLabel(e.target.value)} placeholder={`Ex: ${metricTitle}`} className="w-full px-3 py-2 bg-white/[0.05] border rounded-lg text-sm text-white outline-none transition-colors" style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}22 inset` }} />
             </div>
 
-            {validationMessage && (
-              <div className="rounded-lg border border-rose-700/30 bg-rose-950/30 px-3 py-2 text-[11px] text-rose-200">
-                {validationMessage}
+            {isWaitingPreview && (
+              <div className="rounded-lg border border-blue-700/30 bg-blue-950/30 px-3 py-2 text-[11px] text-blue-100">
+                Validando métrica no backend...
               </div>
             )}
 
-            {Number.isFinite(Number(saving)) && (
+            {!isWaitingPreview && validationMessage && (
+              <div className="rounded-lg border border-rose-700/30 bg-rose-950/30 px-3 py-2 text-[11px] text-rose-200">
+                Não foi possível calcular a métrica com os dados fornecidos. {validationMessage}
+              </div>
+            )}
+
+            {!isWaitingPreview && validationWarnings.length > 0 && (
+              <div className="rounded-lg border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-100 space-y-1">
+                {validationWarnings.map((warning, index) => (
+                  <div key={`${warning}-${index}`}>⚠ {warning}</div>
+                ))}
+              </div>
+            )}
+
+            {!isWaitingPreview && Number.isFinite(Number(saving)) && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl p-4 flex items-center justify-between" style={{ background: cardBg }}>
                 <div>
-                  <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{label}</div>
+                  <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{primaryMetric?.label || label}</div>
                   <div className="text-2xl font-bold font-mono" style={{ color: '#d1fae5' }}>
                     {primaryMetric?.formatted_value || (displayMode === 'percent' ? fmtPct(saving) : displayMode === 'number' ? fmtN(saving) : fmtBRL(saving))}
                   </div>
                   <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
-                    Tipo: {metricType} · {displayMode === 'percent' ? 'percentual' : displayMode === 'number' ? 'quantidade' : 'monetário'}
+                    Tipo: {metricType} · {primaryMetric?.type || (displayMode === 'percent' ? 'percentual' : displayMode === 'number' ? 'quantidade' : 'monetário')}
                   </div>
+                  {breakdown?.formula && (
+                    <div className="mt-2 text-[10px] text-white/70">
+                      Fórmula: {breakdown.formula}
+                    </div>
+                  )}
+                  {(Number.isFinite(Number(breakdown?.base_value)) || Number.isFinite(Number(breakdown?.percent))) && (
+                    <div className="mt-1 text-[10px] text-white/70">
+                      {Number.isFinite(Number(breakdown?.base_value)) ? `Base: ${fmtBRL(breakdown.base_value)}` : ''}
+                      {Number.isFinite(Number(breakdown?.base_value)) && Number.isFinite(Number(breakdown?.percent)) ? ' · ' : ''}
+                      {Number.isFinite(Number(breakdown?.percent)) ? `Percentual: ${fmtPct(breakdown.percent)}` : ''}
+                    </div>
+                  )}
                   {detailItems.length > 0 && (
                     <div className="flex items-center gap-3 mt-2">
                       {detailItems.map((item, index) => (
@@ -593,12 +632,14 @@ function StepChartsAdvanced({ data, analyzed, onChange, onNext, onBack, onSkip }
 // ── WIZARD PRINCIPAL ───────────────────────────────────────────────
 const TOTAL_STEPS = 5
 
-export default function SetupWizard({ rows, cols, onComplete, onDismiss, previewData, previewError, onDraftChange }) {
+export default function SetupWizard({ rows, cols, onComplete, onDismiss, previewData, previewError, previewLoading, onDraftChange }) {
   const [step, setStep]     = useState(1)
   const [wdata, setWdata]   = useState({})
   const analyzed            = detectColumns(cols, rows)
 
-  const update = patch => setWdata(d => ({ ...d, ...patch }))
+  const update = useCallback((patch) => {
+    setWdata(d => ({ ...d, ...patch }))
+  }, [])
   const next   = ()    => setStep(s => s + 1)
   const back   = ()    => setStep(s => s - 1)
   const skip   = ()    => setStep(s => s + 1)
@@ -699,7 +740,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
               {step === 1 && <StepIdentity      {...stepProps} onNext={next} />}
-              {step === 2 && <StepSaving        {...stepProps} previewData={previewData} previewError={previewError} onNext={next} onBack={back} onSkip={skip} />}
+              {step === 2 && <StepSaving        {...stepProps} previewData={previewData} previewError={previewError} previewLoading={previewLoading} onNext={next} onBack={back} onSkip={skip} />}
               {step === 3 && <StepKPIs          {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
               {step === 4 && <StepChartsDist    {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
               {step === 5 && <StepChartsAdvanced {...stepProps} onNext={finish} onBack={back} onSkip={finish} />}

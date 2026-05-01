@@ -131,10 +131,12 @@ export default function EditorPage() {
   const [wizardDraft, setWizardDraft] = useState(null)
   const [previewData, setPreviewData] = useState(null)
   const [previewError, setPreviewError] = useState('')
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [reportId, setReportId] = useState(id ? parseInt(id) : null)
   const debounceRef = useRef(null)
   const previewDebounceRef = useRef(null)
+  const previewRequestRef = useRef(0)
   const stateRef = useRef(DEFAULT_STATE)
 
   useEffect(() => {
@@ -200,6 +202,9 @@ export default function EditorPage() {
 
     window.clearTimeout(previewDebounceRef.current)
     previewDebounceRef.current = window.setTimeout(async () => {
+      const requestId = Date.now()
+      previewRequestRef.current = requestId
+      setPreviewLoading(true)
       try {
         const previewRows = wizardDraft.rows.map(cells => ({ cells: cells.map(cell => String(cell ?? '')) }))
         const previewCols = (wizardDraft.analyzed || []).map((col, index) => ({
@@ -213,6 +218,7 @@ export default function EditorPage() {
           config: previewConfig,
         }
         const { data } = await api.post('/reports/preview', payload)
+        if (previewRequestRef.current !== requestId) return
         setPreviewData(data)
         setPreviewError('')
         setState(prev => ({
@@ -224,6 +230,7 @@ export default function EditorPage() {
           legacyReportMode: getReportSchemaVersion(data) < 1,
         }))
       } catch (err) {
+        if (previewRequestRef.current !== requestId) return
         const message = err.response?.data?.detail?.message || err.response?.data?.detail || 'Erro ao validar a configuração no backend.'
         setPreviewError(message)
         setPreviewData(null)
@@ -231,6 +238,10 @@ export default function EditorPage() {
           ...prev,
           reportData: { error: message },
         }))
+      } finally {
+        if (previewRequestRef.current === requestId) {
+          setPreviewLoading(false)
+        }
       }
     }, 350)
 
@@ -450,6 +461,7 @@ export default function EditorPage() {
               onDismiss={() => setShowWizard(false)}
               previewData={previewData}
               previewError={previewError}
+              previewLoading={previewLoading}
               onDraftChange={setWizardDraft}
             />
           )}
