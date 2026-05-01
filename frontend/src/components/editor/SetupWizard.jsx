@@ -645,6 +645,19 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
   const skip   = ()    => setStep(s => s + 1)
 
   useEffect(() => {
+    if (step !== 2) return
+    const seedMetricType = wdata.metricType || wdata.type || 'ECONOMIA'
+    const seedLabel = wdata.label || METRIC_LABELS[seedMetricType] || METRIC_LABELS.ECONOMIA
+    setWdata(prev => ({
+      ...prev,
+      savingEnabled: prev.savingEnabled !== false,
+      metricType: seedMetricType,
+      type: seedMetricType,
+      label: seedLabel,
+    }))
+  }, [step, wdata.metricType, wdata.type, wdata.label])
+
+  useEffect(() => {
     onDraftChange?.({ rows, cols, ...wdata, analyzed })
   }, [rows, cols, wdata, analyzed, onDraftChange])
 

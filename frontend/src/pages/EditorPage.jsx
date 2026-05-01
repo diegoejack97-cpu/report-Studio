@@ -198,13 +198,16 @@ export default function EditorPage() {
   }, [state.insights])
 
   useEffect(() => {
-    if (!showWizard || !wizardDraft?.rows || !wizardDraft?.cols) return
+    if (!showWizard || !wizardDraft?.rows || !wizardDraft?.cols) {
+      setPreviewLoading(false)
+      return
+    }
 
     window.clearTimeout(previewDebounceRef.current)
+    setPreviewLoading(true)
     previewDebounceRef.current = window.setTimeout(async () => {
       const requestId = Date.now()
       previewRequestRef.current = requestId
-      setPreviewLoading(true)
       try {
         const previewRows = wizardDraft.rows.map(cells => ({ cells: cells.map(cell => String(cell ?? '')) }))
         const previewCols = (wizardDraft.analyzed || []).map((col, index) => ({
