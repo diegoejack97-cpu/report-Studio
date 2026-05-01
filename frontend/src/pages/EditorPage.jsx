@@ -114,6 +114,14 @@ function getApiErrorMessage(err, fallback = 'Erro ao salvar') {
   return fallback
 }
 
+function getPreviewErrorMessage(err) {
+  const detail = err?.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return detail.map(item => (typeof item === 'string' ? item : item?.message || item?.msg || '')).filter(Boolean).join(' | ') || 'Erro ao validar a configuração no backend.'
+  if (detail && typeof detail === 'object') return detail.message || detail.error || detail.msg || 'Erro ao validar a configuração no backend.'
+  return err?.message || 'Erro ao validar a configuração no backend.'
+}
+
 export default function EditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -236,7 +244,7 @@ export default function EditorPage() {
         }))
       } catch (err) {
         if (previewRequestRef.current !== requestId) return
-        const message = err.response?.data?.detail?.message || err.response?.data?.detail || 'Erro ao validar a configuração no backend.'
+        const message = getPreviewErrorMessage(err)
         console.error('[wizard-preview] error', { requestId, error: message })
         setPreviewError(message)
         setPreviewData(null)

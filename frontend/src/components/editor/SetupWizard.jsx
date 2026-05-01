@@ -648,13 +648,24 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
     if (step !== 2) return
     const seedMetricType = wdata.metricType || wdata.type || 'ECONOMIA'
     const seedLabel = wdata.label || METRIC_LABELS[seedMetricType] || METRIC_LABELS.ECONOMIA
-    setWdata(prev => ({
-      ...prev,
-      savingEnabled: prev.savingEnabled !== false,
-      metricType: seedMetricType,
-      type: seedMetricType,
-      label: seedLabel,
-    }))
+    setWdata(prev => {
+      const nextSavingEnabled = prev.savingEnabled !== false
+      if (
+        prev.savingEnabled === nextSavingEnabled &&
+        prev.metricType === seedMetricType &&
+        prev.type === seedMetricType &&
+        prev.label === seedLabel
+      ) {
+        return prev
+      }
+      return {
+        ...prev,
+        savingEnabled: nextSavingEnabled,
+        metricType: seedMetricType,
+        type: seedMetricType,
+        label: seedLabel,
+      }
+    })
   }, [step, wdata.metricType, wdata.type, wdata.label])
 
   useEffect(() => {
