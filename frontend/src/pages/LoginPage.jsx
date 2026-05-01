@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [authFeedback, setAuthFeedback] = useState('idle') // idle | error | success
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -32,12 +33,15 @@ export default function LoginPage() {
   const submit = async e => {
     e.preventDefault()
     setLoading(true)
+    setAuthFeedback('idle')
     try {
       const { data } = await api.post('/auth/login', { email, password })
+      setAuthFeedback('success')
       setAuth(data.access_token, data.user)
       toast.success('Bem-vindo de volta!')
       navigate(redirectTo)
     } catch (err) {
+      setAuthFeedback('error')
       toast.error(err.response?.data?.detail || 'Credenciais inválidas')
     } finally {
       setLoading(false)
@@ -52,12 +56,31 @@ export default function LoginPage() {
         className="w-full max-w-sm"
       >
         <Link to="/" className="flex items-center gap-2 justify-center mb-8 text-white font-bold text-lg">
-          <span className="text-brand-400 text-xl">✦</span> Report Flow
+          <span className="text-brand-400 text-xl">RF</span> Report Flow
         </Link>
 
-        <div className="card p-6">
+        <div
+          className="card p-6"
+          style={{
+            borderColor: authFeedback === 'error'
+              ? 'rgba(239,68,68,0.9)'
+              : authFeedback === 'success'
+                ? 'rgba(34,197,94,0.9)'
+                : undefined,
+            boxShadow: authFeedback === 'error'
+              ? '0 0 0 1px rgba(239,68,68,0.45)'
+              : authFeedback === 'success'
+                ? '0 0 0 1px rgba(34,197,94,0.45)'
+                : undefined,
+          }}
+        >
           <h1 className="text-xl font-bold text-white mb-1">Entrar</h1>
           <p className="text-ink-500 text-sm mb-6">Acesse sua conta</p>
+          {authFeedback === 'error' && (
+            <div className="mb-4 rounded-lg px-3 py-2 text-sm" style={{ border: '1px solid rgba(239,68,68,0.45)', background: 'rgba(239,68,68,0.08)', color: '#fca5a5' }}>
+              Email ou senha inválidos
+            </div>
+          )}
 
           <form onSubmit={submit} className="space-y-4">
             <div>
@@ -68,7 +91,8 @@ export default function LoginPage() {
               <label className="text-xs text-ink-400 font-medium block mb-1.5">Senha</label>
               <input type="password" className="input-field" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
-            <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2">
+            <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2 inline-flex items-center justify-center gap-2">
+              {loading && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>

@@ -110,6 +110,94 @@ const METRIC_COLORS = {
   VOLUME: '#6B7280',
 }
 
+function getChartConfig(metricType) {
+  switch (metricType) {
+    case 'ECONOMIA':
+      return {
+        main: 'bar',
+        secondary: ['pie', 'hbar', 'funnel'],
+      }
+
+    case 'TOTAL':
+      return {
+        main: 'bar',
+        secondary: ['pie', 'hbar', 'donut'],
+      }
+
+    case 'VOLUME':
+      return {
+        main: 'treemap',
+        secondary: ['bar', 'pie', 'donut'],
+      }
+
+    case 'VARIACAO':
+      return {
+        main: 'line',
+        secondary: ['area', 'bar', 'radar'],
+      }
+
+    case 'TAXA':
+      return {
+        main: 'area',
+        secondary: ['line', 'donut', 'radar'],
+      }
+
+    default:
+      return {
+        main: 'bar',
+        secondary: [],
+      }
+  }
+}
+
+function inferChartType(chart) {
+  const declaredType = String(chart?.type || chart?.chart_type || '').toLowerCase()
+  if (declaredType === 'doughnut') return 'donut'
+  if (declaredType) return declaredType
+
+  const firstSeries = chart?.option?.series?.[0] || {}
+  const seriesType = String(firstSeries?.type || '').toLowerCase()
+  if (!seriesType) return ''
+
+  if (seriesType === 'pie') {
+    if (firstSeries?.roseType) return 'nightingale'
+    const radius = firstSeries?.radius
+    if (Array.isArray(radius) && radius.length >= 2) return 'donut'
+    return 'pie'
+  }
+  if (seriesType === 'bar') {
+    const xAxisType = String(chart?.option?.xAxis?.type || '').toLowerCase()
+    const yAxisType = String(chart?.option?.yAxis?.type || '').toLowerCase()
+    if (xAxisType === 'value' && yAxisType === 'category') return 'hbar'
+    return 'bar'
+  }
+  return seriesType
+}
+
+function selectMetricCharts(charts, metricType) {
+  const available = Array.isArray(charts) ? charts.filter(chart => chart && chart.option) : []
+  if (available.length === 0) return []
+
+  const config = getChartConfig(metricType)
+  const preferredTypes = [config.main, ...(config.secondary || [])]
+  const selected = []
+  const usedTypes = new Set()
+
+  for (const preferredType of preferredTypes) {
+    const wanted = String(preferredType || '').toLowerCase()
+    if (!wanted || usedTypes.has(wanted)) continue
+
+    const match = available.find(chart => inferChartType(chart) === wanted)
+    if (!match) continue
+
+    selected.push(match)
+    usedTypes.add(wanted)
+    if (selected.length === 4) return selected
+  }
+
+  return selected
+}
+
 function formatMetricValue(metricType, value, unit) {
   if (unit === 'percent' || metricType === 'TAXA' || metricType === 'VARIACAO') return fmtPct(value)
   if (unit === 'number' || metricType === 'VOLUME') return fmtN(value)
@@ -325,7 +413,7 @@ function DiagnosticsPanel({ reportData, dark, cardBg, bdColor, textColor, subTex
             </div>
             {!value && (
               <div className="mt-1 text-[10px] italic" style={{ color: subText }}>
-                ⚠ não detectado
+                Nao detectado
               </div>
             )}
           </div>
@@ -372,7 +460,7 @@ function DiagnosticsPanel({ reportData, dark, cardBg, bdColor, textColor, subTex
               <div className="space-y-1">
                 {globalWarnings.map((warning, index) => (
                   <div key={`${warning}-${index}`} className="text-sm" style={{ color: '#f59e0b' }}>
-                    ⚠ {warning}
+                    Aviso: {warning}
                   </div>
                 ))}
               </div>
@@ -410,7 +498,7 @@ function DiagnosticsPanel({ reportData, dark, cardBg, bdColor, textColor, subTex
                     <div className="mt-3 flex flex-wrap gap-2">
                       {meta.warnings.map((warning, index) => (
                         <span key={`${warning}-${index}`} className="text-[10px] px-2 py-1 rounded-full font-semibold" style={{ background: 'rgba(254,240,138,0.35)', color: '#f59e0b' }}>
-                          ⚠ {warning}
+                          Aviso: {warning}
                         </span>
                       ))}
                     </div>
@@ -508,10 +596,24 @@ function KPICard({ kpi, dark }) {
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl p-4 flex-1 min-w-[120px] text-center shadow-sm"
       style={{ background: dark ? '#0d1a26' : '#fff', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`, borderTop: `4px solid ${kpi.color || '#3b82f6'}` }}>
-      <div className="text-xl mb-1">{kpi.icon || '📊'}</div>
+      <div className="text-xl mb-1">{kpi.icon || 'KPI'}</div>
       <div className="text-lg font-extrabold font-mono break-words leading-tight" style={{ color: kpi.color || '#3b82f6' }}>{kpi.display ?? kpi.value ?? '—'}</div>
       <div className="text-[10px] mt-1 font-bold uppercase tracking-wider" style={{ color: dark ? '#486581' : '#94a3b8' }}>{kpi.label}</div>
     </motion.div>
+  )
+}
+
+function SkeletonBlock({ h = 16, w = '100%', radius = 8, dark = false }) {
+  return (
+    <div
+      className="animate-pulse"
+      style={{
+        height: h,
+        width: w,
+        borderRadius: radius,
+        background: dark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)',
+      }}
+    />
   )
 }
 
@@ -537,7 +639,6 @@ export default function ReportPreview({ state }) {
   let datasetRows = []
   let summary = { rows: [], totals: {}, group_index: -1, primary_metric: null }
   let kpis = []
-  let detailItems = []
   let metric = null
   let insights = []
   let charts = []
@@ -562,7 +663,6 @@ export default function ReportPreview({ state }) {
         : []
     summary = reportData?.summary || { rows: [], totals: {}, group_index: -1, primary_metric: null }
     kpis = reportData?.kpis || []
-    detailItems = reportData?.detail_items || []
     metric = reportData?.metric || summary?.primary_metric || null
     insights = reportData?.insights || []
     charts = reportData?.charts
@@ -582,7 +682,6 @@ export default function ReportPreview({ state }) {
         : []
     summary = datasetPayload?.summary || { rows: [], totals: {}, group_index: -1, primary_metric: null }
     kpis = datasetPayload?.kpis || []
-    detailItems = datasetPayload?.detail_items || []
     metric = legacyReportData.metric || null
     insights = legacyReportData.insights || []
     charts = legacyReportData.charts
@@ -598,7 +697,6 @@ export default function ReportPreview({ state }) {
 
   const p1 = colors.primary || '#1a3a5c'
   const p2 = colors.secondary || '#2e5c8a'
-  const acc = colors.accent || '#4ade80'
   const bgColor = dark ? '#080f18' : '#eef1f5'
   const cardBg = dark ? '#0d1a26' : '#ffffff'
   const bdColor = dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'
@@ -610,6 +708,10 @@ export default function ReportPreview({ state }) {
   const savTotal = metric?.value ?? primaryMetric?.value ?? 0
   const recordCount = summary.totals?.count ?? datasetRows.length
   const summaryLabel = summary.group_index >= 0 ? cols[summary.group_index]?.name || '—' : '—'
+  const metricCharts = selectMetricCharts(charts, metricType)
+  const existingLoading = Boolean(state?.loading || state?.previewLoading || report?.loading || reportData?.loading)
+  const waitingInitialPayload = !previewError && !hasValidationErrors && datasetRows.length === 0 && (!Array.isArray(charts) || charts.length === 0)
+  const showSkeleton = existingLoading || waitingInitialPayload
 
   if (previewError) {
     return (
@@ -661,7 +763,7 @@ export default function ReportPreview({ state }) {
               </div>
               {dedupedValidationWarnings.map((warning, index) => (
                 <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }}>
-                  ⚠ {warning}
+                  Aviso: {warning}
                 </div>
               ))}
             </div>
@@ -691,7 +793,7 @@ export default function ReportPreview({ state }) {
               </div>
               {dedupedValidationWarnings.map((warning, index) => (
                 <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }}>
-                  ⚠ {warning}
+                  Aviso: {warning}
                 </div>
               ))}
             </div>
@@ -748,7 +850,7 @@ export default function ReportPreview({ state }) {
             </div>
             {dedupedValidationWarnings.map((warning, index) => (
               <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }}>
-                ⚠ {warning}
+                Aviso: {warning}
               </div>
             ))}
           </div>
@@ -789,36 +891,58 @@ export default function ReportPreview({ state }) {
 
         <InsightsPanel insights={insights} dark={dark} />
 
-        {sections.saving !== false && (metric || primaryMetric) && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl p-5 mb-5 flex items-center justify-between overflow-hidden relative"
-            style={{ background: `linear-gradient(135deg,${p1},${p2})`, color: '#fff' }}>
-            <div>
-              <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{primaryMetric?.label || metric?.label || 'Métrica principal'}</div>
-              <div className="text-4xl font-extrabold font-mono" style={{ color: metricColor }}>
-                {primaryMetric?.formatted_value || formatMetricValue(metricType, savTotal, metric?.unit)}
-              </div>
-              <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
-                {(metric?.type || 'ECONOMIA')} · {primaryMetric?.type || (metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário')}
-              </div>
-              {detailItems.length > 0 && (
-                <div className="flex gap-6 mt-3 flex-wrap items-center">
-                  {detailItems.map((item, index) => (
-                    <div key={`${item.label}-${index}`} className="flex items-center gap-6">
-                      {index > 0 && <div className="opacity-30 text-lg">→</div>}
-                      <div>
-                        <div className="text-sm font-bold font-mono" style={item.accent ? { color: acc } : undefined}>
-                          {item.kind === 'percent' ? fmtPct(item.value) : item.kind === 'number' ? fmtN(item.value) : fmtBRL(item.value)}
-                        </div>
-                        <div className="text-[10px] opacity-50">{item.label}</div>
-                      </div>
-                    </div>
-                  ))}
+        {sections.saving !== false && (
+          showSkeleton ? (
+            <div className="rounded-2xl p-5 mb-5 overflow-hidden relative" style={{ background: `linear-gradient(135deg,${p1},${p2})`, color: '#fff' }}>
+              <div className="space-y-3 max-w-[520px]">
+                <SkeletonBlock h={10} w={140} dark />
+                <SkeletonBlock h={40} w={220} dark />
+                <SkeletonBlock h={22} w={110} radius={999} dark />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                  <SkeletonBlock h={52} dark />
+                  <SkeletonBlock h={52} dark />
+                  <SkeletonBlock h={52} dark />
                 </div>
-              )}
+              </div>
             </div>
-            <div className="text-[80px] opacity-[0.07] select-none">💹</div>
-          </motion.div>
+          ) : (primaryMetric && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl p-5 mb-5 flex items-center justify-between overflow-hidden relative"
+              style={{ background: `linear-gradient(135deg,${p1},${p2})`, color: '#fff' }}>
+              <div>
+                <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{primaryMetric.label || 'Métrica principal'}</div>
+                <div className="text-4xl font-extrabold font-mono" style={{ color: metricColor }}>
+                  {primaryMetric.formatted_value || '—'}
+                </div>
+                <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
+                  {primaryMetric.type || metricType}
+                </div>
+                {(primaryMetric.base_value !== undefined || primaryMetric.percent !== undefined || primaryMetric.formula) && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                    {primaryMetric.base_value !== undefined && (
+                      <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                        <div className="text-[10px] uppercase tracking-wider opacity-70">base_value</div>
+                        <div className="text-sm font-bold font-mono">{String(primaryMetric.base_value)}</div>
+                      </div>
+                    )}
+                    {primaryMetric.percent !== undefined && (
+                      <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                        <div className="text-[10px] uppercase tracking-wider opacity-70">percent</div>
+                        <div className="text-sm font-bold font-mono">{String(primaryMetric.percent)}</div>
+                      </div>
+                    )}
+                    {primaryMetric.formula && (
+                      <div className="rounded-lg px-3 py-2 md:col-span-1" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                        <div className="text-[10px] uppercase tracking-wider opacity-70">formula</div>
+                        <div className="text-sm font-bold break-words">{String(primaryMetric.formula)}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="text-[80px] opacity-[0.07] select-none">METRICA</div>
+            </motion.div>
+          ))
         )}
 
         {sections.kpi !== false && kpis.length > 0 && (
@@ -828,9 +952,20 @@ export default function ReportPreview({ state }) {
         )}
 
         {sections.charts !== false && (
-          charts.length > 0 ? (
+          showSkeleton ? (
             <div className="grid grid-cols-2 gap-4 mb-5">
-              {charts.map((chart, index) => (
+              {[0, 1, 2, 3].map(index => (
+                <ChartCard key={`skeleton-chart-${index}`} title="Carregando gráfico" h={index >= 2 ? 300 : 260}>
+                  <div className="space-y-3">
+                    <SkeletonBlock h={12} w="45%" dark={dark} />
+                    <SkeletonBlock h={index >= 2 ? 236 : 196} dark={dark} />
+                  </div>
+                </ChartCard>
+              ))}
+            </div>
+          ) : metricCharts.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4 mb-5">
+              {metricCharts.map((chart, index) => (
                 <ChartCard key={chart.id || index} title={chart.title || 'Gráfico'} h={chart.h || (index >= 2 ? 300 : 260)} full={!!chart.full}>
                   {chart.option
                     ? <EChart option={chart.option} h={chart.h || (index >= 2 ? 300 : 260)} />
@@ -844,7 +979,7 @@ export default function ReportPreview({ state }) {
             </div>
           ) : (
             <div className="rounded-2xl p-5 mb-5" style={{ background: cardBg, border: `1px solid ${bdColor}`, color: subText }}>
-              Nenhum gráfico foi configurado pelo backend.
+              Não há gráficos suficientes do backend para este tipo de métrica.
             </div>
           )
         )}
@@ -852,7 +987,7 @@ export default function ReportPreview({ state }) {
         {sections.summary !== false && summary.rows.length > 0 && (
           <div className="rounded-2xl p-4 mb-5 shadow-sm" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
             <div className="text-xs font-bold uppercase tracking-wider mb-3 pb-2" style={{ color: p2, borderBottom: `1px solid ${bdColor}` }}>
-              🗂 Resumo por {summaryLabel}
+              Resumo por {summaryLabel}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse">

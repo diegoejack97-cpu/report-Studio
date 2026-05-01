@@ -52,10 +52,10 @@ export default function ChartsPanel({ state, update }) {
     )
   }
 
-  function ChartBlock({ id, emoji, label, typeOptions, children }) {
+  function ChartBlock({ id, prefix, label, typeOptions, children }) {
     const g = ch[id] || {}
     return (
-      <Accordion title={`${emoji} ${label}`}>
+      <Accordion title={`${prefix ? `${prefix} ` : ''}${label}`}>
         <Toggle checked={g.on !== false} onChange={v => setG(id, 'on', v)} label="Mostrar" />
         <Field label="Título">
           <input className="input-field text-xs py-1.5" value={g.title || ''} onChange={e => setG(id, 'title', e.target.value)} />
@@ -81,35 +81,35 @@ export default function ChartsPanel({ state, update }) {
       </p>
 
       {/* G1 */}
-      <ChartBlock id="g1" emoji="🔵" label="Gráfico 1 — Distribuição" typeOptions={[
-        {value:'doughnut',   label:'🍩 Donut'},
-        {value:'pie',        label:'🥧 Pizza'},
-        {value:'nightingale',label:'🌹 Nightingale (Rose)'},
-        {value:'bar',        label:'📊 Barras verticais'},
-        {value:'hbar',       label:'📊 Barras horizontais'},
-        {value:'treemap',    label:'🟩 Treemap'},
-        {value:'funnel',     label:'🔺 Funil'},
+      <ChartBlock id="g1" prefix="G1" label="Gráfico 1 — Distribuição" typeOptions={[
+        {value:'doughnut',   label:'Donut'},
+        {value:'pie',        label:'Pizza'},
+        {value:'nightingale',label:'Nightingale (Rose)'},
+        {value:'bar',        label:'Barras verticais'},
+        {value:'hbar',       label:'Barras horizontais'},
+        {value:'treemap',    label:'Treemap'},
+        {value:'funnel',     label:'Funil'},
       ]}>
         <ColSelect gid="g1" field="col" label="Coluna de categoria" />
       </ChartBlock>
 
       {/* G2 */}
-      <ChartBlock id="g2" emoji="📊" label="Gráfico 2 — Por Categoria" typeOptions={[
-        {value:'bar',   label:'📊 Barras verticais'},
-        {value:'hbar',  label:'📊 Barras horizontais'},
-        {value:'line',  label:'📈 Linha'},
-        {value:'area',  label:'🌊 Área'},
-        {value:'radar', label:'🕸 Radar'},
-        {value:'funnel',label:'🔺 Funil'},
+      <ChartBlock id="g2" prefix="G2" label="Gráfico 2 — Por Categoria" typeOptions={[
+        {value:'bar',   label:'Barras verticais'},
+        {value:'hbar',  label:'Barras horizontais'},
+        {value:'line',  label:'Linha'},
+        {value:'area',  label:'Área'},
+        {value:'radar', label:'Radar'},
+        {value:'funnel',label:'Funil'},
       ]}>
         <ColSelect gid="g2" field="col" label="Coluna de categoria" />
       </ChartBlock>
 
       {/* G3 */}
-      <ChartBlock id="g3" emoji="📈" label="Gráfico 3 — Temporal" typeOptions={[
-        {value:'area', label:'🌊 Área (recomendado)'},
-        {value:'line', label:'📈 Linha'},
-        {value:'bar',  label:'📊 Barras'},
+      <ChartBlock id="g3" prefix="G3" label="Gráfico 3 — Temporal" typeOptions={[
+        {value:'area', label:'Área (recomendado)'},
+        {value:'line', label:'Linha'},
+        {value:'bar',  label:'Barras'},
       ]}>
         <ColSelect gid="g3" field="dateCol" label="Coluna de DATA" />
         <ColSelect gid="g3" field="v1Col"   label="Valor 1 — linha principal" opts={numOpts} />
@@ -117,12 +117,12 @@ export default function ChartsPanel({ state, update }) {
       </ChartBlock>
 
       {/* G4 */}
-      <ChartBlock id="g4" emoji="🏆" label="Gráfico 4 — Top N por Valor" typeOptions={[
-        {value:'hbar',    label:'📊 Barras horizontais'},
-        {value:'bar',     label:'📊 Barras verticais'},
-        {value:'doughnut',label:'🍩 Donut'},
-        {value:'treemap', label:'🟩 Treemap'},
-        {value:'funnel',  label:'🔺 Funil'},
+      <ChartBlock id="g4" prefix="G4" label="Gráfico 4 — Top N por Valor" typeOptions={[
+        {value:'hbar',    label:'Barras horizontais'},
+        {value:'bar',     label:'Barras verticais'},
+        {value:'doughnut',label:'Donut'},
+        {value:'treemap', label:'Treemap'},
+        {value:'funnel',  label:'Funil'},
       ]}>
         <ColSelect gid="g4" field="labelCol" label="Coluna de rótulo" />
         <ColSelect gid="g4" field="valCol"   label="Coluna de valor (soma)" opts={numOpts} />
@@ -135,13 +135,13 @@ export default function ChartsPanel({ state, update }) {
       {/* Info sobre gráficos automáticos */}
       <div className="rounded-xl p-3 mt-1" style={{background:'var(--s2)',border:'1px solid var(--bd)'}}>
         <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{color:'var(--ts)'}}>
-          ✨ Gráficos automáticos
+          Gráficos automáticos
         </div>
         <div className="space-y-1.5 text-[10px]" style={{color:'var(--tm)'}}>
-          <div>🔥 <strong style={{color:'var(--ts)'}}>Heatmap</strong> — cruzamento de 2 colunas categóricas</div>
-          <div>⚡ <strong style={{color:'var(--ts)'}}>Dispersão</strong> — correlação entre 2 colunas numéricas</div>
-          <div>💧 <strong style={{color:'var(--ts)'}}>Waterfall</strong> — saving por categoria (requer saving + agrupamento)</div>
-          <div>🟩 <strong style={{color:'var(--ts)'}}>Treemap extra</strong> — visão alternativa do Top N</div>
+          <div><strong style={{color:'var(--ts)'}}>Heatmap</strong> — cruzamento de 2 colunas categóricas</div>
+          <div><strong style={{color:'var(--ts)'}}>Dispersão</strong> — correlação entre 2 colunas numéricas</div>
+          <div><strong style={{color:'var(--ts)'}}>Waterfall</strong> — saving por categoria (requer saving + agrupamento)</div>
+          <div><strong style={{color:'var(--ts)'}}>Treemap extra</strong> — visão alternativa do Top N</div>
         </div>
       </div>
     </div>
