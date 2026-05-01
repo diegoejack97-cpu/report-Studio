@@ -224,11 +224,27 @@ export default function EditorPage() {
           type: col.type || 'text',
           vis: true,
         }))
-        const previewConfig = buildPreviewConfig(wizardDraft, previewRows, previewCols)
+        const wizardMetricType = wizardDraft.metricType || wizardDraft.type || 'ECONOMIA'
+        const previewConfig = buildPreviewConfig(
+          {
+            ...wizardDraft,
+            reportSchemaVersion: 1,
+            usesAutomaticMetrics: true,
+            saving: {
+              metricType: wizardMetricType,
+              type: wizardMetricType,
+              ...(wizardDraft.label ? { label: wizardDraft.label } : {}),
+              override: null,
+            },
+          },
+          previewRows,
+          previewCols,
+        )
         const payload = {
           data: { rows: previewRows, cols: previewCols },
           config: previewConfig,
         }
+        console.log('PREVIEW PAYLOAD', payload)
         const { data } = await api.post('/reports/preview', payload)
         if (previewRequestRef.current !== requestId) return
         console.info('[wizard-preview] success', { requestId })
