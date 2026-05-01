@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { motion } from 'motion/react'
+import { AlertTriangle, BarChart3, CheckCircle, DollarSign, TrendingUp } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import InsightsPanel from '@/components/InsightsPanel'
 
@@ -459,8 +460,9 @@ function DiagnosticsPanel({ reportData, dark, cardBg, bdColor, textColor, subTex
               </div>
               <div className="space-y-1">
                 {globalWarnings.map((warning, index) => (
-                  <div key={`${warning}-${index}`} className="text-sm" style={{ color: '#f59e0b' }}>
-                    Aviso: {warning}
+                  <div key={`${warning}-${index}`} className="text-sm inline-flex items-center gap-1.5" style={{ color: '#f59e0b' }}>
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>{warning}</span>
                   </div>
                 ))}
               </div>
@@ -497,8 +499,9 @@ function DiagnosticsPanel({ reportData, dark, cardBg, bdColor, textColor, subTex
                   {meta.warnings.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {meta.warnings.map((warning, index) => (
-                        <span key={`${warning}-${index}`} className="text-[10px] px-2 py-1 rounded-full font-semibold" style={{ background: 'rgba(254,240,138,0.35)', color: '#f59e0b' }}>
-                          Aviso: {warning}
+                        <span key={`${warning}-${index}`} className="text-[10px] px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1" style={{ background: 'rgba(254,240,138,0.35)', color: '#f59e0b' }}>
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>{warning}</span>
                         </span>
                       ))}
                     </div>
@@ -592,11 +595,28 @@ function LineChart({ labels, d1, d2, name1 = 'V1', name2 = 'V2', h, dark, isNum 
 }
 
 function KPICard({ kpi, dark }) {
+  const iconId = String(kpi.icon || '').toLowerCase()
+  const legacyMoney = '\u{1F4B0}'
+  const legacyList = '\u{1F4CB}'
+  const legacyTrophy = '\u{1F3C6}'
+  const legacyTrend = '\u{1F4C8}'
+  const IconComp = iconId === 'dollar' || iconId === legacyMoney
+    ? DollarSign
+    : iconId === 'list' || iconId === legacyList
+      ? CheckCircle
+      : iconId === 'trophy' || iconId === legacyTrophy
+        ? TrendingUp
+        : iconId === 'trending' || iconId === legacyTrend
+          ? TrendingUp
+          : BarChart3
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl p-4 flex-1 min-w-[120px] text-center shadow-sm"
       style={{ background: dark ? '#0d1a26' : '#fff', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`, borderTop: `4px solid ${kpi.color || '#3b82f6'}` }}>
-      <div className="text-xl mb-1">{kpi.icon || 'KPI'}</div>
+      <div className="mb-1 flex items-center justify-center">
+        <IconComp className="w-5 h-5" />
+      </div>
       <div className="text-lg font-extrabold font-mono break-words leading-tight" style={{ color: kpi.color || '#3b82f6' }}>{kpi.display ?? kpi.value ?? '—'}</div>
       <div className="text-[10px] mt-1 font-bold uppercase tracking-wider" style={{ color: dark ? '#486581' : '#94a3b8' }}>{kpi.label}</div>
     </motion.div>
@@ -762,8 +782,9 @@ export default function ReportPreview({ state }) {
                 Warnings globais
               </div>
               {dedupedValidationWarnings.map((warning, index) => (
-                <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }}>
-                  Aviso: {warning}
+                <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }} className="inline-flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>{warning}</span>
                 </div>
               ))}
             </div>
@@ -792,8 +813,9 @@ export default function ReportPreview({ state }) {
                 Warnings globais
               </div>
               {dedupedValidationWarnings.map((warning, index) => (
-                <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }}>
-                  Aviso: {warning}
+                <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }} className="inline-flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>{warning}</span>
                 </div>
               ))}
             </div>
@@ -849,8 +871,9 @@ export default function ReportPreview({ state }) {
               Warnings globais
             </div>
             {dedupedValidationWarnings.map((warning, index) => (
-              <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }}>
-                Aviso: {warning}
+              <div key={`${warning}-${index}`} style={{ color: '#f59e0b' }} className="inline-flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{warning}</span>
               </div>
             ))}
           </div>
@@ -940,7 +963,7 @@ export default function ReportPreview({ state }) {
                   </div>
                 )}
               </div>
-              <div className="text-[80px] opacity-[0.07] select-none">METRICA</div>
+              <TrendingUp className="w-10 h-10 opacity-[0.2]" />
             </motion.div>
           ))
         )}

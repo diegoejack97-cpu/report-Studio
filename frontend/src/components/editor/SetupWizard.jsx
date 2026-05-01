@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ChevronRight, ChevronLeft, X, Sparkles } from 'lucide-react'
+import { ChevronRight, ChevronLeft, X, Sparkles, DollarSign, BarChart3, TrendingUp, AlertTriangle, ClipboardList, CalendarDays, Tag } from 'lucide-react'
 
 const METRIC_LABELS = {
   ECONOMIA: 'Economia',
@@ -130,10 +130,12 @@ function ProgressBar({ current, total }) {
   )
 }
 
-function StepTitle({ emoji, title, desc }) {
+function StepTitle({ Icon, title, desc }) {
   return (
     <div className="px-6 pt-4 pb-2">
-      <div className="text-2xl mb-2">{emoji}</div>
+      <div className="mb-2">
+        {Icon ? <Icon className="w-5 h-5 text-slate-300" /> : null}
+      </div>
       <h2 className="text-lg font-bold text-white mb-1">{title}</h2>
       <p className="text-sm text-slate-400 leading-relaxed">{desc}</p>
     </div>
@@ -203,7 +205,7 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
 
   return (
     <>
-      <StepTitle emoji="📋" title="Sobre este relatório" desc={`Identifiquei ${analyzed.length} colunas e careguei os seus dados. Vamos configurar o relatório em poucos passos.`} />
+      <StepTitle Icon={ClipboardList} title="Sobre este relatório" desc={`Identifiquei ${analyzed.length} colunas e careguei os seus dados. Vamos configurar o relatório em poucos passos.`} />
       <div className="px-6 pb-2 space-y-3">
         <div>
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Título do relatório</label>
@@ -236,7 +238,10 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
                 c.type === 'number' ? 'bg-green-900/30 border-green-700/40 text-green-400' :
                                       'bg-blue-900/30 border-blue-700/40 text-blue-400'
               }`}>
-                {c.type === 'date' ? '📅' : c.type === 'number' ? '💰' : '🏷'} {c.name}
+                <span className="inline-flex items-center gap-1.5">
+                  {c.type === 'date' ? <CalendarDays className="w-3.5 h-3.5" /> : c.type === 'number' ? <DollarSign className="w-3.5 h-3.5" /> : <Tag className="w-3.5 h-3.5" />}
+                  {c.name}
+                </span>
               </span>
             ))}
           </div>
@@ -303,7 +308,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
 
   return (
     <>
-      <StepTitle emoji="💰" title={metricTitle} desc="Escolha o tipo de métrica. O backend identifica colunas, valida e calcula automaticamente." />
+      <StepTitle Icon={DollarSign} title={metricTitle} desc="Escolha o tipo de métrica. O backend identifica colunas, valida e calcula automaticamente." />
       <div className="px-6 pb-2 space-y-3">
         <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg bg-white/[0.03] border border-white/[0.07] hover:border-white/[0.12]">
           <div className={`w-10 h-5 rounded-full relative transition-colors ${enabled ? '' : 'bg-white/10'}`} style={enabled ? { backgroundColor: metricColor } : undefined} onClick={() => setEnabled(e => !e)}>
@@ -344,7 +349,10 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
             {!isWaitingPreview && validationWarnings.length > 0 && (
               <div className="rounded-lg border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-100 space-y-1">
                 {validationWarnings.map((warning, index) => (
-                  <div key={`${warning}-${index}`}>⚠ {warning}</div>
+                  <div key={`${warning}-${index}`} className="inline-flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>{warning}</span>
+                  </div>
                 ))}
               </div>
             )}
@@ -387,7 +395,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
                     </div>
                   )}
                 </div>
-                <div className="text-4xl opacity-10">💹</div>
+                <TrendingUp className="w-8 h-8 opacity-20" />
               </motion.div>
             )}
           </motion.div>
@@ -400,7 +408,14 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
 
 // Step 3: KPIs
 function StepKPIs({ data, analyzed, onChange, onNext, onBack, onSkip }) {
-  const ICONS = ['📊','💰','📋','🏆','📈','🏢','⚡','🎯','✅','📌']
+  const ICONS = [
+    { value: 'bar', label: 'Bar Chart' },
+    { value: 'dollar', label: 'Dollar' },
+    { value: 'list', label: 'List' },
+    { value: 'trophy', label: 'Trophy' },
+    { value: 'trending', label: 'Trending' },
+    { value: 'check', label: 'Check' },
+  ]
   const FMTS  = [
     { value: 'count', label: 'Total registros' },
     { value: 'sum',   label: 'Soma Σ' },
@@ -411,12 +426,12 @@ function StepKPIs({ data, analyzed, onChange, onNext, onBack, onSkip }) {
   ]
 
   const [kpis, setKpis] = useState(data.kpis?.length ? data.kpis : [
-    { label: 'Total Registros', icon: '📋', col: '', fmt: 'count', color: '#3b82f6' },
-    { label: 'Valor Total', icon: '💰', col: String(analyzed.filter(c => isNumericType(c.type))[0]?.i ?? ''), fmt: 'sum', color: '#16a34a' },
-    { label: 'Top Categoria', icon: '🏆', col: String(analyzed.filter(c => c.type === 'text' && c.uniq >= 2)[0]?.i ?? ''), fmt: 'topval', color: '#f59e0b' },
+    { label: 'Total Registros', icon: 'list', col: '', fmt: 'count', color: '#3b82f6' },
+    { label: 'Valor Total', icon: 'dollar', col: String(analyzed.filter(c => isNumericType(c.type))[0]?.i ?? ''), fmt: 'sum', color: '#16a34a' },
+    { label: 'Top Categoria', icon: 'trophy', col: String(analyzed.filter(c => c.type === 'text' && c.uniq >= 2)[0]?.i ?? ''), fmt: 'topval', color: '#f59e0b' },
   ])
 
-  const addKpi = () => setKpis(k => [...k, { label: 'Novo KPI', icon: '📊', col: '', fmt: 'count', color: '#8b5cf6' }])
+  const addKpi = () => setKpis(k => [...k, { label: 'Novo KPI', icon: 'bar', col: '', fmt: 'count', color: '#8b5cf6' }])
   const remKpi = i => setKpis(k => k.filter((_, j) => j !== i))
   const updKpi = (i, patch) => setKpis(k => k.map((kpi, j) => j === i ? { ...kpi, ...patch } : kpi))
 
@@ -424,7 +439,7 @@ function StepKPIs({ data, analyzed, onChange, onNext, onBack, onSkip }) {
 
   return (
     <>
-      <StepTitle emoji="📊" title="KPIs do relatório" desc="Escolha os indicadores que aparecerão em destaque no topo do relatório." />
+      <StepTitle Icon={BarChart3} title="KPIs do relatório" desc="Escolha os indicadores que aparecerão em destaque no topo do relatório." />
       <div className="px-6 pb-2 space-y-2 max-h-[340px] overflow-y-auto">
         {kpis.map((kpi, i) => (
           <motion.div
@@ -434,8 +449,8 @@ function StepKPIs({ data, analyzed, onChange, onNext, onBack, onSkip }) {
             className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 space-y-2"
           >
             <div className="flex items-center gap-2">
-              <select value={kpi.icon} onChange={e => updKpi(i, { icon: e.target.value })} className="w-12 h-8 bg-white/[0.06] border border-white/[0.1] rounded-lg text-base text-center outline-none">
-                {ICONS.map(ic => <option key={ic} value={ic}>{ic}</option>)}
+              <select value={kpi.icon} onChange={e => updKpi(i, { icon: e.target.value })} className="w-24 h-8 bg-white/[0.06] border border-white/[0.1] rounded-lg text-xs text-center outline-none">
+                {ICONS.map(ic => <option key={ic.value} value={ic.value}>{ic.label}</option>)}
               </select>
               <input value={kpi.label} onChange={e => updKpi(i, { label: e.target.value })} placeholder="Rótulo" className="flex-1 px-2.5 py-1.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 transition-colors" />
               <input type="color" value={kpi.color || '#3b82f6'} onChange={e => updKpi(i, { color: e.target.value })} className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
@@ -489,21 +504,21 @@ function StepChartsDist({ data, analyzed, onChange, onNext, onBack, onSkip }) {
   }
 
   const CHART_TYPES = [
-    { value: 'doughnut', label: '🍩 Donut' },
-    { value: 'pie',      label: '🥧 Pizza' },
-    { value: 'bar',      label: '📊 Barras verticais' },
-    { value: 'hbar',     label: '📊 Barras horizontais' },
+    { value: 'doughnut', label: 'Donut' },
+    { value: 'pie',      label: 'Pizza' },
+    { value: 'bar',      label: 'Barras verticais' },
+    { value: 'hbar',     label: 'Barras horizontais' },
   ]
   const CHART_TYPES2 = [
-    { value: 'bar',      label: '📊 Barras verticais' },
-    { value: 'hbar',     label: '📊 Barras horizontais' },
-    { value: 'doughnut', label: '🍩 Donut' },
-    { value: 'line',     label: '📈 Linha' },
+    { value: 'bar',      label: 'Barras verticais' },
+    { value: 'hbar',     label: 'Barras horizontais' },
+    { value: 'doughnut', label: 'Donut' },
+    { value: 'line',     label: 'Linha' },
   ]
 
   return (
     <>
-      <StepTitle emoji="🔵" title="Gráficos de distribuição" desc="Esses gráficos mostram como os dados se dividem por categoria. Escolha quais colunas usar." />
+      <StepTitle Icon={BarChart3} title="Gráficos de distribuição" desc="Esses gráficos mostram como os dados se dividem por categoria. Escolha quais colunas usar." />
       <div className="px-6 pb-2 space-y-4">
         {/* G1 */}
         <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 space-y-3">
@@ -580,7 +595,7 @@ function StepChartsAdvanced({ data, analyzed, onChange, onNext, onBack, onSkip }
 
   return (
     <>
-      <StepTitle emoji="📈" title="Evolução e ranking" desc="Veja como os dados evoluem no tempo e quem são os principais por valor." />
+      <StepTitle Icon={TrendingUp} title="Evolução e ranking" desc="Veja como os dados evoluem no tempo e quem são os principais por valor." />
       <div className="px-6 pb-2 space-y-4">
         {/* G3 Temporal */}
         <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 space-y-3">

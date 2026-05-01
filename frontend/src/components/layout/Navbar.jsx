@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
-import { LogOut, LayoutDashboard, Sun, Moon, CreditCard } from 'lucide-react'
+import { LogOut, LayoutDashboard, Sun, Moon, CreditCard, BarChart3 } from 'lucide-react'
 
 export default function Navbar() {
   const { token, logout } = useAuthStore()
@@ -11,7 +11,7 @@ export default function Navbar() {
     <nav style={{ background: 'var(--s1)', borderBottom: '1px solid var(--bd)' }}
       className="fixed top-0 left-0 right-0 z-50 h-14 flex items-center px-4 md:px-8 backdrop-blur-md">
       <Link to="/" className="flex items-center gap-2 font-bold mr-auto" style={{ color: 'var(--tp)' }}>
-        <span className="text-brand-400 text-lg">✦</span>
+        <BarChart3 className="w-4 h-4 text-brand-400" />
         <span className="tracking-tight">Report Flow</span>
       </Link>
 

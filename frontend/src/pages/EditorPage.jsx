@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Save, Download, ArrowLeft, Eye, Sun, Moon } from 'lucide-react'
+import { Save, Download, ArrowLeft, Eye, Sun, Moon, BarChart3, Palette, TrendingUp, Table2 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import toast from 'react-hot-toast'
 import * as XLSX from 'xlsx'
@@ -19,10 +19,10 @@ import { buildReportHTML } from '@/lib/reportExport'
 import { normalizeReportColumns, normalizeSavingConfig } from '@/lib/saving'
 
 const TABS = [
-  { id: 'data',    label: '📊 Dados' },
-  { id: 'layout',  label: '🎨 Layout' },
-  { id: 'charts',  label: '📈 Gráficos' },
-  { id: 'columns', label: '🗂 Colunas' },
+  { id: 'data',    label: 'Dados', icon: BarChart3 },
+  { id: 'layout',  label: 'Layout', icon: Palette },
+  { id: 'charts',  label: 'Gráficos', icon: TrendingUp },
+  { id: 'columns', label: 'Colunas', icon: Table2 },
 ]
 
 const DEFAULT_STATE = {
@@ -541,7 +541,10 @@ export default function EditorPage() {
                         : 'text-ink-500 border-transparent hover:text-ink-300'
                     }`}
                   >
-                    {t.label}
+                    <span className="inline-flex items-center gap-1.5">
+                      {t.icon ? <t.icon className="w-3.5 h-3.5" /> : null}
+                      <span>{t.label}</span>
+                    </span>
                   </button>
                 ))}
               </div>
