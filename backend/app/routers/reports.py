@@ -90,6 +90,10 @@ def _public_preview_response(report_data: dict[str, Any]) -> dict[str, Any]:
             "score": None,
         },
         "dataset": report_data.get("dataset") or [],
+        "summary": report_data.get("summary") or {"group_index": -1, "labels": [], "rows": [], "totals": {}, "primary_metric": None},
+        "kpis": report_data.get("kpis") or [],
+        "detail_items": report_data.get("detail_items") or [],
+        "metric": report_data.get("metric"),
         "charts": report_data.get("charts") or [],
         "insights": report_data.get("insights") or [],
     }

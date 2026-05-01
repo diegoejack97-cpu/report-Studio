@@ -259,9 +259,12 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
   const displayMode = getMetricDisplayMode(metricType)
   const metricTitle = METRIC_LABELS[metricType] || METRIC_LABELS.ECONOMIA
   const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
-  const saving = previewData?.metric?.value
-  const detailItems = previewData?.dataset?.detail_items || []
-  const validationMessage = previewError || ''
+  const primaryMetric = previewData?.summary?.primary_metric || null
+  const saving = primaryMetric?.value
+  const detailItems = previewData?.detail_items || []
+  const validationErrors = Array.isArray(previewData?.validation?.errors) ? previewData.validation.errors : []
+  const validationMessage = previewError || validationErrors[0] || ''
+  const hasBlockingValidation = Boolean(validationMessage)
 
   useEffect(() => {
     setLabel(current => {
@@ -324,7 +327,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
                 <div>
                   <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{label}</div>
                   <div className="text-2xl font-bold font-mono" style={{ color: '#d1fae5' }}>
-                    {displayMode === 'percent' ? fmtPct(saving) : displayMode === 'number' ? fmtN(saving) : fmtBRL(saving)}
+                    {primaryMetric?.formatted_value || (displayMode === 'percent' ? fmtPct(saving) : displayMode === 'number' ? fmtN(saving) : fmtBRL(saving))}
                   </div>
                   <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
                     Tipo: {metricType} · {displayMode === 'percent' ? 'percentual' : displayMode === 'number' ? 'quantidade' : 'monetário'}
@@ -351,7 +354,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
           </motion.div>
         )}
       </div>
-      <NavButtons onBack={onBack} onNext={next} onSkip={onSkip} />
+      <NavButtons onBack={onBack} onNext={next} onSkip={onSkip} nextDisabled={hasBlockingValidation} />
     </>
   )
 }

@@ -535,7 +535,7 @@ export default function ReportPreview({ state }) {
   let mapping = {}
   let datasetPayload = []
   let datasetRows = []
-  let summary = { rows: [], totals: {}, group_index: -1 }
+  let summary = { rows: [], totals: {}, group_index: -1, primary_metric: null }
   let kpis = []
   let detailItems = []
   let metric = null
@@ -560,10 +560,10 @@ export default function ReportPreview({ state }) {
       : Array.isArray(dataset?.rows)
         ? dataset.rows
         : []
-    summary = dataset?.summary || { rows: [], totals: {}, group_index: -1 }
-    kpis = dataset?.kpis || []
-    detailItems = dataset?.detail_items || []
-    metric = reportData?.metric || null
+    summary = reportData?.summary || { rows: [], totals: {}, group_index: -1, primary_metric: null }
+    kpis = reportData?.kpis || []
+    detailItems = reportData?.detail_items || []
+    metric = reportData?.metric || summary?.primary_metric || null
     insights = reportData?.insights || []
     charts = reportData?.charts
     diagnosticsReportData = reportData
@@ -580,7 +580,7 @@ export default function ReportPreview({ state }) {
       : Array.isArray(datasetPayload?.rows)
         ? datasetPayload.rows
         : []
-    summary = datasetPayload?.summary || { rows: [], totals: {}, group_index: -1 }
+    summary = datasetPayload?.summary || { rows: [], totals: {}, group_index: -1, primary_metric: null }
     kpis = datasetPayload?.kpis || []
     detailItems = datasetPayload?.detail_items || []
     metric = legacyReportData.metric || null
@@ -604,9 +604,10 @@ export default function ReportPreview({ state }) {
   const bdColor = dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'
   const textColor = dark ? '#d9e2ec' : '#1e293b'
   const subText = dark ? '#486581' : '#94a3b8'
-  const metricType = metric?.type || 'ECONOMIA'
+  const primaryMetric = summary?.primary_metric || null
+  const metricType = metric?.type || primaryMetric?.type || 'ECONOMIA'
   const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
-  const savTotal = metric?.value ?? 0
+  const savTotal = metric?.value ?? primaryMetric?.value ?? 0
   const recordCount = summary.totals?.count ?? datasetRows.length
   const summaryLabel = summary.group_index >= 0 ? cols[summary.group_index]?.name || '—' : '—'
 
@@ -788,17 +789,17 @@ export default function ReportPreview({ state }) {
 
         <InsightsPanel insights={insights} dark={dark} />
 
-        {sections.saving !== false && metric && (
+        {sections.saving !== false && (metric || primaryMetric) && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl p-5 mb-5 flex items-center justify-between overflow-hidden relative"
             style={{ background: `linear-gradient(135deg,${p1},${p2})`, color: '#fff' }}>
             <div>
-              <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{metric.label || 'Métrica principal'}</div>
+              <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{primaryMetric?.label || metric?.label || 'Métrica principal'}</div>
               <div className="text-4xl font-extrabold font-mono" style={{ color: metricColor }}>
-                {formatMetricValue(metricType, savTotal, metric?.unit)}
+                {primaryMetric?.formatted_value || formatMetricValue(metricType, savTotal, metric?.unit)}
               </div>
               <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
-                {metricType} · {metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário'}
+                {(metric?.type || 'ECONOMIA')} · {primaryMetric?.type || (metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário')}
               </div>
               {detailItems.length > 0 && (
                 <div className="flex gap-6 mt-3 flex-wrap items-center">

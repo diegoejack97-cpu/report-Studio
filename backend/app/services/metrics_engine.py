@@ -549,6 +549,10 @@ def _empty_metric_response(
             "score": None,
         },
         "dataset": [],
+        "summary": {"group_index": -1, "labels": [], "rows": [], "totals": {}, "primary_metric": None},
+        "kpis": [],
+        "detail_items": [],
+        "metric": None,
         "charts": [],
         "insights": [],
     }
@@ -566,6 +570,10 @@ def _public_metric_response(artifact: dict[str, Any]) -> dict[str, Any]:
             "score": None,
         },
         "dataset": artifact.get("dataset") or [],
+        "summary": artifact.get("summary") or {"group_index": -1, "labels": [], "rows": [], "totals": {}, "primary_metric": None},
+        "kpis": artifact.get("kpis") or [],
+        "detail_items": artifact.get("detail_items") or [],
+        "metric": artifact.get("metric"),
         "charts": artifact.get("charts") or [],
         "insights": artifact.get("insights") or [],
     }
@@ -1131,6 +1139,23 @@ def _format_value(value: float, metric_type: str) -> str:
     return f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _primary_metric_display_type(metric_type: str) -> str:
+    if metric_type in {"TAXA", "VARIACAO"}:
+        return "percentual"
+    if metric_type == "VOLUME":
+        return "quantidade"
+    return "monetario"
+
+
+def _format_primary_metric_value(value: float, metric_type: str) -> str:
+    display_type = _primary_metric_display_type(metric_type)
+    if display_type == "monetario":
+        return f"R$ {_format_value(value, 'TOTAL')}"
+    if display_type == "percentual":
+        return _format_value(value, "TAXA")
+    return f"{int(round(value)):,}".replace(",", ".")
+
+
 def _metric_unit(metric_type: str) -> str:
     if metric_type in {"TAXA", "VARIACAO"}:
         return "percent"
@@ -1173,6 +1198,49 @@ def _build_detail_items(metric_type: str, metric_rows: list[dict[str, Any]], fie
     if metric_type == "TAXA":
         return [{"kind": "percent", "label": METRIC_META[metric_type]["label"], "value": round(_sum(float(row.get("metric_value") or 0) for row in metric_rows), 2)}]
     return [{"kind": "number", "label": METRIC_META[metric_type]["label"], "value": round(_sum(float(row.get("metric_value") or 0) for row in metric_rows), 2)}]
+
+
+def _build_primary_metric(
+    metric_type: str,
+    metric_total: float,
+    metric_rows: list[dict[str, Any]],
+    fields: dict[str, int],
+    columns: list[dict[str, Any]],
+    metric_label: str,
+) -> dict[str, Any]:
+    breakdown: dict[str, Any] | None = None
+    if metric_type == "ECONOMIA" and fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0:
+        base_name = columns[fields["base"]]["name"]
+        base_total = round(_sum(float(row.get(base_name) or 0) for row in metric_rows), 2)
+        percent_avg = round(_mean([float(row.get("percent_value") or 0) for row in metric_rows]) * 100, 2)
+        breakdown = {
+            "base_value": base_total,
+            "percent": percent_avg,
+            "formula": "valor_pago * saving_percent",
+        }
+    elif metric_type == "ECONOMIA" and fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0:
+        breakdown = {
+            "formula": "valor_inicial - valor_final",
+        }
+    elif metric_type in {"TAXA", "VARIACAO"}:
+        breakdown = {
+            "formula": "agregacao_percentual",
+        }
+    elif metric_type == "VOLUME":
+        breakdown = {
+            "formula": "contagem_registros",
+        }
+
+    payload: dict[str, Any] = {
+        "label": metric_label,
+        "value": metric_total,
+        "type": _primary_metric_display_type(metric_type),
+        "color": METRIC_META[metric_type]["color"],
+        "formatted_value": _format_primary_metric_value(metric_total, metric_type),
+    }
+    if breakdown:
+        payload["breakdown"] = breakdown
+    return payload
 
 
 def _compute_kpis(config: dict[str, Any], rows: list[dict[str, Any]], columns: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1344,6 +1412,7 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
     named_rows = [_build_named_row(row, columns, index) for index, row in enumerate(rows)]
 
     saving_cfg = payload_config.get("saving") if isinstance(payload_config.get("saving"), dict) else {}
+    metric_label = str(saving_cfg.get("label") or METRIC_META[metric_type]["label"])
     category_idx = _resolve_column_index(saving_cfg.get("categoryCol") or mapping.get("category"), columns)
     entity_idx = _resolve_column_index(saving_cfg.get("entityCol") or saving_cfg.get("categoryCol") or mapping.get("category"), columns)
     date_idx = _resolve_column_index(saving_cfg.get("dateCol") or mapping.get("date"), columns)
@@ -1495,6 +1564,19 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
             bucket["value"] += float(row.get("metric_value") or 0)
         summary_rows = sorted(summary_buckets.values(), key=lambda item: item["count"], reverse=True)
 
+    detail_items = _build_detail_items(metric_type, metric_rows, fields, columns)
+    primary_metric = _build_primary_metric(metric_type, metric_total, metric_rows, fields, columns, metric_label)
+    summary_payload = {
+        "group_index": summary_group_index,
+        "labels": [row["label"] for row in summary_rows],
+        "rows": summary_rows,
+        "totals": {
+            "count": len(metric_rows),
+            "value": metric_total,
+        },
+        "primary_metric": primary_metric,
+    }
+
     dataset_context = {
         "rows": metric_rows,
         "aggregations": {
@@ -1503,17 +1585,9 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
             "top_items": top_items,
             "distribution": distribution,
         },
-        "summary": {
-            "group_index": summary_group_index,
-            "labels": [row["label"] for row in summary_rows],
-            "rows": summary_rows,
-            "totals": {
-                "count": len(metric_rows),
-                "value": metric_total,
-            },
-        },
+        "summary": summary_payload,
         "kpis": _compute_kpis(payload_config, metric_rows, columns),
-        "detail_items": _build_detail_items(metric_type, metric_rows, fields, columns),
+        "detail_items": detail_items,
         "validation": {
             "skipped_rows": skipped_rows,
         },
@@ -1545,6 +1619,18 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
         "validation": validation,
         "mapping": mapping,
         "dataset": metric_rows,
+        "summary": summary_payload,
+        "kpis": dataset_context["kpis"],
+        "detail_items": detail_items,
+        "metric": {
+            "type": metric_type,
+            "label": metric_label,
+            "color": METRIC_META[metric_type]["color"],
+            "value": metric_total,
+            "unit": _metric_unit(metric_type),
+            "formatted_value": primary_metric["formatted_value"],
+            "breakdown": primary_metric.get("breakdown"),
+        },
         "charts": charts,
         "insights": insights,
     }
