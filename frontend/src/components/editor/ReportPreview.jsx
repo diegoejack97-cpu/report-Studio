@@ -208,6 +208,25 @@ function chartRole(chart) {
   return 'unknown'
 }
 
+function normalizeChartContent(chart) {
+  const labels = Array.isArray(chart?.labels) ? chart.labels.map(label => String(label ?? '').trim()) : []
+  const data = Array.isArray(chart?.data)
+    ? chart.data.map(value => {
+      const numeric = Number(value)
+      return Number.isFinite(numeric) ? Number(numeric.toFixed(6)) : String(value ?? '')
+    })
+    : []
+  return JSON.stringify({ labels, data })
+}
+
+function chartPriorityScore(chart) {
+  const role = chartRole(chart)
+  const type = inferChartType(chart)
+  const roleScore = role === 'by_category' ? 3 : role === 'top_items' ? 2 : role === 'by_date' ? 2 : role === 'distribution' ? 1 : 0
+  const typeScore = type === 'bar' ? 3 : type === 'pie' ? 2 : type === 'hbar' ? 1 : type === 'donut' ? 1 : 0
+  return roleScore * 10 + typeScore
+}
+
 function hasEnoughData(chart) {
   const stats = chartDataStats(chart)
   return stats.points > 1 && stats.dataCount > 1 && stats.labelsCount > 1
@@ -275,7 +294,22 @@ function selectMetricCharts(charts, metricType, datasetRowsCount = 0) {
     unique.push(chart)
   }
 
-  let finalCharts = unique.slice(0, 3)
+  const byContent = new Map()
+  for (const chart of unique) {
+    const contentKey = normalizeChartContent(chart)
+    const existing = byContent.get(contentKey)
+    if (!existing) {
+      byContent.set(contentKey, chart)
+      continue
+    }
+    const existingScore = chartPriorityScore(existing)
+    const candidateScore = chartPriorityScore(chart)
+    if (candidateScore > existingScore) {
+      byContent.set(contentKey, chart)
+    }
+  }
+
+  let finalCharts = Array.from(byContent.values()).slice(0, 3)
   const temporalMain = finalCharts.find(chart => chartRole(chart) === 'by_date')
   const categoryMain = finalCharts.find(chart => chartRole(chart) === 'by_category')
   const main = metricType === 'VARIACAO' || metricType === 'TAXA'
