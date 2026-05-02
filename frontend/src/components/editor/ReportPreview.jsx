@@ -177,36 +177,114 @@ function inferChartType(chart) {
   return seriesType
 }
 
-function selectMetricCharts(charts, metricType) {
-  const available = Array.isArray(charts) ? charts.filter(chart => chart && chart.option) : []
+function chartDataStats(chart) {
+  const labels = Array.isArray(chart?.labels) ? chart.labels : []
+  const data = Array.isArray(chart?.data) ? chart.data : []
+  const numeric = data
+    .map(value => Number(value))
+    .filter(value => Number.isFinite(value))
+  const uniqueValues = new Set(numeric.map(value => value.toFixed(6))).size
+  return {
+    labelsCount: labels.length,
+    dataCount: data.length,
+    points: Math.min(labels.length, data.length),
+    uniqueValues,
+  }
+}
+
+function chartRole(chart) {
+  const title = String(chart?.title || '').toLowerCase()
+  const type = inferChartType(chart)
+  const stats = chartDataStats(chart)
+  const labels = Array.isArray(chart?.labels) ? chart.labels : []
+  const looksTemporal = labels.some(label => /^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\/\d{4}$/i.test(String(label || '').trim()))
+  const looksDistribution = title.includes('distribui') || (type === 'line' && stats.points > 3 && !looksTemporal)
+  const looksTop = title.includes('top') || title.includes('ranking')
+  const looksCategory = title.includes('categoria') || title.includes('por ')
+  if (looksTemporal) return 'by_date'
+  if (looksTop) return 'top_items'
+  if (looksDistribution) return 'distribution'
+  if (looksCategory) return 'by_category'
+  return 'unknown'
+}
+
+function hasEnoughData(chart) {
+  const stats = chartDataStats(chart)
+  return stats.points > 1 && stats.dataCount > 1 && stats.labelsCount > 1
+}
+
+function selectMetricCharts(charts, metricType, datasetRowsCount = 0) {
+  const available = Array.isArray(charts) ? charts.filter(chart => chart && chart.option && hasEnoughData(chart)) : []
   if (available.length === 0) return []
 
-  const config = getChartConfig(metricType)
-  const preferredTypes = [config.main, ...(config.secondary || [])]
-  const selected = []
-  const usedTypes = new Set()
-
-  for (const preferredType of preferredTypes) {
-    const wanted = String(preferredType || '').toLowerCase()
-    if (!wanted || usedTypes.has(wanted)) continue
-
-    const match = available.find(chart => inferChartType(chart) === wanted)
-    if (!match) continue
-
-    selected.push(match)
-    usedTypes.add(wanted)
-    if (selected.length === 4) return selected
+  const byRole = {
+    by_category: [],
+    by_date: [],
+    top_items: [],
+    distribution: [],
+    unknown: [],
   }
-
   for (const chart of available) {
-    const inferredType = inferChartType(chart)
-    if (!inferredType || usedTypes.has(inferredType)) continue
-    selected.push(chart)
-    usedTypes.add(inferredType)
-    if (selected.length === 4) break
+    byRole[chartRole(chart)].push(chart)
   }
 
-  return selected
+  const pickBest = list => list
+    .slice()
+    .sort((a, b) => chartDataStats(b).points - chartDataStats(a).points)[0]
+
+  const selected = []
+  const byCategory = pickBest(byRole.by_category)
+  if (byCategory) selected.push(byCategory)
+
+  const byDate = pickBest(byRole.by_date)
+  const byDateStats = byDate ? chartDataStats(byDate) : null
+  if (byDate && byDateStats.points > 2) selected.push(byDate)
+
+  const topItems = pickBest(byRole.top_items)
+  if (topItems) {
+    const topStats = chartDataStats(topItems)
+    const catStats = byCategory ? chartDataStats(byCategory) : null
+    const isRedundantWithCategory = Boolean(
+      byCategory &&
+      topStats.points <= 3 &&
+      catStats &&
+      topStats.points >= catStats.points
+    )
+    if (!isRedundantWithCategory) selected.push(topItems)
+  }
+
+  const distribution = pickBest(byRole.distribution)
+  if (distribution) {
+    const distStats = chartDataStats(distribution)
+    const enoughVolume = Number(datasetRowsCount) >= 12
+    const hasVariance = distStats.uniqueValues > 1
+    if (enoughVolume && hasVariance && distStats.points > 3) selected.push(distribution)
+  }
+
+  if (selected.length === 0) {
+    const fallback = pickBest([...byRole.by_category, ...byRole.by_date, ...byRole.top_items, ...byRole.unknown, ...byRole.distribution])
+    if (fallback) selected.push(fallback)
+  }
+
+  const unique = []
+  const seen = new Set()
+  for (const chart of selected) {
+    const key = chart?.id || `${chart?.title || ''}-${inferChartType(chart)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    unique.push(chart)
+  }
+
+  let finalCharts = unique.slice(0, 3)
+  const temporalMain = finalCharts.find(chart => chartRole(chart) === 'by_date')
+  const categoryMain = finalCharts.find(chart => chartRole(chart) === 'by_category')
+  const main = metricType === 'VARIACAO' || metricType === 'TAXA'
+    ? (temporalMain || categoryMain || finalCharts[0])
+    : (categoryMain || temporalMain || finalCharts[0])
+  if (main) {
+    finalCharts = [main, ...finalCharts.filter(chart => chart !== main)].slice(0, 3)
+  }
+  return finalCharts
 }
 
 function formatMetricValue(metricType, value, unit) {
@@ -737,9 +815,12 @@ export default function ReportPreview({ state }) {
   const breakdown = summary?.primary_metric?.breakdown || null
   const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
   const savTotal = metric?.value ?? primaryMetric?.value ?? 0
+  const primaryMetricValue = primaryMetric?.value
+  const hasInvalidMetricValue = primaryMetricValue == null || !Number.isFinite(Number(primaryMetricValue))
+  const friendlyWarning = dedupedValidationWarnings.length > 0 ? 'Alguns dados não permitiram o cálculo completo desta métrica.' : ''
   const recordCount = summary.totals?.count ?? datasetRows.length
   const summaryLabel = summary.group_index >= 0 ? cols[summary.group_index]?.name || '—' : '—'
-  const metricCharts = selectMetricCharts(charts, metricType)
+  const metricCharts = selectMetricCharts(charts, metricType, datasetRows.length)
   const existingLoading = Boolean(state?.loading || state?.previewLoading || report?.loading || reportData?.loading)
   const waitingInitialPayload = !previewError && !hasValidationErrors && datasetRows.length === 0 && (!Array.isArray(charts) || charts.length === 0)
   const showSkeleton = existingLoading || waitingInitialPayload
@@ -965,12 +1046,17 @@ export default function ReportPreview({ state }) {
               <div>
                 <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{primaryMetric.label || 'Métrica principal'}</div>
                 <div className="text-4xl font-extrabold font-mono" style={{ color: metricColor }}>
-                  {primaryMetric.formatted_value || '—'}
+                  {hasInvalidMetricValue ? 'Dados insuficientes para cálculo desta métrica' : (primaryMetric.formatted_value || '—')}
                 </div>
                 <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
                   {primaryMetric.type || metricType}
                 </div>
-                {breakdown && (breakdown.base_value !== undefined || breakdown.percent !== undefined || breakdown.formula) && (
+                {friendlyWarning && (
+                  <div className="mt-2 text-[11px] text-white/80">
+                    {friendlyWarning}
+                  </div>
+                )}
+                {!hasInvalidMetricValue && breakdown && (breakdown.base_value !== undefined || breakdown.percent !== undefined || breakdown.formula) && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
                     {breakdown.base_value !== undefined && (
                       <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
@@ -1019,7 +1105,7 @@ export default function ReportPreview({ state }) {
           ) : metricCharts.length > 0 ? (
             <div className="grid grid-cols-2 gap-4 mb-5">
               {metricCharts.map((chart, index) => (
-                <ChartCard key={`${inferChartType(chart) || chart?.type || 'chart'}-${chart.id || index}`} title={chart.title || 'Gráfico'} h={chart.h || (index >= 2 ? 300 : 260)} full={!!chart.full}>
+                <ChartCard key={`${inferChartType(chart) || chart?.type || 'chart'}-${chart.id || index}`} title={chart.title || 'Gráfico'} h={chart.h || (index >= 1 ? 300 : 320)} full={index === 0}>
                   {chart.option
                     ? <EChart option={chart.option} h={chart.h || (index >= 2 ? 300 : 260)} />
                     : (

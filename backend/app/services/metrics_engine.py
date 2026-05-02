@@ -1147,7 +1147,9 @@ def _primary_metric_display_type(metric_type: str) -> str:
     return "monetario"
 
 
-def _format_primary_metric_value(value: float, metric_type: str) -> str:
+def _format_primary_metric_value(value: float | None, metric_type: str) -> str:
+    if value is None:
+        return "—"
     display_type = _primary_metric_display_type(metric_type)
     if display_type == "monetario":
         return f"R$ {_format_value(value, 'TOTAL')}"
@@ -1202,12 +1204,22 @@ def _build_detail_items(metric_type: str, metric_rows: list[dict[str, Any]], fie
 
 def _build_primary_metric(
     metric_type: str,
-    metric_total: float,
+    metric_total: float | None,
     metric_rows: list[dict[str, Any]],
     fields: dict[str, int],
     columns: list[dict[str, Any]],
     metric_label: str,
 ) -> dict[str, Any]:
+    if metric_total is None:
+        return {
+            "label": metric_label,
+            "value": None,
+            "type": _primary_metric_display_type(metric_type),
+            "color": METRIC_META[metric_type]["color"],
+            "formatted_value": "—",
+            "breakdown": None,
+        }
+
     breakdown: dict[str, Any] | None = None
     if metric_type == "ECONOMIA" and fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0:
         base_name = columns[fields["base"]]["name"]
@@ -1222,9 +1234,17 @@ def _build_primary_metric(
         breakdown = {
             "formula": "valor_inicial - valor_final",
         }
-    elif metric_type in {"TAXA", "VARIACAO"}:
+    elif metric_type == "VARIACAO":
         breakdown = {
             "formula": "agregacao_percentual",
+        }
+    elif metric_type == "TAXA":
+        denominador = len(metric_rows)
+        breakdown = {
+            "base_value": denominador,
+            "numerador": denominador,
+            "percent": metric_total,
+            "formula": "numerador / denominador * 100",
         }
     elif metric_type == "VOLUME":
         breakdown = {
@@ -1419,6 +1439,7 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
 
     metric_rows: list[dict[str, Any]] = []
     skipped_rows = 0
+    variacao_base_zero_found = False
 
     for row in named_rows:
         category_value = str(row.get(columns[category_idx]["name"]) or "(sem categoria)") if category_idx >= 0 else "(sem categoria)"
@@ -1461,7 +1482,11 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
             if initial_value is None or final_value is None:
                 skipped_rows += 1
                 continue
-            metric_value = ((final_value - initial_value) / initial_value) * 100 if initial_value else 0.0
+            if initial_value == 0:
+                variacao_base_zero_found = True
+                skipped_rows += 1
+                continue
+            metric_value = ((final_value - initial_value) / initial_value) * 100
             if not math.isfinite(metric_value):
                 metric_value = 0.0
             formula = "variation_rate"
@@ -1515,13 +1540,18 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
         if isinstance(column_warnings, list):
             column_payload["warnings"] = list(dict.fromkeys(column_warnings))
     validation["warnings"] = list(dict.fromkeys(validation.get("warnings") or []))
+    if metric_type == "VARIACAO" and variacao_base_zero_found:
+        validation["warnings"].append("Não é possível calcular variação com valor base igual a zero")
+        validation["warnings"] = list(dict.fromkeys(validation["warnings"]))
 
     if metric_type == "TAXA":
         total = len(metric_rows) or 1
         for row in metric_rows:
             row["metric_value"] = 100 / total
 
-    metric_total = round(_sum(row["metric_value"] for row in metric_rows), 2)
+    metric_total: float | None = round(_sum(row["metric_value"] for row in metric_rows), 2)
+    if metric_type == "VARIACAO" and variacao_base_zero_found and not metric_rows:
+        metric_total = None
     if metric_type == "TAXA" and not metric_rows:
         metric_total = 0.0
     if metric_type == "TAXA" and metric_rows:

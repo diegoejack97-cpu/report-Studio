@@ -112,11 +112,12 @@ function WizardCard({ children, wide }) {
 }
 
 function ProgressBar({ current, total }) {
+  const steps = Array.from({ length: total }, (_, index) => index + 1)
   return (
     <div className="px-6 pt-5 pb-1">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Configuração do relatório</span>
-        <span className="text-[10px] text-slate-500">{current} de {total}</span>
+        <span className="text-[11px] font-semibold text-slate-300">Etapa {current} de {total}</span>
       </div>
       <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
         <motion.div
@@ -125,6 +126,20 @@ function ProgressBar({ current, total }) {
           animate={{ width: `${(current / total) * 100}%` }}
           transition={{ duration: 0.5 }}
         />
+      </div>
+      <div className="mt-2 grid grid-cols-5 gap-1.5">
+        {steps.map(step => (
+          <div
+            key={step}
+            className={`h-1.5 rounded-full transition-colors ${
+              step === current
+                ? 'bg-cyan-400'
+                : step < current
+                  ? 'bg-blue-500/80'
+                  : 'bg-white/[0.1]'
+            }`}
+          />
+        ))}
       </div>
     </div>
   )
@@ -205,7 +220,7 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
 
   return (
     <>
-      <StepTitle Icon={ClipboardList} title="Sobre este relatório" desc={`Identifiquei ${analyzed.length} colunas e careguei os seus dados. Vamos configurar o relatório em poucos passos.`} />
+      <StepTitle Icon={ClipboardList} title="Identificação do relatório" desc="Defina o nome e contexto do seu relatório" />
       <div className="px-6 pb-2 space-y-3">
         <div>
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Título do relatório</label>
@@ -308,7 +323,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
 
   return (
     <>
-      <StepTitle Icon={DollarSign} title={metricTitle} desc="Escolha o tipo de métrica. O backend identifica colunas, valida e calcula automaticamente." />
+      <StepTitle Icon={DollarSign} title="Configuração da métrica" desc="Escolha como o sistema calculará seu resultado principal" />
       <div className="px-6 pb-2 space-y-3">
         <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg bg-white/[0.03] border border-white/[0.07] hover:border-white/[0.12]">
           <div className={`w-10 h-5 rounded-full relative transition-colors ${enabled ? '' : 'bg-white/10'}`} style={enabled ? { backgroundColor: metricColor } : undefined} onClick={() => setEnabled(e => !e)}>
@@ -336,13 +351,27 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
 
             {isWaitingPreview && (
               <div className="rounded-lg border border-blue-700/30 bg-blue-950/30 px-3 py-2 text-[11px] text-blue-100">
-                Validando métrica no backend...
+                Validando cálculo da métrica...
               </div>
             )}
 
             {!isWaitingPreview && validationMessage && (
               <div className="rounded-lg border border-rose-700/30 bg-rose-950/30 px-3 py-2 text-[11px] text-rose-200">
-                Não foi possível calcular a métrica com os dados fornecidos. {validationMessage}
+                Não foi possível calcular essa métrica com os dados atuais. {validationMessage}
+              </div>
+            )}
+
+            {!isWaitingPreview && !validationMessage && Number.isFinite(Number(saving)) && (
+              <div className="rounded-lg border border-emerald-700/30 bg-emerald-950/30 px-3 py-2 text-[11px] text-emerald-200">
+                Métrica válida e pronta para uso
+              </div>
+            )}
+
+            {hasBlockingValidation && (
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-300">
+                {isWaitingPreview
+                  ? 'Aguarde a validação da métrica antes de continuar'
+                  : 'Ajuste os dados para continuar'}
               </div>
             )}
 
@@ -369,7 +398,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
                   </div>
                   {breakdown?.formula && (
                     <div className="mt-2 text-[10px] text-white/70">
-                      Fórmula: {breakdown.formula}
+                      Fórmula: {previewData?.summary?.primary_metric?.breakdown?.formula}
                     </div>
                   )}
                   {(Number.isFinite(Number(breakdown?.base_value)) || Number.isFinite(Number(breakdown?.percent))) && (
@@ -439,7 +468,7 @@ function StepKPIs({ data, analyzed, onChange, onNext, onBack, onSkip }) {
 
   return (
     <>
-      <StepTitle Icon={BarChart3} title="KPIs do relatório" desc="Escolha os indicadores que aparecerão em destaque no topo do relatório." />
+      <StepTitle Icon={BarChart3} title="Indicadores (KPIs)" desc="Adicione métricas auxiliares para enriquecer a análise" />
       <div className="px-6 pb-2 space-y-2 max-h-[340px] overflow-y-auto">
         {kpis.map((kpi, i) => (
           <motion.div
@@ -518,7 +547,7 @@ function StepChartsDist({ data, analyzed, onChange, onNext, onBack, onSkip }) {
 
   return (
     <>
-      <StepTitle Icon={BarChart3} title="Gráficos de distribuição" desc="Esses gráficos mostram como os dados se dividem por categoria. Escolha quais colunas usar." />
+      <StepTitle Icon={BarChart3} title="Gráficos de distribuição" desc="Visualize como os dados se distribuem por categorias" />
       <div className="px-6 pb-2 space-y-4">
         {/* G1 */}
         <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 space-y-3">
@@ -595,7 +624,7 @@ function StepChartsAdvanced({ data, analyzed, onChange, onNext, onBack, onSkip }
 
   return (
     <>
-      <StepTitle Icon={TrendingUp} title="Evolução e ranking" desc="Veja como os dados evoluem no tempo e quem são os principais por valor." />
+      <StepTitle Icon={TrendingUp} title="Análises avançadas" desc="Explore tendências e rankings dos seus dados" />
       <div className="px-6 pb-2 space-y-4">
         {/* G3 Temporal */}
         <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 space-y-3">
@@ -650,6 +679,7 @@ const TOTAL_STEPS = 5
 export default function SetupWizard({ rows, cols, onComplete, onDismiss, previewData, previewError, previewLoading, onDraftChange }) {
   const [step, setStep]     = useState(1)
   const [wdata, setWdata]   = useState({})
+  const [finishing, setFinishing] = useState(false)
   const analyzed            = useMemo(() => detectColumns(cols, rows), [cols, rows])
 
   const update = useCallback((patch) => {
@@ -769,6 +799,13 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
     onComplete(finalState)
   }
 
+  const handleFinish = () => {
+    setFinishing(true)
+    window.setTimeout(() => {
+      finish()
+    }, 320)
+  }
+
   const stepProps = { rows, analyzed, data: wdata, onChange: update }
 
   return (
@@ -782,7 +819,23 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
               {step === 2 && <StepSaving        {...stepProps} previewData={previewData} previewError={previewError} previewLoading={previewLoading} onNext={next} onBack={back} onSkip={skip} />}
               {step === 3 && <StepKPIs          {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
               {step === 4 && <StepChartsDist    {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
-              {step === 5 && <StepChartsAdvanced {...stepProps} onNext={finish} onBack={back} onSkip={finish} />}
+              {step === 5 && (
+                <>
+                  <StepChartsAdvanced {...stepProps} onNext={handleFinish} onBack={back} onSkip={handleFinish} />
+                  <AnimatePresence>
+                    {finishing && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        className="mx-6 mb-5 -mt-2 rounded-lg border border-emerald-500/35 bg-emerald-900/30 px-3 py-2 text-xs font-semibold text-emerald-200"
+                      >
+                        Relatório configurado com sucesso
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              )}
             </motion.div>
           </AnimatePresence>
         </WizardCard>
