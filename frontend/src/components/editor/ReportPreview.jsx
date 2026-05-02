@@ -236,7 +236,7 @@ function selectMetricCharts(charts, metricType, datasetRowsCount = 0) {
   const available = Array.isArray(charts) ? charts.filter(chart => chart && chart.option && hasEnoughData(chart)) : []
   if (available.length === 0) return []
 
-  const byRole = {
+  const bySource = {
     by_category: [],
     by_date: [],
     top_items: [],
@@ -244,7 +244,7 @@ function selectMetricCharts(charts, metricType, datasetRowsCount = 0) {
     unknown: [],
   }
   for (const chart of available) {
-    byRole[chartRole(chart)].push(chart)
+    bySource[chartRole(chart)].push(chart)
   }
 
   const pickBest = list => list
@@ -252,50 +252,40 @@ function selectMetricCharts(charts, metricType, datasetRowsCount = 0) {
     .sort((a, b) => chartDataStats(b).points - chartDataStats(a).points)[0]
 
   const selected = []
-  const byCategory = pickBest(byRole.by_category)
-  if (byCategory) selected.push(byCategory)
-
-  const byDate = pickBest(byRole.by_date)
-  const byDateStats = byDate ? chartDataStats(byDate) : null
-  if (byDate && byDateStats.points > 2) selected.push(byDate)
-
-  const topItems = pickBest(byRole.top_items)
-  if (topItems) {
-    const topStats = chartDataStats(topItems)
-    const catStats = byCategory ? chartDataStats(byCategory) : null
-    const isRedundantWithCategory = Boolean(
-      byCategory &&
-      topStats.points <= 3 &&
-      catStats &&
-      topStats.points >= catStats.points
-    )
-    if (!isRedundantWithCategory) selected.push(topItems)
+  const addIfPresent = chart => {
+    if (!chart) return
+    const source = chartRole(chart)
+    if (selected.some(item => chartRole(item) === source)) return
+    selected.push(chart)
   }
 
-  const distribution = pickBest(byRole.distribution)
-  if (distribution) {
-    const distStats = chartDataStats(distribution)
-    const enoughVolume = Number(datasetRowsCount) >= 12
-    const hasVariance = distStats.uniqueValues > 1
-    if (enoughVolume && hasVariance && distStats.points > 3) selected.push(distribution)
-  }
+  const byCategory = pickBest(bySource.by_category)
+  const byDate = pickBest(bySource.by_date)
+  const topItems = pickBest(bySource.top_items)
+  const distribution = pickBest(bySource.distribution)
 
-  if (selected.length === 0) {
-    const fallback = pickBest([...byRole.by_category, ...byRole.by_date, ...byRole.top_items, ...byRole.unknown, ...byRole.distribution])
-    if (fallback) selected.push(fallback)
-  }
+  addIfPresent(byCategory)
+  addIfPresent(byDate)
+  addIfPresent(topItems)
 
-  const unique = []
-  const seen = new Set()
-  for (const chart of selected) {
-    const key = chart?.id || `${chart?.title || ''}-${inferChartType(chart)}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    unique.push(chart)
+  if (selected.length < 3) addIfPresent(distribution)
+
+  if (selected.length < 3) {
+    const orderedFallback = [
+      ...bySource.by_category,
+      ...bySource.by_date,
+      ...bySource.top_items,
+      ...bySource.distribution,
+      ...bySource.unknown,
+    ]
+    for (const chart of orderedFallback) {
+      addIfPresent(chart)
+      if (selected.length === 3) break
+    }
   }
 
   const byContent = new Map()
-  for (const chart of unique) {
+  for (const chart of selected) {
     const contentKey = normalizeChartContent(chart)
     const existing = byContent.get(contentKey)
     if (!existing) {
@@ -304,12 +294,28 @@ function selectMetricCharts(charts, metricType, datasetRowsCount = 0) {
     }
     const existingScore = chartPriorityScore(existing)
     const candidateScore = chartPriorityScore(chart)
-    if (candidateScore > existingScore) {
-      byContent.set(contentKey, chart)
+    if (candidateScore > existingScore) byContent.set(contentKey, chart)
+  }
+
+  let finalCharts = Array.from(byContent.values())
+  if (finalCharts.length > 3) finalCharts = finalCharts.slice(0, 3)
+  if (finalCharts.length < 3) {
+    const fillers = [
+      ...bySource.by_category,
+      ...bySource.by_date,
+      ...bySource.top_items,
+      ...bySource.distribution,
+      ...bySource.unknown,
+    ]
+    for (const chart of fillers) {
+      const source = chartRole(chart)
+      if (finalCharts.some(item => chartRole(item) === source)) continue
+      finalCharts.push(chart)
+      if (finalCharts.length === 3) break
     }
   }
 
-  let finalCharts = Array.from(byContent.values()).slice(0, 3)
+  finalCharts = finalCharts.slice(0, 3)
   const temporalMain = finalCharts.find(chart => chartRole(chart) === 'by_date')
   const categoryMain = finalCharts.find(chart => chartRole(chart) === 'by_category')
   const main = metricType === 'VARIACAO' || metricType === 'TAXA'

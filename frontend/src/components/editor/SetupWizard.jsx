@@ -271,14 +271,22 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
 function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previewError, previewLoading }) {
   const [enabled, setEnabled] = useState(data.savingEnabled !== false)
   const [metricType, setMetricType] = useState(data.metricType || data.type || 'ECONOMIA')
-  const [label, setLabel] = useState(data.label || METRIC_LABELS[data.metricType || data.type || 'ECONOMIA'] || METRIC_LABELS.ECONOMIA)
+  const [customLabel, setCustomLabel] = useState(data.label || '')
+  const labelMap = {
+    ECONOMIA: 'Economia',
+    TOTAL: 'Total Financeiro',
+    VARIACAO: 'Variação',
+    TAXA: 'Taxa',
+    VOLUME: 'Volume',
+  }
+  const label = labelMap[metricType] || labelMap.ECONOMIA
 
-  const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-  const fmtN = v => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
-  const fmtPct = v => `${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
-  const isFiniteMetricValue = value => value != null && Number.isFinite(Number(value))
+  const hasValidValue = value => value !== null && value !== undefined && Number.isFinite(Number(value))
+  const fmtBRL = v => hasValidValue(v) ? Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }) : '—'
+  const fmtN = v => hasValidValue(v) ? Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : '—'
+  const fmtPct = v => hasValidValue(v) ? `${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%` : '—'
   const displayMode = getMetricDisplayMode(metricType)
-  const metricTitle = METRIC_LABELS[metricType] || METRIC_LABELS.ECONOMIA
+  const metricTitle = label
   const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
   const primaryMetric = previewData?.summary?.primary_metric || null
   const previewMetricType = previewData?.metric?.type || ''
@@ -291,19 +299,9 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
   const validationWarnings = Array.isArray(previewData?.validation?.warnings) ? previewData.validation.warnings : []
   const validationMessage = previewError || validationErrors[0] || ''
   const hasBlockingValidation = Boolean(validationMessage) || isWaitingPreview
-  const hasValidSaving = isFiniteMetricValue(saving)
-  const hasBaseValue = isFiniteMetricValue(breakdown?.base_value)
-  const hasPercentValue = isFiniteMetricValue(breakdown?.percent)
-
-  useEffect(() => {
-    setLabel(current => {
-      const trimmed = String(current || '').trim()
-      if (!trimmed || DEFAULT_LABELS.has(trimmed)) {
-        return metricTitle
-      }
-      return current
-    })
-  }, [metricType, metricTitle])
+  const hasValidSaving = hasValidValue(saving)
+  const hasBaseValue = hasValidValue(breakdown?.base_value)
+  const hasPercentValue = hasValidValue(breakdown?.percent)
 
   useEffect(() => {
     onChange({
@@ -350,7 +348,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
             </div>
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Rótulo da métrica</label>
-              <input value={label} onChange={e => setLabel(e.target.value)} placeholder={`Ex: ${metricTitle}`} className="w-full px-3 py-2 bg-white/[0.05] border rounded-lg text-sm text-white outline-none transition-colors" style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}22 inset` }} />
+              <input value={customLabel} onChange={e => setCustomLabel(e.target.value)} placeholder={`Ex: ${metricTitle}`} className="w-full px-3 py-2 bg-white/[0.05] border rounded-lg text-sm text-white outline-none transition-colors" style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}22 inset` }} />
             </div>
 
             {isWaitingPreview && (
@@ -395,7 +393,9 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
                 <div>
                   <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{primaryMetric?.label || label}</div>
                   <div className="text-2xl font-bold font-mono" style={{ color: '#d1fae5' }}>
-                    {primaryMetric?.formatted_value || (displayMode === 'percent' ? fmtPct(saving) : displayMode === 'number' ? fmtN(saving) : fmtBRL(saving))}
+                    {hasValidSaving
+                      ? (primaryMetric?.formatted_value ?? (displayMode === 'percent' ? fmtPct(saving) : displayMode === 'number' ? fmtN(saving) : fmtBRL(saving)))
+                      : '—'}
                   </div>
                   <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
                     Tipo: {metricType} · {primaryMetric?.type || (displayMode === 'percent' ? 'percentual' : displayMode === 'number' ? 'quantidade' : 'monetário')}
