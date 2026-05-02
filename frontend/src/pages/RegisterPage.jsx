@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
+import { Sparkles } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import { buildAppUrl } from '@/lib/appUrl'
@@ -134,7 +135,7 @@ export default function RegisterPage() {
         className="w-full max-w-sm"
       >
         <Link to="/" className="flex items-center gap-2 justify-center mb-8 text-white font-bold text-lg">
-          <span className="text-brand-400 text-xl">✦</span> Report Flow
+          <Sparkles className="w-4 h-4 text-brand-400" /> Report Flow
         </Link>
 
         <div className="card p-6">

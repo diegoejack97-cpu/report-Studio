@@ -116,7 +116,7 @@ function getChartConfig(metricType) {
     case 'ECONOMIA':
       return {
         main: 'bar',
-        secondary: ['pie', 'hbar', 'funnel'],
+        secondary: ['pie', 'line', 'treemap'],
       }
 
     case 'TOTAL':
@@ -128,10 +128,11 @@ function getChartConfig(metricType) {
     case 'VOLUME':
       return {
         main: 'treemap',
-        secondary: ['bar', 'pie', 'donut'],
+        secondary: ['bar', 'hbar', 'pie'],
       }
 
     case 'VARIACAO':
+    case 'TENDENCIA':
       return {
         main: 'line',
         secondary: ['area', 'bar', 'radar'],
@@ -160,6 +161,7 @@ function inferChartType(chart) {
   const seriesType = String(firstSeries?.type || '').toLowerCase()
   if (!seriesType) return ''
 
+  if (seriesType === 'line' && firstSeries?.areaStyle) return 'area'
   if (seriesType === 'pie') {
     if (firstSeries?.roseType) return 'nightingale'
     const radius = firstSeries?.radius
@@ -194,6 +196,14 @@ function selectMetricCharts(charts, metricType) {
     selected.push(match)
     usedTypes.add(wanted)
     if (selected.length === 4) return selected
+  }
+
+  for (const chart of available) {
+    const inferredType = inferChartType(chart)
+    if (!inferredType || usedTypes.has(inferredType)) continue
+    selected.push(chart)
+    usedTypes.add(inferredType)
+    if (selected.length === 4) break
   }
 
   return selected
@@ -724,6 +734,7 @@ export default function ReportPreview({ state }) {
   const subText = dark ? '#486581' : '#94a3b8'
   const primaryMetric = summary?.primary_metric || null
   const metricType = metric?.type || primaryMetric?.type || 'ECONOMIA'
+  const breakdown = summary?.primary_metric?.breakdown || null
   const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
   const savTotal = metric?.value ?? primaryMetric?.value ?? 0
   const recordCount = summary.totals?.count ?? datasetRows.length
@@ -732,6 +743,7 @@ export default function ReportPreview({ state }) {
   const existingLoading = Boolean(state?.loading || state?.previewLoading || report?.loading || reportData?.loading)
   const waitingInitialPayload = !previewError && !hasValidationErrors && datasetRows.length === 0 && (!Array.isArray(charts) || charts.length === 0)
   const showSkeleton = existingLoading || waitingInitialPayload
+  const requiresBreakdownWarning = ['ECONOMIA', 'VARIACAO', 'TAXA'].includes(metricType)
 
   if (previewError) {
     return (
@@ -879,6 +891,24 @@ export default function ReportPreview({ state }) {
           </div>
         )}
 
+        {!showSkeleton && !primaryMetric && (() => {
+          console.warn('[report-preview] missing primary_metric')
+          return null
+        })()}
+
+        {!showSkeleton && primaryMetric && requiresBreakdownWarning && !breakdown && (
+          <div className="rounded-2xl p-4 mb-4" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
+            <div className="inline-flex items-center gap-1.5 text-sm" style={{ color: '#f59e0b' }}>
+              <AlertTriangle className="w-4 h-4" />
+              <span>Dados insuficientes para detalhamento da métrica</span>
+            </div>
+            {(() => {
+              console.warn('[report-preview] missing breakdown for metricType', metricType)
+              return null
+            })()}
+          </div>
+        )}
+
         <OverridePanel
           enabled={isNewSchema}
           mapping={mapping}
@@ -940,24 +970,24 @@ export default function ReportPreview({ state }) {
                 <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
                   {primaryMetric.type || metricType}
                 </div>
-                {(primaryMetric.base_value !== undefined || primaryMetric.percent !== undefined || primaryMetric.formula) && (
+                {breakdown && (breakdown.base_value !== undefined || breakdown.percent !== undefined || breakdown.formula) && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
-                    {primaryMetric.base_value !== undefined && (
+                    {breakdown.base_value !== undefined && (
                       <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
                         <div className="text-[10px] uppercase tracking-wider opacity-70">base_value</div>
-                        <div className="text-sm font-bold font-mono">{String(primaryMetric.base_value)}</div>
+                        <div className="text-sm font-bold font-mono">{String(breakdown.base_value)}</div>
                       </div>
                     )}
-                    {primaryMetric.percent !== undefined && (
+                    {breakdown.percent !== undefined && Number.isFinite(Number(breakdown.percent)) && (
                       <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
                         <div className="text-[10px] uppercase tracking-wider opacity-70">percent</div>
-                        <div className="text-sm font-bold font-mono">{String(primaryMetric.percent)}</div>
+                        <div className="text-sm font-bold font-mono">{String(breakdown.percent)}%</div>
                       </div>
                     )}
-                    {primaryMetric.formula && (
+                    {breakdown.formula && (
                       <div className="rounded-lg px-3 py-2 md:col-span-1" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
                         <div className="text-[10px] uppercase tracking-wider opacity-70">formula</div>
-                        <div className="text-sm font-bold break-words">{String(primaryMetric.formula)}</div>
+                        <div className="text-sm font-bold break-words">{String(breakdown.formula)}</div>
                       </div>
                     )}
                   </div>
@@ -989,7 +1019,7 @@ export default function ReportPreview({ state }) {
           ) : metricCharts.length > 0 ? (
             <div className="grid grid-cols-2 gap-4 mb-5">
               {metricCharts.map((chart, index) => (
-                <ChartCard key={chart.id || index} title={chart.title || 'Gráfico'} h={chart.h || (index >= 2 ? 300 : 260)} full={!!chart.full}>
+                <ChartCard key={`${inferChartType(chart) || chart?.type || 'chart'}-${chart.id || index}`} title={chart.title || 'Gráfico'} h={chart.h || (index >= 2 ? 300 : 260)} full={!!chart.full}>
                   {chart.option
                     ? <EChart option={chart.option} h={chart.h || (index >= 2 ? 300 : 260)} />
                     : (

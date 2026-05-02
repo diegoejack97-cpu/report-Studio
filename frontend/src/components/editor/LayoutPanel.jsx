@@ -43,20 +43,20 @@ export default function LayoutPanel({ state, update }) {
   const setExportOpt = (k, v) => update(s => ({ ...s, exportOptions: { ...(s.exportOptions || {}), [k]: v } }))
   const currentMetricType = savCfg.metricType || savCfg.type || 'ECONOMIA'
 
-  const addKPI = () => update(s => ({ ...s, kpis: [...s.kpis, { label: 'KPI', col: '', fmt: 'count', icon: '📊', color: '#3b82f6' }] }))
+  const addKPI = () => update(s => ({ ...s, kpis: [...s.kpis, { label: 'KPI', col: '', fmt: 'count', icon: 'bar', color: '#3b82f6' }] }))
   const updKPI = (i, k, v) => update(s => ({ ...s, kpis: s.kpis.map((kpi, idx) => idx === i ? { ...kpi, [k]: v } : kpi) }))
   const delKPI = (i) => update(s => ({ ...s, kpis: s.kpis.filter((_, idx) => idx !== i) }))
 
   return (
     <div className="flex-1 overflow-y-auto p-2">
-      <Accordion title="📝 Cabeçalho" defaultOpen>
+      <Accordion title="Cabeçalho" defaultOpen>
         <Field label="Título"><input className="input-field text-xs py-1.5" value={state.title || ''} onChange={e => setTitle(e.target.value)} /></Field>
         <Field label="Subtítulo"><input className="input-field text-xs py-1.5" value={state.subtitle || ''} onChange={e => setSub(e.target.value)} /></Field>
         <Field label="Período"><input className="input-field text-xs py-1.5" value={state.period || ''} onChange={e => setPeriod(e.target.value)} /></Field>
         <Field label="Empresa"><input className="input-field text-xs py-1.5" value={state.company || ''} onChange={e => setCo(e.target.value)} /></Field>
       </Accordion>
 
-      <Accordion title="💰 Métrica principal">
+      <Accordion title="Métrica principal">
         <Toggle checked={sections.saving !== false} onChange={v => setSection('saving', v)} label="Mostrar banner" />
         <Field label="Rótulo"><input className="input-field text-xs py-1.5" value={savCfg.label || ''} onChange={e => setSav('label', e.target.value)} /></Field>
         <Field label="Tipo de métrica">
@@ -78,7 +78,7 @@ export default function LayoutPanel({ state, update }) {
         </div>
       </Accordion>
 
-      <Accordion title="📊 KPIs">
+      <Accordion title="KPIs">
         <div className="space-y-2">
           {kpis.map((k, i) => (
             <div key={i} className="bg-surface-2 border border-white/[0.07] rounded-lg p-2 space-y-1.5">
@@ -111,7 +111,7 @@ export default function LayoutPanel({ state, update }) {
         </div>
       </Accordion>
 
-      <Accordion title="🎨 Cores">
+      <Accordion title="Cores">
         {[['primary','Cor primária'], ['secondary','Cor secundária'], ['accent','Destaque/saving'], ['bg','Background'], ['text','Texto']].map(([k, label]) => (
           <div key={k} className="flex items-center gap-2">
             <span className="text-xs text-ink-400 flex-1">{label}</span>
@@ -126,11 +126,11 @@ export default function LayoutPanel({ state, update }) {
         ))}
       </Accordion>
 
-      <Accordion title="🗒 Rodapé">
+      <Accordion title="Rodapé">
         <textarea className="input-field text-xs py-1.5 resize-y" rows={2} value={state.footer || ''} onChange={e => update({ footer: e.target.value })} />
       </Accordion>
 
-      <Accordion title="📤 Exportação HTML">
+      <Accordion title="Exportação HTML">
         <Toggle
           checked={exportOptions.strictParity !== false}
           onChange={v => setExportOpt('strictParity', v)}

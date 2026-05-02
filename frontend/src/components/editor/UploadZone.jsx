@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { motion } from 'motion/react'
-import { Upload, FileSpreadsheet } from 'lucide-react'
+import { Upload, FileSpreadsheet, Sparkles } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 
@@ -65,7 +65,7 @@ export default function UploadZone({ onLoad }) {
   return (
     <div className="w-full max-w-xl">
       <div className="text-center mb-8">
-        <div className="text-4xl mb-3">✦</div>
+        <div className="flex justify-center mb-3"><Sparkles className="w-9 h-9 text-brand-400" /></div>
         <h2 className="text-2xl font-bold text-white mb-2">Importar dados</h2>
         <p className="text-ink-500 text-sm">Carregue seu arquivo para começar a criar o relatório</p>
       </div>

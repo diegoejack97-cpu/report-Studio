@@ -20,7 +20,7 @@ export default function DashboardPage() {
   useEffect(() => {
     refreshUser()
     if (params.get('upgraded')) {
-      toast.success('🎉 Plano atualizado com sucesso!')
+      toast.success('Plano atualizado com sucesso!')
     }
     if (params.get('exported')) {
       toast.success('HTML exportado e contabilizado no seu plano.')
@@ -56,7 +56,7 @@ export default function DashboardPage() {
         >
           <div>
             <h1 className="text-2xl font-bold text-white">
-              Olá, {user?.full_name?.split(' ')[0] || 'bem-vindo'} 👋
+              Olá, {user?.full_name?.split(' ')[0] || 'bem-vindo'}
             </h1>
             <p className="text-ink-500 text-sm mt-0.5">{reports.length} relatório{reports.length !== 1 ? 's' : ''} salvo{reports.length !== 1 ? 's' : ''}</p>
           </div>
@@ -124,7 +124,7 @@ export default function DashboardPage() {
                 animate={{ opacity: 1 }}
                 className="card p-12 text-center"
               >
-                <div className="text-4xl mb-3">📊</div>
+                <div className="flex justify-center mb-3"><FileText className="w-10 h-10 text-ink-500" /></div>
                 <h3 className="text-white font-semibold mb-2">Nenhum relatório ainda</h3>
                 <p className="text-ink-500 text-sm mb-4">Faça upload de um Excel ou CSV para começar</p>
                 <button onClick={handleNewReport} className="btn-primary mx-auto">

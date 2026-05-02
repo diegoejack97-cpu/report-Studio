@@ -68,7 +68,7 @@ export function buildReportHTML(state, options = {}) {
       media: { border: '#f59e0b', badgeBg: 'rgba(245,158,11,0.15)', badgeTxt: '#fbbf24' },
       baixa: { border: '#3b82f6', badgeBg: 'rgba(59,130,246,0.15)', badgeTxt: '#60a5fa' },
     }
-    const typeIcons = { financeiro: '💰', risco: '⚠️', operacional: '⚙️' }
+    const typeIcons = { financeiro: 'FIN', risco: 'ALR', operacional: 'OPS' }
 
     const itemsHTML = items.map((ins, index) => {
       const sev = ins?.severidade || 'baixa'
@@ -79,7 +79,7 @@ export function buildReportHTML(state, options = {}) {
                     padding:10px 14px;border-left:3px solid ${palette.border};
                     background:${isDark ? '#102132' : '#f8fafc'};
                     border-radius:0 6px 6px 0;margin-bottom:${index === items.length - 1 ? 0 : 8}px;">
-            <span style="font-size:16px;flex-shrink:0;margin-top:1px">${typeIcons[tipo] || '📊'}</span>
+            <span style="font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">${typeIcons[tipo] || 'CHT'}</span>
             <div>
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
                     <span style="font-size:13px;font-weight:700;color:${txt}">
@@ -104,7 +104,7 @@ export function buildReportHTML(state, options = {}) {
         <div style="padding:10px 16px;border-bottom:1px solid ${bdColor};
                     font-size:12px;font-weight:700;color:${isDark ? '#2e5c8a' : '#1d4ed8'};
                     text-transform:uppercase;letter-spacing:.05em;">
-            🚨 Insights Automáticos
+            Insights Automáticos
         </div>
         <div style="padding:12px 16px;">
             ${itemsHTML}
@@ -120,7 +120,7 @@ export function buildReportHTML(state, options = {}) {
   const savTotal = metric.value ?? summary?.primary_metric?.value ?? 0
 
   const kpiHTML = sections?.kpi && kpis.length ? `<div class="kpi-row">${kpis.map(k => {
-    return `<div class="kpi" style="border-top-color:${k.color || p2}"><div class="kpi-ico">${escapeHtml(k.icon || '📊')}</div><div class="kpi-v" style="color:${k.color || p2}">${escapeHtml(k.display ?? k.value ?? '—')}</div><div class="kpi-l">${escapeHtml(k.label || 'KPI')}</div></div>`
+    return `<div class="kpi" style="border-top-color:${k.color || p2}"><div class="kpi-ico">${escapeHtml(k.icon || 'KPI')}</div><div class="kpi-v" style="color:${k.color || p2}">${escapeHtml(k.display ?? k.value ?? '—')}</div><div class="kpi-l">${escapeHtml(k.label || 'KPI')}</div></div>`
   }).join('')}</div>` : ''
 
   const savDetailsHTML = detailItems.map((item, index) => {
@@ -131,12 +131,12 @@ export function buildReportHTML(state, options = {}) {
   }).join('')
   const savDisplay = metric.formatted_value || summary?.primary_metric?.formatted_value || formatMetricValue(metricType, savTotal, metric.unit)
   const metricDisplayType = summary?.primary_metric?.type || (metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário')
-  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(metric.label || summary?.primary_metric?.label || 'Métrica principal')}</div><div class="sav-val" style="color:${metricColor}">${escapeHtml(savDisplay)}</div><div style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:999px;border:1px solid ${metricColor}55;background:${metricColor}22;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.88)">${escapeHtml(metricType)} · ${escapeHtml(metricDisplayType)}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:48px;opacity:.12">💹</div></div>` : ''
+  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(metric.label || summary?.primary_metric?.label || 'Métrica principal')}</div><div class="sav-val" style="color:${metricColor}">${escapeHtml(savDisplay)}</div><div style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:999px;border:1px solid ${metricColor}55;background:${metricColor}22;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.88)">${escapeHtml(metricType)} · ${escapeHtml(metricDisplayType)}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:20px;opacity:.2;font-weight:700;letter-spacing:.06em">METRICA</div></div>` : ''
   const insightsHTML = renderInsightsHTML(insights)
 
   const summaryHTML = sections?.summary && summary.rows.length ? `
 <div class="summary">
-  <div class="summary-title">🗂 Resumo por ${escapeHtml(cols[summary.group_index]?.name || '—')}</div>
+  <div class="summary-title">Resumo por ${escapeHtml(cols[summary.group_index]?.name || '—')}</div>
   <div style="overflow-x:auto">
     <table class="summary-table">
       <thead><tr>
@@ -181,7 +181,7 @@ export function buildReportHTML(state, options = {}) {
   </div>
   ${showFilters ? `
   <div class="tbl-filters">
-    <input id="tbl-search" oninput="applyFilters()" placeholder="🔍 Buscar em todos os campos... (/)" style="${filterInputStyle}margin-bottom:10px" />
+    <input id="tbl-search" oninput="applyFilters()" placeholder="Buscar em todos os campos... (/)" style="${filterInputStyle}margin-bottom:10px" />
     <div class="tbl-compact-row">
       <select id="tbl-field" onchange="onFieldChange()" style="${filterInputStyle}appearance:none;cursor:pointer;">
         <option value="">Filtrar por campo...</option>

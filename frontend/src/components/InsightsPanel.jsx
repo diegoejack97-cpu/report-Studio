@@ -17,9 +17,9 @@ const SEVERITY_STYLES = {
 }
 
 const TYPE_ICONS = {
-  financeiro: '💰',
-  risco: '⚠️',
-  operacional: '⚙️',
+  financeiro: DollarSign,
+  risco: AlertTriangle,
+  operacional: Settings2,
 }
 
 export default function InsightsPanel({ insights = [], dark = false }) {
@@ -69,7 +69,7 @@ export default function InsightsPanel({ insights = [], dark = false }) {
           letterSpacing: '.05em',
         }}
       >
-        🚨 Insights Automáticos
+        Insights Automáticos
       </div>
       <div style={{ padding: '12px 16px' }}>
         {insights.map((insight, index) => {
@@ -91,8 +91,11 @@ export default function InsightsPanel({ insights = [], dark = false }) {
                 borderRadius: '0 6px 6px 0',
               }}
             >
-              <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
-                {TYPE_ICONS[type] || '📊'}
+              <span style={{ flexShrink: 0, marginTop: 1, display: 'inline-flex' }}>
+                {(() => {
+                  const Icon = TYPE_ICONS[type] || BarChart3
+                  return <Icon size={16} />
+                })()}
               </span>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
@@ -123,3 +126,4 @@ export default function InsightsPanel({ insights = [], dark = false }) {
     </div>
   )
 }
+import { AlertTriangle, BarChart3, DollarSign, Settings2 } from 'lucide-react'
