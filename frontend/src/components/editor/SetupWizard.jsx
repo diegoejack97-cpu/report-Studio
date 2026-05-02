@@ -298,10 +298,19 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
   const validationErrors = Array.isArray(previewData?.validation?.errors) ? previewData.validation.errors : []
   const validationWarnings = Array.isArray(previewData?.validation?.warnings) ? previewData.validation.warnings : []
   const validationMessage = previewError || validationErrors[0] || ''
+  const hasValidationErrors = validationErrors.length > 0
   const hasBlockingValidation = Boolean(validationMessage) || isWaitingPreview
   const hasValidSaving = hasValidValue(saving)
   const hasBaseValue = hasValidValue(breakdown?.base_value)
   const hasPercentValue = hasValidValue(breakdown?.percent)
+  const hasValidBreakdown = Boolean(breakdown) && hasBaseValue && hasPercentValue
+  const numericSaving = hasValidSaving ? Number(saving) : NaN
+  const isMonetaryMetric = metricType === 'ECONOMIA' || metricType === 'TOTAL'
+  const hasMeaningfulValue = isMonetaryMetric ? numericSaving > 0 : hasValidSaving
+  const hasMeaningfulBreakdown = metricType === 'ECONOMIA'
+    ? (hasBaseValue && Number(breakdown?.base_value) > 0 && hasPercentValue && Number(breakdown?.percent) > 0)
+    : hasValidBreakdown
+  const canRenderMetric = !isWaitingPreview && !hasValidationErrors && hasValidSaving && hasMeaningfulValue
 
   useEffect(() => {
     onChange({
@@ -363,9 +372,15 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
               </div>
             )}
 
-            {!isWaitingPreview && !validationMessage && hasValidSaving && (
+            {!isWaitingPreview && !validationMessage && !hasValidationErrors && hasValidSaving && (
               <div className="rounded-lg border border-emerald-700/30 bg-emerald-950/30 px-3 py-2 text-[11px] text-emerald-200">
                 Métrica válida e pronta para uso
+              </div>
+            )}
+
+            {!isWaitingPreview && !hasValidationErrors && hasValidSaving && !hasMeaningfulValue && (
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-300">
+                Métrica calculada sem valor relevante no momento.
               </div>
             )}
 
@@ -388,7 +403,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
               </div>
             )}
 
-            {!isWaitingPreview && hasValidSaving && (
+            {canRenderMetric && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl p-4 flex items-center justify-between" style={{ background: cardBg }}>
                 <div>
                   <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{primaryMetric?.label || label}</div>
@@ -405,7 +420,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
                       Fórmula: {previewData?.summary?.primary_metric?.breakdown?.formula}
                     </div>
                   )}
-                  {(hasBaseValue || hasPercentValue) && (
+                  {hasMeaningfulBreakdown && (
                     <div className="mt-1 text-[10px] text-white/70">
                       {hasBaseValue ? `Base: ${fmtBRL(breakdown.base_value)}` : ''}
                       {hasBaseValue && hasPercentValue ? ' · ' : ''}
