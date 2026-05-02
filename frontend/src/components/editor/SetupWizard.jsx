@@ -275,7 +275,8 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
 
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
   const fmtN = v => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
-  const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+  const fmtPct = v => `${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+  const isFiniteMetricValue = value => value != null && Number.isFinite(Number(value))
   const displayMode = getMetricDisplayMode(metricType)
   const metricTitle = METRIC_LABELS[metricType] || METRIC_LABELS.ECONOMIA
   const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
@@ -290,6 +291,9 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
   const validationWarnings = Array.isArray(previewData?.validation?.warnings) ? previewData.validation.warnings : []
   const validationMessage = previewError || validationErrors[0] || ''
   const hasBlockingValidation = Boolean(validationMessage) || isWaitingPreview
+  const hasValidSaving = isFiniteMetricValue(saving)
+  const hasBaseValue = isFiniteMetricValue(breakdown?.base_value)
+  const hasPercentValue = isFiniteMetricValue(breakdown?.percent)
 
   useEffect(() => {
     setLabel(current => {
@@ -361,7 +365,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
               </div>
             )}
 
-            {!isWaitingPreview && !validationMessage && Number.isFinite(Number(saving)) && (
+            {!isWaitingPreview && !validationMessage && hasValidSaving && (
               <div className="rounded-lg border border-emerald-700/30 bg-emerald-950/30 px-3 py-2 text-[11px] text-emerald-200">
                 Métrica válida e pronta para uso
               </div>
@@ -386,7 +390,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
               </div>
             )}
 
-            {!isWaitingPreview && Number.isFinite(Number(saving)) && (
+            {!isWaitingPreview && hasValidSaving && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl p-4 flex items-center justify-between" style={{ background: cardBg }}>
                 <div>
                   <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{primaryMetric?.label || label}</div>
@@ -401,11 +405,11 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
                       Fórmula: {previewData?.summary?.primary_metric?.breakdown?.formula}
                     </div>
                   )}
-                  {(Number.isFinite(Number(breakdown?.base_value)) || Number.isFinite(Number(breakdown?.percent))) && (
+                  {(hasBaseValue || hasPercentValue) && (
                     <div className="mt-1 text-[10px] text-white/70">
-                      {Number.isFinite(Number(breakdown?.base_value)) ? `Base: ${fmtBRL(breakdown.base_value)}` : ''}
-                      {Number.isFinite(Number(breakdown?.base_value)) && Number.isFinite(Number(breakdown?.percent)) ? ' · ' : ''}
-                      {Number.isFinite(Number(breakdown?.percent)) ? `Percentual: ${fmtPct(breakdown.percent)}` : ''}
+                      {hasBaseValue ? `Base: ${fmtBRL(breakdown.base_value)}` : ''}
+                      {hasBaseValue && hasPercentValue ? ' · ' : ''}
+                      {hasPercentValue ? `Percentual: ${fmtPct(breakdown.percent)}` : ''}
                     </div>
                   )}
                   {detailItems.length > 0 && (
