@@ -140,7 +140,7 @@ export function buildReportHTML(state, options = {}) {
   const summaryHTML = sections?.summary && summary.rows.length ? `
 <div class="summary">
   <div class="summary-title">Resumo por ${escapeHtml(cols[summary.group_index]?.name || '—')}</div>
-  <div style="overflow-x:auto">
+  <div class="summary-scroll">
     <table class="summary-table">
       <thead><tr>
         <th>${escapeHtml(cols[summary.group_index]?.name || 'Grupo')}</th>
@@ -195,7 +195,7 @@ export function buildReportHTML(state, options = {}) {
       </select>
     </div>
   </div>` : ''}
-  <div style="overflow-x:auto">
+  <div class="table-scroll">
     <table id="mt">
       <thead><tr>${visCols.map(c => `<th>${escapeHtml(c.name)}</th>`).join('')}</tr></thead>
       <tbody id="tbl-body"></tbody>
@@ -321,6 +321,7 @@ body{background:${bg};font-family:'DM Sans',sans-serif;color:${txt};padding:20px
 .cw{position:relative;}
 .summary{margin-top:22px;background:${cardBg};border:1px solid ${bdColor};border-radius:12px;padding:14px;}
 .summary-title{font-size:12px;font-weight:700;color:${p2};margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid ${bdColor};text-transform:uppercase;letter-spacing:.05em;}
+.summary-scroll,.table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .summary-table{width:100%;border-collapse:collapse;font-size:12px;}
 .summary-table th{background:${p1};color:#fff;padding:8px 10px;font-size:11px;text-align:left;}
 .summary-table th.tr,.summary-table td.tr{text-align:right;}
@@ -337,7 +338,46 @@ table#mt{width:100%;border-collapse:collapse;font-size:12px;}
 table#mt th{background:${p1};color:#fff;padding:9px 11px;font-size:11px;font-weight:700;text-transform:uppercase;white-space:nowrap;}
 table#mt td{padding:7px 11px;border-bottom:1px solid ${bdColor};color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
 .footer{margin-top:24px;padding:10px 16px;background:${p1};color:rgba(255,255,255,.6);border-radius:8px;font-size:11px;text-align:center;}
-@media(max-width:768px){.cg{grid-template-columns:1fr;}.cc.full{grid-column:1;}.tbl-compact-row{grid-template-columns:1fr;}}
+@media(max-width:768px){
+  html,body{width:100%;max-width:100%;overflow-x:hidden;}
+  body{padding:12px;}
+  .wrap{min-width:0;}
+  .hd{margin-bottom:1rem;padding-bottom:1rem;}
+  .hd-inner{align-items:flex-start;gap:.75rem;}
+  .hd-inner>div:first-child,.hd-badges{width:100%;}
+  .hd-title{font-size:clamp(1.25rem,7vw,1.6rem);overflow-wrap:anywhere;}
+  .hd-badges{gap:.4rem;}
+  .badge{font-size:.66rem;padding:.18rem .5rem;max-width:100%;overflow-wrap:anywhere;}
+  .sav{align-items:flex-start;flex-direction:column;padding:18px;margin:14px 0;}
+  .sav>div:first-child{width:100%;min-width:0;}
+  .sav>div:last-child{display:none;}
+  .sav-val{font-size:clamp(26px,8vw,40px);line-height:1.05;overflow-wrap:anywhere;}
+  .sav-det{gap:12px 18px;}
+  .kpi-row{display:grid;grid-template-columns:1fr;gap:10px;margin:14px 0;}
+  .kpi{min-width:0;}
+  .kpi-v{font-size:clamp(16px,5vw,18px);overflow-wrap:anywhere;}
+  .cg{grid-template-columns:1fr;gap:12px;margin:14px 0;}
+  .cc,.summary{padding:12px;border-radius:9px;}
+  .cc{min-width:0;}
+  .cc.full{grid-column:auto;}
+  .ct,.summary-title,.st,.footer{overflow-wrap:anywhere;}
+  .cw{min-height:220px;}
+  .tbl-header{align-items:flex-start;flex-direction:column;gap:8px;padding:12px;}
+  .tbl-active{margin-left:0;margin-right:0;}
+  .tbl-filters{padding:12px;}
+  .tbl-compact-row{grid-template-columns:1fr;gap:8px;}
+  .summary-table,table#mt{font-size:11px;}
+  table#mt{min-width:max-content;}
+  table#mt th,table#mt td{padding:7px 9px;max-width:160px;}
+  .footer{margin-top:18px;padding:10px 12px;}
+}
+@media(max-width:420px){
+  body{padding:8px;}
+  .hd-title{font-size:clamp(1.15rem,8vw,1.35rem);}
+  .sav{padding:16px 14px;}
+  .cc,.summary{padding:10px;}
+  .ct{font-size:12px;}
+}
 </style></head>
 <body data-export-mode="${strictParity ? 'strict' : 'compat'}"><div class="wrap">
 <div class="hd">

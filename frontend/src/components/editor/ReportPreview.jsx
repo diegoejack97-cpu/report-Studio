@@ -192,14 +192,19 @@ function EChart({ option, h = 240, style }) {
   return <ReactECharts option={option} style={{ height: h, width: '100%', ...style }} opts={{ renderer: 'canvas' }} notMerge />
 }
 
-function ChartCard({ title, h = 240, full = false, children }) {
+function ChartCard({ title, reason, h = 240, full = false, children }) {
   const { dark } = useThemeStore()
   return (
     <motion.div initial={{ opacity: 0, scale: .97 }} animate={{ opacity: 1, scale: 1 }}
       className={`rounded-2xl p-4 shadow-sm ${full ? 'col-span-2' : ''}`}
       style={{ background: dark ? '#0d1a26' : '#ffffff', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}` }}>
       <div className="text-xs font-bold uppercase tracking-wider mb-3 pb-2" style={{ color: dark ? '#94a3b8' : '#64748b', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.06)' : '#f1f5f9'}` }}>
-        {title}
+        <div>{title}</div>
+        {reason && (
+          <div className="mt-1 text-[10px] normal-case font-medium tracking-normal" style={{ color: dark ? '#486581' : '#94a3b8' }}>
+            {reason}
+          </div>
+        )}
       </div>
       <div style={{ height: h }}>{children}</div>
     </motion.div>
@@ -971,7 +976,7 @@ export default function ReportPreview({ state }) {
           ) : metricCharts.length > 0 ? (
             <div className="grid grid-cols-2 gap-4 mb-5">
               {metricCharts.map((chart, index) => (
-                <ChartCard key={`${inferChartType(chart) || chart?.type || 'chart'}-${chart.id || index}`} title={chart.title || 'Gráfico'} h={chart.h || (index >= 1 ? 300 : 320)} full={index === 0}>
+                <ChartCard key={`${inferChartType(chart) || chart?.type || 'chart'}-${chart.id || index}`} title={chart.title || 'Gráfico'} reason={chart.selectionReason} h={chart.h || (index >= 1 ? 300 : 320)} full={index === 0}>
                   {chart.option
                     ? <EChart option={chart.option} h={chart.h || (index >= 2 ? 300 : 260)} />
                     : (

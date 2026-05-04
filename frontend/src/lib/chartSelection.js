@@ -80,6 +80,22 @@ function hasTemporalLabels(chart) {
   return labels.some(label => /^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\/\d{4}$/i.test(String(label || '').trim()))
 }
 
+export function getChartSelectionReason(chart) {
+  const role = chartRole(chart)
+  const type = inferChartType(chart)
+  const stats = chartDataStats(chart)
+
+  if (role === 'by_date') return 'Série temporal detectada'
+  if (role === 'top_items') return 'Ranking dos maiores valores'
+  if (role === 'by_category') {
+    if (isPieLike(type) && stats.totalGroups <= 5) return 'Poucas categorias proporcionais'
+    if (stats.totalGroups > 8 || stats.truncated) return 'Categoria ampla resumida em grupos'
+    return 'Categoria principal detectada'
+  }
+  if (role === 'distribution') return 'Distribuição por grupo'
+  return 'Padrão relevante nos dados'
+}
+
 function chartPriorityScore(chart) {
   const role = chartRole(chart)
   const type = inferChartType(chart)
@@ -228,5 +244,8 @@ export function selectMetricCharts(charts, metricType, datasetRowsCount = 0) {
   if (main) {
     finalCharts = [main, ...finalCharts.filter(chart => chart !== main)].slice(0, 3)
   }
-  return finalCharts
+  return finalCharts.map(chart => ({
+    ...chart,
+    selectionReason: chart.selectionReason || getChartSelectionReason(chart),
+  }))
 }

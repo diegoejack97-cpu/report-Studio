@@ -142,6 +142,11 @@ test.describe('Chart selection heuristic', () => {
 
     expect(selected).toHaveLength(3)
     expect(selected.map(chart => chart.source)).toEqual(['top_items', 'by_date', 'by_category'])
+    expect(selected.map(chart => chart.selectionReason)).toEqual([
+      'Ranking dos maiores valores',
+      'Série temporal detectada',
+      'Categoria ampla resumida em grupos',
+    ])
   })
 
   test('keeps donut only for few proportional categories and drops insufficient charts', () => {
@@ -171,6 +176,7 @@ test.describe('Chart selection heuristic', () => {
     ], 'TOTAL', 3)
 
     expect(selected.map(chart => chart.title)).toEqual(['Mix por Categoria', 'Top Itens'])
+    expect(selected.map(chart => chart.selectionReason)).toEqual(['Poucas categorias proporcionais', 'Ranking dos maiores valores'])
   })
 })
 
