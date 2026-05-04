@@ -49,10 +49,10 @@ const DEFAULT_STATE = {
     dateCol: '',
   },
   charts: {
-    g1: { on: true, title: 'Distribuição', type: 'doughnut', col: '', h: 240 },
-    g2: { on: true, title: 'Por Categoria', type: 'bar', col: '', h: 240 },
-    g3: { on: true, title: 'Evolução Mensal', type: 'line', dateCol: '', v1Col: '', v2Col: '', h: 300 },
-    g4: { on: true, title: 'Top 10 por Valor', type: 'hbar', labelCol: '', valCol: '', n: 10, h: 360 },
+    g1: { on: true, source: 'distribution', title: 'Distribuição', type: 'doughnut', col: '', h: 240 },
+    g2: { on: true, source: 'by_category', title: 'Por Categoria', type: 'bar', col: '', h: 240 },
+    g3: { on: true, source: 'by_date', title: 'Evolução Mensal', type: 'line', dateCol: '', v1Col: '', v2Col: '', h: 300 },
+    g4: { on: true, source: 'top_items', title: 'Top 10 por Valor', type: 'hbar', labelCol: '', valCol: '', n: 10, h: 360 },
   },
   groupCol: '',
   footer: 'Relatório gerado pelo Report Flow · Uso interno',
@@ -202,10 +202,6 @@ export default function EditorPage() {
   }, [existingReport, syncStateWithReport])
 
   useEffect(() => {
-    console.log('INSIGHTS STATE:', state.insights)
-  }, [state.insights])
-
-  useEffect(() => {
     if (!showWizard || !wizardDraft?.rows || !wizardDraft?.cols) {
       setPreviewLoading(false)
       return
@@ -244,7 +240,6 @@ export default function EditorPage() {
           data: { rows: previewRows, cols: previewCols },
           config: previewConfig,
         }
-        console.log('PREVIEW PAYLOAD', payload)
         const { data } = await api.post('/reports/preview', payload)
         if (previewRequestRef.current !== requestId) return
         console.info('[wizard-preview] success', { requestId })
@@ -389,13 +384,11 @@ export default function EditorPage() {
       }
 
       const { data: exportResponse } = await api.post(`/reports/${activeReportId}/export`)
-      console.log('INSIGHTS RESPONSE:', exportResponse?.config?.insights)
       const exportState =
         syncStateWithReport(exportResponse) ||
         saveResult?.syncedState ||
         state
 
-      console.log('EXPORT INSIGHTS:', exportState.insights)
       if (!exportState.insights?.length) {
         console.warn('INSIGHTS VAZIOS NO EXPORT: backend nao retornou insights ou o frontend nao sincronizou o state.')
       }

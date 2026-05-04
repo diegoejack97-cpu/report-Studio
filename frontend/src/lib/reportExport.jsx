@@ -1,3 +1,5 @@
+import { selectMetricCharts } from './chartSelection.js'
+
 export function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -34,7 +36,8 @@ export function buildReportHTML(state, options = {}) {
   const showFilters = sections?.filters !== false
   const showCharts = sections?.charts !== false
   const rowRenderLimit = rows.length
-  const charts = Array.isArray(safeReportData.charts) ? safeReportData.charts : []
+  const rawCharts = Array.isArray(safeReportData.charts) ? safeReportData.charts : []
+  const charts = selectMetricCharts(rawCharts, metric.type || 'ECONOMIA', rows.length)
   const chartsJSON = JSON.stringify(charts)
   const reportDataJSON = JSON.stringify(reportData)
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })

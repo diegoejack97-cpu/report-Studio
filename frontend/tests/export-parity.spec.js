@@ -3,12 +3,18 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { buildReportHTML } from '../src/lib/reportExport.js'
+import { selectMetricCharts } from '../src/lib/chartSelection.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const fixturePath = path.join(__dirname, 'fixtures', 'report-state.json')
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'))
 const fixtureWithCharts = fixture
+const selectedFixtureCharts = selectMetricCharts(
+  fixtureWithCharts.reportData?.charts,
+  fixtureWithCharts.reportData?.metric?.type || 'ECONOMIA',
+  fixtureWithCharts.rows?.length || 0,
+)
 const percentFixture = {
   title: 'Saving Percentual',
   subtitle: 'Validacao do modo percentual',
@@ -83,7 +89,103 @@ const percentFixture = {
   },
 }
 
+function chartFixture({ source, title, type, labels, data, extra = {} }) {
+  return {
+    source,
+    title,
+    type,
+    labels,
+    data,
+    option: {
+      series: [{ type: type === 'hbar' ? 'bar' : type, data }],
+      xAxis: { type: type === 'hbar' ? 'value' : 'category', data: type === 'hbar' ? undefined : labels },
+      yAxis: { type: type === 'hbar' ? 'category' : 'value', data: type === 'hbar' ? labels : undefined },
+    },
+    ...extra,
+  }
+}
+
+test.describe('Chart selection heuristic', () => {
+  test('prefers temporal data and ranking when category cardinality is high', () => {
+    const selected = selectMetricCharts([
+      chartFixture({
+        source: 'distribution',
+        title: 'Distribuição ampla',
+        type: 'doughnut',
+        labels: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'],
+        data: [9, 8, 7, 6, 5, 4, 3, 2, 1],
+      }),
+      chartFixture({
+        source: 'by_category',
+        title: 'Por Categoria',
+        type: 'bar',
+        labels: ['Cat 1', 'Cat 2', 'Cat 3', 'Cat 4', 'Cat 5', 'Cat 6', 'Cat 7', 'Cat 8', 'Cat 9', 'Cat 10', 'Cat 11', 'Cat 12'],
+        data: [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+        extra: { totalGroups: 24, truncated: true },
+      }),
+      chartFixture({
+        source: 'by_date',
+        title: 'Evolução Mensal',
+        type: 'line',
+        labels: ['Jan/2026', 'Fev/2026', 'Mar/2026'],
+        data: [10, 15, 12],
+      }),
+      chartFixture({
+        source: 'top_items',
+        title: 'Top Fornecedores',
+        type: 'hbar',
+        labels: ['Fornecedor A', 'Fornecedor B', 'Fornecedor C', 'Fornecedor D'],
+        data: [40, 30, 20, 10],
+        extra: { totalGroups: 24, truncated: true },
+      }),
+    ], 'ECONOMIA', 40)
+
+    expect(selected).toHaveLength(3)
+    expect(selected.map(chart => chart.source)).toEqual(['top_items', 'by_date', 'by_category'])
+  })
+
+  test('keeps donut only for few proportional categories and drops insufficient charts', () => {
+    const selected = selectMetricCharts([
+      chartFixture({
+        source: 'by_category',
+        title: 'Mix por Categoria',
+        type: 'doughnut',
+        labels: ['A', 'B', 'C'],
+        data: [50, 30, 20],
+        extra: { totalGroups: 3 },
+      }),
+      chartFixture({
+        source: 'by_date',
+        title: 'Evolução Mensal',
+        type: 'line',
+        labels: ['Jan/2026'],
+        data: [100],
+      }),
+      chartFixture({
+        source: 'top_items',
+        title: 'Top Itens',
+        type: 'hbar',
+        labels: ['A', 'B'],
+        data: [80, 20],
+      }),
+    ], 'TOTAL', 3)
+
+    expect(selected.map(chart => chart.title)).toEqual(['Mix por Categoria', 'Top Itens'])
+  })
+})
+
 test.describe('Export strict parity snapshots', () => {
+  test('export renders the same selected charts used by preview', async ({ page }) => {
+    const html = buildReportHTML(fixtureWithCharts, { isDark: false, strictParity: true })
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('.cg .cc', { timeout: 15000 })
+
+    expect(fixtureWithCharts.reportData.charts).toHaveLength(4)
+    expect(selectedFixtureCharts).toHaveLength(3)
+    await expect(page.locator('.cg .cc')).toHaveCount(selectedFixtureCharts.length)
+    expect(await page.locator('.ct').allTextContents()).toEqual(selectedFixtureCharts.map(chart => chart.title))
+  })
+
   test('strict dark snapshot', async ({ page }) => {
     const html = buildReportHTML(fixtureWithCharts, { isDark: true, strictParity: true })
     await page.setContent(html, { waitUntil: 'domcontentloaded' })

@@ -773,6 +773,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
       charts: {
         g1: {
           on:    wdata.g1on !== false,
+          source: 'distribution',
           title: wdata.g1col !== '' ? `Distribuição por ${a[parseInt(wdata.g1col)]?.name || ''}` : 'Distribuição',
           type:  wdata.g1type || 'doughnut',
           col:   ci(wdata.g1col),
@@ -780,6 +781,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
         },
         g2: {
           on:    wdata.g2on !== false,
+          source: 'by_category',
           title: wdata.g2col !== '' ? `Contratos por ${a[parseInt(wdata.g2col)]?.name || ''}` : 'Por Categoria',
           type:  wdata.g2type || 'bar',
           col:   ci(wdata.g2col),
@@ -787,6 +789,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
         },
         g3: {
           on:      wdata.g3on !== false,
+          source:  'by_date',
           title:   'Evolução Mensal',
           type:    'line',
           dateCol: ci(wdata.g3date),
@@ -796,6 +799,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
         },
         g4: {
           on:       wdata.g4on !== false,
+          source:   'top_items',
           title:    wdata.g4label !== '' ? `Top ${wdata.g4n || 10} por ${a[parseInt(wdata.g4label)]?.name || ''}` : 'Top N por Valor',
           type:     'hbar',
           labelCol: ci(wdata.g4label),
