@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { BarChart3, Zap, Shield, Download, ArrowRight } from 'lucide-react'
+import { BarChart3, Zap, Shield, Download, ArrowRight, Sparkles } from 'lucide-react'
 import Navbar from '@/components/layout/Navbar'
 import PublicFooter from '@/components/layout/PublicFooter'
 
