@@ -65,18 +65,18 @@ export default function UploadZone({ onLoad }) {
   return (
     <div className="w-full max-w-xl px-2 sm:px-0">
       <div className="text-center mb-6 sm:mb-8">
-        <div className="flex justify-center mb-3"><Sparkles className="w-9 h-9 text-brand-400" /></div>
+        <div className="flex justify-center mb-3"><Sparkles className="w-9 h-9 text-brand-400 drop-shadow-[0_10px_18px_rgba(59,130,246,0.28)]" /></div>
         <h2 className="text-xl sm:text-2xl font-bold text-[color:var(--tp)] mb-2">Importar dados</h2>
         <p className="text-ink-500 text-sm">Carregue seu arquivo para começar a criar o relatório</p>
       </div>
 
       <motion.div
         {...getRootProps()}
-        whileHover={{ scale: 1.01 }}
+        whileHover={{ scale: 1.01, y: -4 }}
         whileTap={{ scale: 0.99 }}
-        className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-12 text-center cursor-pointer transition-all duration-200 ${
+        className={`surface-3d tilt-card promo-3d relative border-2 border-dashed rounded-2xl p-6 sm:p-12 text-center cursor-pointer transition-all duration-200 ${
           isDragActive
-            ? 'border-brand-500 bg-brand-900/20'
+            ? 'border-brand-500 bg-brand-900/20 shadow-[0_24px_44px_rgba(37,99,235,0.24)]'
             : 'border-theme bg-[var(--s1)] hover:border-[color:var(--bdh)] hover:bg-[var(--s2)]'
         }`}
       >
@@ -88,7 +88,7 @@ export default function UploadZone({ onLoad }) {
           </div>
         ) : (
           <div>
-            <Upload className={`w-10 h-10 mx-auto mb-4 ${isDragActive ? 'text-brand-400' : 'text-ink-500'}`} />
+            <Upload className={`w-10 h-10 mx-auto mb-4 drop-shadow-[0_10px_18px_rgba(37,99,235,0.18)] ${isDragActive ? 'text-brand-400' : 'text-ink-500'}`} />
             <p className="text-[color:var(--tp)] font-semibold mb-1">
               {isDragActive ? 'Solte aqui!' : 'Arraste ou clique para importar'}
             </p>
@@ -110,7 +110,7 @@ export default function UploadZone({ onLoad }) {
 
       <button
         onClick={loadDemo}
-        className="w-full py-3 rounded-xl border border-theme text-[color:var(--ts)] hover:text-[color:var(--tp)] hover:bg-[var(--s2)] text-sm font-medium transition-all flex items-center justify-center gap-2"
+        className="surface-3d tilt-card w-full py-3 rounded-xl border border-theme text-[color:var(--ts)] hover:text-[color:var(--tp)] hover:bg-[var(--s2)] text-sm font-medium transition-all flex items-center justify-center gap-2"
       >
         <FileSpreadsheet className="w-4 h-4" />
         Carregar dados de exemplo (60 contratos)

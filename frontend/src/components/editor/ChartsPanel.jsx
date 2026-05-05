@@ -4,9 +4,9 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="rounded-xl overflow-hidden mb-2" style={{border:'1px solid var(--bd)'}}>
+    <div className="panel-2d rounded-xl overflow-hidden mb-2">
       <button onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors"
+        className="card-clickable w-full flex items-center justify-between px-3 py-2.5 rounded-none border-x-0 border-t-0 text-xs font-bold uppercase tracking-wider"
         style={{background:'var(--s2)',color:'var(--ts)'}}>
         {title}
         {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -24,11 +24,16 @@ function Toggle({ checked, onChange, label }) {
   return (
     <label className="flex items-center justify-between cursor-pointer">
       <span className="text-xs" style={{color:'var(--ts)'}}>{label}</span>
-      <div className={`w-10 h-5 rounded-full relative transition-colors ${checked ? 'bg-brand-600' : ''}`}
-        style={{background: checked ? undefined : 'var(--s4)'}}
-        onClick={() => onChange(!checked)}>
-        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
-      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className="toggle-2d relative inline-flex items-center px-[2px]"
+        data-state={checked ? 'checked' : 'unchecked'}
+      >
+        <span className="toggle-2d-thumb" />
+      </button>
     </label>
   )
 }
@@ -133,7 +138,7 @@ export default function ChartsPanel({ state, update }) {
       </ChartBlock>
 
       {/* Info sobre gráficos automáticos */}
-      <div className="rounded-xl p-3 mt-1" style={{background:'var(--s2)',border:'1px solid var(--bd)'}}>
+      <div className="panel-2d rounded-xl p-3 mt-1" style={{background:'var(--s2)'}}>
         <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{color:'var(--ts)'}}>
           Gráficos automáticos
         </div>

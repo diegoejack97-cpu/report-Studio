@@ -260,9 +260,9 @@ export default function PricingPage() {
                     initial={{ opacity: 0, y: 24 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.08 }}
-                    className={`relative rounded-2xl p-6 border flex flex-col ${
+                    className={`relative surface-3d tilt-card rounded-2xl p-6 border flex flex-col ${
                       isHighlighted
-                        ? 'border-brand-600 bg-[var(--s2)] ring-1 ring-brand-600/30'
+                        ? 'promo-3d border-brand-600 bg-[var(--s2)] ring-1 ring-brand-600/30'
                         : 'border-theme bg-[var(--s1)]'
                     }`}
                   >
@@ -335,7 +335,7 @@ export default function PricingPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.18 }}
-          className="mt-10 rounded-3xl border border-brand-700/30 bg-gradient-to-br from-brand-950/80 via-[var(--s2)] to-[var(--s1)] p-8 md:p-10"
+          className="surface-3d promo-3d tilt-card mt-10 rounded-3xl border border-brand-700/30 bg-gradient-to-br from-brand-950/80 via-[var(--s2)] to-[var(--s1)] p-8 md:p-10"
         >
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="max-w-2xl">
@@ -364,7 +364,7 @@ export default function PricingPage() {
             { q: 'Posso migrar de individual para empresarial?', a: 'Sim. Nosso time comercial pode orientar a transição para uma solução adequada ao seu cenário.' },
             { q: 'Aceita cartão de crédito/débito?', a: billingConfig?.embedded_checkout_enabled ? 'Sim. Os planos individuais usam Stripe com formulário incorporado nesta página.' : 'Sim, para planos individuais via Stripe. Soluções empresariais seguem atendimento comercial.' },
           ].map((item, i) => (
-            <div key={i} className="card p-5">
+            <div key={i} className="card surface-3d tilt-card p-5">
               <h4 className="text-[color:var(--tp)] font-semibold mb-2 text-sm">{item.q}</h4>
               <p className="text-ink-500 text-sm leading-relaxed">{item.a}</p>
             </div>

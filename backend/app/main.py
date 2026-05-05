@@ -81,6 +81,7 @@ async def health():
     return {"status": "ok", "version": "1.0.0"}
 
 
-@app.get("/debug/env")
-async def debug_env():
-    return get_resend_api_key_diagnostics()
+if not settings.is_production():
+    @app.get("/debug/env")
+    async def debug_env():
+        return get_resend_api_key_diagnostics()

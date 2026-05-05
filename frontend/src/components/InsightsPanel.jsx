@@ -23,7 +23,6 @@ const TYPE_ICONS = {
 }
 
 export default function InsightsPanel({ insights = [], dark = false }) {
-  const cardBg = dark ? '#0d1a26' : '#ffffff'
   const border = dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'
   const titleColor = dark ? '#2e5c8a' : '#1d4ed8'
   const textColor = dark ? '#d9e2ec' : '#1e293b'
@@ -33,11 +32,10 @@ export default function InsightsPanel({ insights = [], dark = false }) {
   if (!insights.length) {
     return (
       <div
+        className="panel-2d"
         style={{
           margin: '16px 0',
           padding: '14px 18px',
-          background: cardBg,
-          border: `1px solid ${border}`,
           borderRadius: 9,
           fontSize: 13,
           color: emptyColor,
@@ -50,10 +48,9 @@ export default function InsightsPanel({ insights = [], dark = false }) {
 
   return (
     <div
+      className="panel-2d"
       style={{
         margin: '16px 0',
-        background: cardBg,
-        border: `1px solid ${border}`,
         borderRadius: 9,
         overflow: 'hidden',
       }}
@@ -89,6 +86,7 @@ export default function InsightsPanel({ insights = [], dark = false }) {
                 borderLeft: `3px solid ${styles.border}`,
                 background: dark ? '#102132' : '#f8fafc',
                 borderRadius: '0 6px 6px 0',
+                boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset',
               }}
             >
               <span style={{ flexShrink: 0, marginTop: 1, display: 'inline-flex' }}>

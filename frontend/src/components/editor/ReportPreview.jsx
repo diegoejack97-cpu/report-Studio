@@ -50,7 +50,7 @@ function TableSection({ rows, visCols, dark, cardBg, bdColor, p1, p2, textColor,
   }, [showFilters])
 
   return (
-    <div className="rounded-2xl shadow-sm overflow-hidden mb-5" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
+    <div className="panel-2d overflow-hidden mb-5">
       <div className="px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2" style={{ borderBottom: `1px solid ${bdColor}` }}>
         <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider break-words" style={{ color: p2 }}>
           Todos os Registros — {hasFilter ? `${filteredRows.length} de ${rows.length}` : rows.length.toLocaleString('pt-BR')}
@@ -196,8 +196,7 @@ function ChartCard({ title, reason, h = 240, full = false, children }) {
   const { dark } = useThemeStore()
   return (
     <motion.div initial={{ opacity: 0, scale: .97 }} animate={{ opacity: 1, scale: 1 }}
-      className={`rounded-2xl p-3 sm:p-4 shadow-sm ${full ? 'lg:col-span-2' : ''}`}
-      style={{ background: dark ? '#0d1a26' : '#ffffff', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}` }}>
+      className={`chart-shell p-3 sm:p-4 ${full ? 'lg:col-span-2' : ''}`}>
       <div className="text-xs font-bold uppercase tracking-wider mb-3 pb-2" style={{ color: dark ? '#94a3b8' : '#64748b', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.06)' : '#f1f5f9'}` }}>
         <div>{title}</div>
         {reason && (
@@ -300,7 +299,7 @@ function OverridePanel({ enabled, mapping, analysisColumns, cols, override, onCh
   if (fields.length === 0) return null
 
   return (
-    <div className="rounded-2xl p-4 mb-4" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
+    <div className="panel-2d p-4 mb-4">
       <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: textColor }}>
         Ajustar sugestão do sistema
       </div>
@@ -353,7 +352,7 @@ function DiagnosticsPanel({ reportData, dark, cardBg, bdColor, textColor, subTex
   const displayMappingValue = value => value || 'Não identificado'
 
   return (
-    <div className="rounded-2xl p-4 mb-5 shadow-sm" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
+    <div className="panel-2d p-4 mb-5">
       <div className="mb-4 text-sm" style={{ color: subText, fontStyle: 'italic' }}>
         O sistema analisou automaticamente sua planilha e gerou este relatório com base nos dados identificados.
       </div>
@@ -364,7 +363,7 @@ function DiagnosticsPanel({ reportData, dark, cardBg, bdColor, textColor, subTex
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
         {summaryItems.map(([label, value]) => (
-          <div key={label} className="rounded-xl p-3" style={{ background: dark ? '#102132' : '#f8fafc', border: `1px solid ${bdColor}` }}>
+          <div key={label} className="rounded-xl p-3" style={{ background: dark ? '#102132' : '#f8fafc', border: `1px solid ${bdColor}`, boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset' }}>
             <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: subText }}>
               {label}
             </div>
@@ -571,8 +570,8 @@ function KPICard({ kpi, dark }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl p-4 flex-1 min-w-[120px] text-center shadow-sm"
-      style={{ background: dark ? '#0d1a26' : '#fff', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`, borderTop: `4px solid ${kpi.color || '#3b82f6'}` }}>
+      className="kpi-shell p-4 flex-1 min-w-[120px] text-center"
+      style={{ borderTop: `4px solid ${kpi.color || '#3b82f6'}` }}>
       <div className="mb-1 flex items-center justify-center">
         <IconComp className="w-5 h-5" />
       </div>

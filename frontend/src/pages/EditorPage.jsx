@@ -580,11 +580,8 @@ export default function EditorPage() {
                     <button
                       key={t.id}
                       onClick={() => setTab(t.id)}
-                      className={`px-3 py-2.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-all ${
-                        tab === t.id
-                          ? 'text-brand-400 border-brand-500 bg-[var(--s1)]'
-                          : 'text-ink-500 border-transparent hover:text-ink-300'
-                      }`}
+                      className="tab-button px-3 py-2.5 text-xs font-semibold whitespace-nowrap"
+                      data-active={tab === t.id}
                     >
                       <span className="inline-flex items-center gap-1.5">
                         {t.icon ? <t.icon className="w-3.5 h-3.5" /> : null}
@@ -651,11 +648,8 @@ export default function EditorPage() {
                       <button
                         key={t.id}
                         onClick={() => setTab(t.id)}
-                        className={`px-3 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-all min-h-[44px] ${
-                          tab === t.id
-                            ? 'text-brand-400 border-brand-500 bg-[var(--s1)]'
-                            : 'text-ink-500 border-transparent hover:text-ink-300'
-                        }`}
+                        className="tab-button px-3 py-3 text-xs font-semibold whitespace-nowrap min-h-[44px]"
+                        data-active={tab === t.id}
                       >
                         <span className="inline-flex items-center gap-1.5">
                           {t.icon ? <t.icon className="w-4 h-4" /> : null}
@@ -695,13 +689,13 @@ function TopBar({ title, saving, onBack, onSave, onExport, canExport, onToggleSi
           </button>
         </div>
         <div className="grid grid-cols-4 gap-1">
-          <button onClick={onToggleSidebar} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showSidebar ? 'text-brand-400' : 'text-ink-400'}`}>
+          <button onClick={onToggleSidebar} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showSidebar ? 'text-brand-400 border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
             Editar
           </button>
-          <button onClick={onTogglePreview} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showPreview ? 'text-brand-400' : 'text-ink-400'}`}>
+          <button onClick={onTogglePreview} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showPreview ? 'text-brand-400 border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
             <Eye className="w-3.5 h-3.5 inline mr-1" /> Ver
           </button>
-          <button onClick={onSave} disabled={saving} className="btn-ghost px-2 py-2 min-h-[40px] text-[11px] text-ink-400 disabled:opacity-50">
+          <button onClick={onSave} disabled={saving} className="btn-ghost px-2 py-2 min-h-[40px] text-[11px] text-[color:var(--ts)] disabled:opacity-50">
             <Save className="w-3.5 h-3.5 inline mr-1" />{saving ? '...' : 'Salvar'}
           </button>
           <button onClick={onExport} disabled={!canExport} className="btn-primary px-2 py-2 min-h-[40px] text-[11px] flex items-center justify-center gap-1 disabled:opacity-40">
@@ -720,17 +714,17 @@ function TopBar({ title, saving, onBack, onSave, onExport, canExport, onToggleSi
       <div className="h-4 w-px" style={{background:"var(--bd)"}} />
       <span className="text-sm max-w-[200px] font-semibold truncate" style={{color:"var(--tp)"}}>{title || 'Relatório'}</span>
       <div className="ml-auto flex items-center gap-1.5">
-        <button onClick={onToggleSidebar} className={`btn-ghost p-2 text-xs ${showSidebar ? 'text-brand-400' : 'text-ink-400'}`}>
+        <button onClick={onToggleSidebar} className={`btn-ghost p-2 text-xs ${showSidebar ? 'text-brand-400 border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
           ◀ Edição
         </button>
-        <button onClick={onTogglePreview} className={`btn-ghost p-2 text-xs ${showPreview ? 'text-brand-400' : 'text-ink-400'}`}>
+        <button onClick={onTogglePreview} className={`btn-ghost p-2 text-xs ${showPreview ? 'text-brand-400 border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
           <Eye className="w-4 h-4 inline mr-1" />Preview
         </button>
         <div className="h-4 w-px" style={{background:"var(--bd)"}} />
         <button onClick={toggle} className="btn-ghost p-2" title={dark?"Modo claro":"Modo escuro"}>
           {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-brand-400" />}
         </button>
-        <button onClick={onSave} disabled={saving} className="btn-ghost text-xs text-ink-400 disabled:opacity-50">
+        <button onClick={onSave} disabled={saving} className="btn-ghost text-xs text-[color:var(--ts)] disabled:opacity-50">
           <Save className="w-3.5 h-3.5 inline mr-1" />{saving ? 'Salvando...' : 'Salvar'}
         </button>
         <button onClick={onExport} disabled={!canExport} className="btn-primary py-1.5 text-xs flex items-center gap-1.5 disabled:opacity-40">

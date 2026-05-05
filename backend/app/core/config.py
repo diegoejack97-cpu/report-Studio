@@ -1,11 +1,12 @@
-from pydantic_settings import BaseSettings
 from typing import List
+
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     APP_URL: str = "http://localhost"
-    SECRET_KEY: str = "change_me"
+    SECRET_KEY: str = ""
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     DB_PASSWORD: str = "rs_secret"
@@ -37,6 +38,15 @@ class Settings(BaseSettings):
     PLAN_STARTER_LIMIT: int = 8
     PLAN_PRO_LIMIT: int = 30
     PLAN_BUSINESS_LIMIT: int = 80
+
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT.strip().lower() in {"production", "prod"}
+
+    def validate_security(self) -> None:
+        secret_key = (self.SECRET_KEY or "").strip()
+        insecure_values = {"", "change_me", "changeme", "secret", "development", "dev"}
+        if self.is_production() and secret_key.lower() in insecure_values:
+            raise ValueError("SECRET_KEY must be set to a secure value in production.")
 
     def get_public_app_url(self) -> str:
         fallback = "https://report-studio-zeta.vercel.app"
@@ -90,3 +100,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+settings.validate_security()

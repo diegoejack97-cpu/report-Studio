@@ -33,6 +33,18 @@ export function buildReportHTML(state, options = {}) {
   const cardBg = isDark ? '#0d1a26' : '#ffffff'
   const bdColor = isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'
   const subTxt = isDark ? '#486581' : '#94a3b8'
+  const expElev1 = isDark
+    ? '0 10px 26px rgba(1,8,16,0.42), inset 0 1px 0 rgba(255,255,255,0.04)'
+    : '0 8px 24px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.92)'
+  const expElev2 = isDark
+    ? '0 14px 34px rgba(1,8,16,0.5), inset 0 1px 0 rgba(255,255,255,0.06)'
+    : '0 12px 30px rgba(15,23,42,0.14), inset 0 1px 0 rgba(255,255,255,0.96)'
+  const expPanelGrad = isDark
+    ? 'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0))'
+    : 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.8))'
+  const expPanelSubtle = isDark
+    ? 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))'
+    : 'linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.7))'
   const showFilters = sections?.filters !== false
   const showCharts = sections?.charts !== false
   const rowRenderLimit = Number.isFinite(Number(options.tableRenderLimit))
@@ -63,6 +75,7 @@ export function buildReportHTML(state, options = {}) {
     if (!items.length) {
       return `<div style="margin:16px 0;padding:14px 18px;background:${cardBg};
                   border:1px solid ${bdColor};border-radius:9px;
+                  box-shadow:${expElev1};background-image:${expPanelSubtle};
                   font-size:13px;color:${subTxt};">
           Não foram identificados pontos críticos nos dados analisados.
       </div>`
@@ -83,7 +96,8 @@ export function buildReportHTML(state, options = {}) {
         <div style="display:flex;gap:12px;align-items:flex-start;
                     padding:10px 14px;border-left:3px solid ${palette.border};
                     background:${isDark ? '#102132' : '#f8fafc'};
-                    border-radius:0 6px 6px 0;margin-bottom:${index === items.length - 1 ? 0 : 8}px;">
+                    border-radius:0 8px 8px 0;margin-bottom:${index === items.length - 1 ? 0 : 8}px;
+                    box-shadow:inset 0 1px 0 ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.9)'};">
             <span style="font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">${typeIcons[tipo] || 'CHT'}</span>
             <div>
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
@@ -105,10 +119,12 @@ export function buildReportHTML(state, options = {}) {
 
     return `
     <div style="margin:16px 0;background:${cardBg};border:1px solid ${bdColor};
-                border-radius:9px;overflow:hidden;">
+                border-radius:12px;overflow:hidden;box-shadow:${expElev1};
+                background-image:${expPanelSubtle};">
         <div style="padding:10px 16px;border-bottom:1px solid ${bdColor};
                     font-size:12px;font-weight:700;color:${isDark ? '#2e5c8a' : '#1d4ed8'};
-                    text-transform:uppercase;letter-spacing:.05em;">
+                    text-transform:uppercase;letter-spacing:.05em;
+                    background:${isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)'};">
             Insights Automáticos
         </div>
         <div style="padding:12px 16px;">
@@ -306,56 +322,56 @@ window.addEventListener('keydown', (e) => {
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:${bg};font-family:'DM Sans',sans-serif;color:${txt};padding:20px;}
 .wrap{max-width:1400px;margin:0 auto;}
-.hd{position:relative;padding:1rem 0 1.25rem;margin-bottom:1.5rem;}
+.hd{position:relative;padding:1rem 1rem 1.15rem;margin-bottom:1.25rem;background:${expPanelSubtle};border:1px solid ${bdColor};border-radius:12px;box-shadow:${expElev1};}
 .hd-accent{position:absolute;top:0;left:0;width:48px;height:3px;border-radius:2px;background:linear-gradient(90deg,${p1},#0ea5e9);}
 .hd-divider{position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,${p1}66,transparent);}
 .hd-inner{padding-top:1rem;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:.5rem;}
 .hd-title{font-size:1.6rem;font-weight:700;letter-spacing:-.03em;line-height:1.15;}
 .hd-sub{font-size:.8rem;color:${subTxt};margin-top:.2rem;}
 .hd-badges{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;}
-.badge{font-size:.7rem;font-weight:500;color:${subTxt};background:${cardBg};border:1px solid ${bdColor};border-radius:6px;padding:.2rem .6rem;}
+.badge{font-size:.7rem;font-weight:600;color:${subTxt};background:${cardBg};border:1px solid ${bdColor};border-radius:999px;padding:.2rem .7rem;box-shadow:inset 0 1px 0 ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.95)'};}
 .badge-blue{color:${p2};background:${p1}22;border-color:${p1}55;font-weight:600;}
-.sav{background:linear-gradient(135deg,${p1},${p2});color:#fff;border-radius:12px;padding:22px 28px;margin:18px 0;display:flex;align-items:center;justify-content:space-between;}
+.sav{background:linear-gradient(135deg,${p1},${p2});color:#fff;border-radius:14px;padding:22px 28px;margin:18px 0;display:flex;align-items:center;justify-content:space-between;border:1px solid ${p1}66;box-shadow:${expElev2},inset 0 1px 0 rgba(255,255,255,.2);}
 .sav-lbl{font-size:11px;opacity:.7;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;}
 .sav-val{font-size:40px;font-weight:800;color:${acc};font-family:'DM Mono',monospace;}
 .sav-det{display:flex;gap:24px;margin-top:12px;flex-wrap:wrap;align-items:center;}
 .sav-dv{font-size:14px;font-weight:700;font-family:'DM Mono',monospace;}
 .sav-dl{font-size:10px;opacity:.6;margin-top:2px;}
 .kpi-row{display:flex;gap:12px;margin:18px 0;flex-wrap:wrap;}
-.kpi{flex:1;min-width:110px;background:${cardBg};border:1px solid ${bdColor};border-radius:9px;padding:14px;text-align:center;border-top:4px solid ${p2};}
+.kpi{flex:1;min-width:110px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:11px;padding:14px;text-align:center;border-top:4px solid ${p2};box-shadow:${expElev1};}
 .kpi-ico{font-size:18px;margin-bottom:4px;}
 .kpi-v{font-size:18px;font-weight:800;font-family:'DM Mono',monospace;}
 .kpi-l{font-size:10px;color:${subTxt};margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;}
 .cg{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0;}
-.cc{background:${cardBg};border:1px solid ${bdColor};border-radius:9px;padding:16px;}
+.cc{background:${cardBg};background-image:${expPanelGrad};border:1px solid ${bdColor};border-radius:11px;padding:16px;box-shadow:${expElev1};}
 .cc.full{grid-column:1/-1;}
 .ct{font-size:13px;font-weight:700;color:${p2};margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid ${bdColor};}
 .cw{position:relative;}
-.summary{margin-top:22px;background:${cardBg};border:1px solid ${bdColor};border-radius:12px;padding:14px;}
+.summary{margin-top:22px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:12px;padding:14px;box-shadow:${expElev1};}
 .summary-title{font-size:12px;font-weight:700;color:${p2};margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid ${bdColor};text-transform:uppercase;letter-spacing:.05em;}
 .summary-scroll,.table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .summary-table{width:100%;border-collapse:collapse;font-size:12px;}
-.summary-table th{background:${p1};color:#fff;padding:8px 10px;font-size:11px;text-align:left;}
+.summary-table th{background:linear-gradient(180deg,${p1},${p2});color:#fff;padding:8px 10px;font-size:11px;text-align:left;}
 .summary-table th.tr,.summary-table td.tr{text-align:right;}
 .summary-table td{padding:7px 10px;border-bottom:1px solid ${bdColor};color:${txt};}
 .summary-table .mono{font-family:'DM Mono',monospace;}
 .summary-total{background:${isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0'};font-weight:700;border-top:2px solid ${bdColor};}
-.tbl-section{margin-top:22px;background:${cardBg};border:1px solid ${bdColor};border-radius:12px;overflow:hidden;}
-.tbl-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid ${bdColor};}
+.tbl-section{margin-top:22px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:12px;overflow:hidden;box-shadow:${expElev1};}
+.tbl-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid ${bdColor};background:${isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)'};}
 .st{font-size:13px;font-weight:700;color:${p2};}
 .tbl-active{font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(37,99,235,0.2);color:#60a5fa;margin-left:auto;margin-right:8px;}
 .tbl-filters{padding:12px 16px;border-bottom:1px solid ${bdColor};background:${isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)'};}
 .tbl-compact-row{display:grid;grid-template-columns:minmax(180px,240px) minmax(220px,1fr);gap:10px;}
 .tbl-limit{padding:10px 14px;border-top:1px solid ${bdColor};font-size:12px;color:${subTxt};background:${isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc'};}
 table#mt{width:100%;border-collapse:collapse;font-size:12px;}
-table#mt th{background:${p1};color:#fff;padding:9px 11px;font-size:11px;font-weight:700;text-transform:uppercase;white-space:nowrap;}
+table#mt th{background:linear-gradient(180deg,${p1},${p2});color:#fff;padding:9px 11px;font-size:11px;font-weight:700;text-transform:uppercase;white-space:nowrap;}
 table#mt td{padding:7px 11px;border-bottom:1px solid ${bdColor};color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
-.footer{margin-top:24px;padding:10px 16px;background:${p1};color:rgba(255,255,255,.6);border-radius:8px;font-size:11px;text-align:center;}
+.footer{margin-top:24px;padding:10px 16px;background:linear-gradient(180deg,${p1},${p2});color:rgba(255,255,255,.74);border:1px solid ${p1}88;border-radius:10px;font-size:11px;text-align:center;box-shadow:${expElev1};}
 @media(max-width:768px){
   html,body{width:100%;max-width:100%;overflow-x:hidden;}
   body{padding:12px;}
   .wrap{min-width:0;}
-  .hd{margin-bottom:1rem;padding-bottom:1rem;}
+  .hd{margin-bottom:1rem;padding:1rem .85rem .95rem;}
   .hd-inner{align-items:flex-start;gap:.75rem;}
   .hd-inner>div:first-child,.hd-badges{width:100%;}
   .hd-title{font-size:clamp(1.25rem,7vw,1.6rem);overflow-wrap:anywhere;}

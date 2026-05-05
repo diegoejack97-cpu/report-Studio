@@ -17,13 +17,17 @@ export default function ColumnsPanel({ state, update }) {
         <p className="text-[10px] text-ink-500 font-semibold uppercase tracking-wider mb-2">Visibilidade no relatório</p>
         <div className="space-y-1">
           {cols.map((col, i) => (
-            <label key={i} className="flex items-center gap-2 sm:gap-3 py-2 px-2 rounded-lg hover:bg-[var(--s2)] cursor-pointer group">
-              <div
+            <label key={i} className="card-clickable flex items-center gap-2 sm:gap-3 py-2 px-2 rounded-lg cursor-pointer group">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={col.vis !== false}
                 onClick={() => setVis(i, !col.vis)}
-                className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${col.vis !== false ? 'bg-brand-600' : 'bg-[var(--s4)]'}`}
+                className="toggle-2d relative inline-flex items-center px-[2px] flex-shrink-0"
+                data-state={col.vis !== false ? 'checked' : 'unchecked'}
               >
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${col.vis !== false ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </div>
+                <span className="toggle-2d-thumb" />
+              </button>
               <span className="text-xs text-[color:var(--ts)] flex-1 truncate">{col.name}</span>
               <span className="text-[10px] text-[color:var(--tm)] font-mono px-1 py-0.5 bg-[var(--s3)] rounded">{col.type}</span>
             </label>
@@ -50,7 +54,7 @@ export default function ColumnsPanel({ state, update }) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-theme bg-[var(--s2)] p-2.5">
+      <div className="panel-2d rounded-lg bg-[var(--s2)] p-2.5">
         <p className="text-[10px] text-ink-500 font-semibold uppercase tracking-wider mb-1">Agrupamento do resumo</p>
         <p className="text-[11px] text-[color:var(--ts)]">
           O agrupamento do resumo é definido automaticamente pelo backend para manter consistência do cálculo.

@@ -4,8 +4,11 @@ import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react'
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="border border-theme rounded-lg overflow-hidden mb-2">
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-3 py-2.5 bg-[var(--s2)] hover:bg-[var(--s3)] text-xs font-bold text-[color:var(--ts)] uppercase tracking-wider transition-colors">
+    <div className="panel-2d rounded-lg overflow-hidden mb-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="card-clickable w-full flex items-center justify-between px-3 py-2.5 rounded-none border-x-0 border-t-0 bg-[var(--s2)] text-xs font-bold text-[color:var(--ts)] uppercase tracking-wider"
+      >
         {title}
         {open ? <ChevronDown className="w-3.5 h-3.5 text-[color:var(--tm)]" /> : <ChevronRight className="w-3.5 h-3.5 text-[color:var(--tm)]" />}
       </button>
@@ -22,9 +25,16 @@ function Toggle({ checked, onChange, label }) {
   return (
     <label className="flex items-center justify-between cursor-pointer group">
       <span className="text-xs text-[color:var(--ts)]">{label}</span>
-      <div className={`w-10 h-5 rounded-full relative transition-colors ${checked ? 'bg-brand-600' : 'bg-[var(--s4)]'}`} onClick={() => onChange(!checked)}>
-        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
-      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className="toggle-2d relative inline-flex items-center px-[2px]"
+        data-state={checked ? 'checked' : 'unchecked'}
+      >
+        <span className="toggle-2d-thumb" />
+      </button>
     </label>
   )
 }
@@ -68,10 +78,10 @@ export default function LayoutPanel({ state, update }) {
             <option value="VOLUME">Volume</option>
           </select>
         </Field>
-        <div className="rounded-lg p-2.5 text-[11px] border border-theme bg-[var(--s2)] text-[color:var(--ts)]">
+        <div className="rounded-lg p-2.5 text-[11px] border border-theme bg-[var(--s2)] text-[color:var(--ts)] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
           O mapeamento das colunas e o cálculo da métrica principal são definidos automaticamente pelo backend.
         </div>
-        <div className="rounded-lg p-2.5 text-[11px] border border-theme bg-[var(--s2)] text-[color:var(--tp)] space-y-1">
+        <div className="rounded-lg p-2.5 text-[11px] border border-theme bg-[var(--s2)] text-[color:var(--tp)] space-y-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
           <div>Monetária: <span className="font-semibold">{metricMapping.monetary || 'Não identificado'}</span></div>
           <div>Percentual: <span className="font-semibold">{metricMapping.percent || 'Não identificado'}</span></div>
           <div>Categoria: <span className="font-semibold">{metricMapping.category || 'Não identificado'}</span></div>
@@ -81,12 +91,12 @@ export default function LayoutPanel({ state, update }) {
       <Accordion title="KPIs">
         <div className="space-y-2">
           {kpis.map((k, i) => (
-            <div key={i} className="bg-[var(--s2)] border border-theme rounded-lg p-2 space-y-1.5">
+            <div key={i} className="panel-2d rounded-lg p-2 space-y-1.5 bg-[var(--s2)]">
               <div className="flex flex-wrap sm:flex-nowrap gap-1.5">
                 <input className="input-field text-xs py-2 sm:py-1 flex-1 min-w-[140px]" value={k.label} onChange={e => updKPI(i, 'label', e.target.value)} placeholder="Rótulo" />
                 <input className="input-field text-xs py-2 sm:py-1 w-14 sm:w-9 text-center" value={k.icon} onChange={e => updKPI(i, 'icon', e.target.value)} />
-                <input type="color" className="w-10 h-9 sm:w-8 sm:h-7 rounded cursor-pointer bg-transparent border-0" value={k.color || '#3b82f6'} onChange={e => updKPI(i, 'color', e.target.value)} />
-                <button onClick={() => delKPI(i)} className="text-red-400 hover:text-red-300 px-2 min-h-[36px]"><X className="w-3.5 h-3.5" /></button>
+                <input type="color" className="w-10 h-9 sm:w-8 sm:h-7 rounded cursor-pointer bg-transparent border border-theme shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]" value={k.color || '#3b82f6'} onChange={e => updKPI(i, 'color', e.target.value)} />
+                <button onClick={() => delKPI(i)} className="icon-action px-2 rounded-lg min-h-[36px]" aria-label={`Remover KPI ${k.label || i + 1}`}><X className="w-3.5 h-3.5 text-red-400" /></button>
               </div>
               <div className="flex flex-col sm:flex-row gap-1.5">
                 <select className="input-field text-xs py-2 sm:py-1 flex-1" value={k.col ?? ''} onChange={e => updKPI(i, 'col', e.target.value)}>
@@ -105,7 +115,7 @@ export default function LayoutPanel({ state, update }) {
               </div>
             </div>
           ))}
-          <button onClick={addKPI} className="w-full py-2 rounded-lg border border-dashed border-theme text-[color:var(--tm)] hover:text-[color:var(--tp)] text-xs flex items-center justify-center gap-1 min-h-[40px]">
+          <button onClick={addKPI} className="card-clickable w-full py-2 rounded-lg border-dashed text-[color:var(--tm)] hover:text-[color:var(--tp)] text-xs flex items-center justify-center gap-1 min-h-[40px]">
             <Plus className="w-3 h-3" /> Adicionar KPI
           </button>
         </div>

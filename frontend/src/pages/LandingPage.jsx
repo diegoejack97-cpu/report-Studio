@@ -26,6 +26,8 @@ export default function LandingPage() {
         {/* Background glow */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full bg-brand-900/20 blur-[120px]" />
+          <div className="glow-orbit top-16 left-[18%] w-36 h-36 bg-cyan-500/20" />
+          <div className="glow-orbit right-[14%] top-24 w-48 h-48 bg-brand-500/20" />
         </div>
 
         <motion.div
@@ -69,11 +71,11 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.25 }}
-          className="relative mt-16 max-w-5xl mx-auto"
+          className="hero-stage relative mt-16 max-w-5xl mx-auto"
         >
-          <div className="rounded-2xl border border-white/10 overflow-hidden shadow-2xl shadow-black/60 bg-surface-2">
+          <div className="hero-shell">
             {/* Browser chrome */}
-            <div className="flex items-center gap-2 px-4 py-3 bg-surface-3 border-b border-white/[0.06]">
+            <div className="hero-float flex items-center gap-2 px-4 py-3 bg-surface-3 border-b border-white/[0.06]">
               <div className="w-3 h-3 rounded-full bg-red-500/70" />
               <div className="w-3 h-3 rounded-full bg-amber-500/70" />
               <div className="w-3 h-3 rounded-full bg-green-500/70" />
@@ -82,10 +84,11 @@ export default function LandingPage() {
               </div>
             </div>
             {/* App screenshot placeholder */}
-            <div className="aspect-[16/9] bg-gradient-to-br from-surface-1 to-surface-3 flex items-center justify-center">
-              <div className="text-center">
+            <div className="aspect-[16/9] bg-gradient-to-br from-surface-1 via-surface-2 to-surface-3 flex items-center justify-center">
+              <div className="hero-float text-center">
                 <div className="flex justify-center mb-3"><Sparkles className="w-12 h-12 text-brand-400" /></div>
-                <p className="text-ink-400 text-sm">Editor de relatórios</p>
+                <p className="text-ink-300 text-sm font-medium">Editor de relatórios</p>
+                <p className="text-ink-500 text-xs mt-1">Upload, KPIs, gráficos e export em uma só superfície</p>
               </div>
             </div>
           </div>
@@ -112,7 +115,7 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.08 }}
-              className="card p-6 hover:border-brand-800/50 transition-colors group"
+              className="card surface-3d tilt-card p-6 hover:border-brand-800/50 transition-colors group"
             >
               <div className="w-10 h-10 rounded-lg bg-brand-900/40 border border-brand-800/40 flex items-center justify-center text-brand-400 mb-4 group-hover:bg-brand-800/40 transition-colors">
                 {f.icon}
@@ -145,7 +148,7 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                className={`relative rounded-2xl p-6 border ${p.highlight ? 'border-brand-600 bg-gradient-to-br from-brand-950 to-surface-2' : 'border-white/[0.08] bg-surface-2'}`}
+                className={`relative surface-3d tilt-card rounded-2xl p-6 border ${p.highlight ? 'border-brand-600 bg-gradient-to-br from-brand-950 to-surface-2' : 'border-white/[0.08] bg-surface-2'}`}
               >
                 {p.highlight && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 badge bg-brand-600 text-white">

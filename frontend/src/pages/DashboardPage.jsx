@@ -71,7 +71,7 @@ export default function DashboardPage() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
-            className="card p-5"
+            className="card surface-3d tilt-card p-5"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-[color:var(--ts)]">Seu plano</h3>
@@ -104,7 +104,7 @@ export default function DashboardPage() {
 
             <p className="text-center text-xs text-ink-500 mb-4">relatórios este mês</p>
 
-            <Link to={user?.plan === 'free' ? '/pricing' : '/billing'} className="block w-full text-center py-2 px-3 rounded-lg bg-brand-900/40 border border-brand-700/40 text-brand-300 text-xs font-semibold hover:bg-brand-800/40 transition-colors">
+            <Link to={user?.plan === 'free' ? '/pricing' : '/billing'} className="surface-3d tilt-card block w-full text-center py-2 px-3 rounded-lg bg-brand-900/40 border border-brand-700/40 text-brand-300 text-xs font-semibold hover:bg-brand-800/40 transition-colors">
               <Crown className="w-3 h-3 inline mr-1" />
               {user?.plan === 'free' ? 'Fazer upgrade' : 'Gerenciar upgrade ou downgrade'}
             </Link>
@@ -122,7 +122,7 @@ export default function DashboardPage() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="card p-12 text-center"
+                className="card surface-3d tilt-card p-12 text-center"
               >
                 <div className="flex justify-center mb-3"><FileText className="w-10 h-10 text-ink-500" /></div>
                 <h3 className="text-[color:var(--tp)] font-semibold mb-2">Nenhum relatório ainda</h3>
@@ -139,7 +139,7 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="card p-5 hover:border-[color:var(--bdh)] transition-colors group"
+                    className="card surface-3d tilt-card p-5 hover:border-[color:var(--bdh)] transition-colors group"
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="w-8 h-8 rounded-lg bg-brand-900/40 border border-brand-800/30 flex items-center justify-center">

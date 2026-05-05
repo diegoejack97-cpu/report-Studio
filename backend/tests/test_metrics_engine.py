@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.metrics_engine import (  # noqa: E402
     MetricsValidationError,
+    _resolve_chart_source,
     build_metric_dataset,
     build_metric_report_data,
     normalize_percent,
@@ -44,10 +45,10 @@ def _base_config(metric_type="ECONOMIA", **saving_overrides):
             **saving_overrides,
         },
         "charts": {
-            "g1": {"on": True, "title": "Categoria", "type": "pie"},
-            "g2": {"on": True, "title": "Distribuição", "type": "bar"},
-            "g3": {"on": True, "title": "Linha do Tempo", "type": "line"},
-            "g4": {"on": True, "title": "Top Itens", "type": "hbar"},
+            "g1": {"on": True, "source": "distribution", "title": "Distribuição", "type": "pie"},
+            "g2": {"on": True, "source": "by_category", "title": "Categoria", "type": "bar"},
+            "g3": {"on": True, "source": "by_date", "title": "Linha do Tempo", "type": "line"},
+            "g4": {"on": True, "source": "top_items", "title": "Top Itens", "type": "hbar"},
         },
     }
     if metric_type == "TOTAL":
@@ -86,6 +87,16 @@ def test_parse_number_formats():
     assert parse_number("0.26", is_percent=True) == 0.26
     assert normalize_percent(26) == 0.26
     assert normalize_percent(0.26) == 0.26
+
+
+def test_chart_source_defaults_match_frontend_concepts():
+    assert _resolve_chart_source("g1", {}, 0) == "distribution"
+    assert _resolve_chart_source("g2", {}, 1) == "by_category"
+    assert _resolve_chart_source("g3", {}, 2) == "by_date"
+    assert _resolve_chart_source("g4", {}, 3) == "top_items"
+    assert _resolve_chart_source("custom", {}, 0) == "distribution"
+    assert _resolve_chart_source("g1", {"source": "by_category"}, 0) == "by_category"
+    assert _resolve_chart_source("g2", {"aggregation": "distribution"}, 1) == "distribution"
 
 
 def test_parse_number_edge_cases():

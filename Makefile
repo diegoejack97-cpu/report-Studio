@@ -2,7 +2,7 @@
 #  Report Studio — Developer Makefile
 # ════════════════════════════════════════════
 
-.PHONY: help up down build logs shell-backend shell-db reset clean
+.PHONY: help up down build logs shell-backend shell-db reset clean frontend-build frontend-test backend-test release-check
 
 help:
 	@echo ""
@@ -15,6 +15,10 @@ help:
 	@echo "  make shell-db    → psql no PostgreSQL"
 	@echo "  make reset       → Para, remove volumes e sobe do zero"
 	@echo "  make clean       → Remove containers, volumes e imagens"
+	@echo "  make frontend-build → Build do frontend"
+	@echo "  make frontend-test  → Playwright minimo para lancamento"
+	@echo "  make backend-test   → Testes backend com pytest"
+	@echo "  make release-check  → Checklist minimo automatizado de lancamento"
 	@echo ""
 
 up:
@@ -54,3 +58,17 @@ dev-frontend:
 
 dev-backend:
 	cd backend && uvicorn app.main:app --reload --port 8000
+
+frontend-build:
+	cd frontend && npm run build
+
+frontend-test:
+	cd frontend && npm run test:release-min
+
+backend-test:
+	cd backend && pytest -q
+
+release-check:
+	cd frontend && npm run build
+	cd frontend && npm run test:release-min
+	cd backend && pytest -q

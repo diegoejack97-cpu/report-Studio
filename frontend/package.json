@@ -9,7 +9,8 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "test:export:snapshots": "playwright test -c playwright.config.js tests/export-parity.spec.js",
     "test:export:update": "playwright test -c playwright.config.js tests/export-parity.spec.js --update-snapshots",
-    "test:light-mode": "playwright test -c playwright.app.config.js tests/light-mode.spec.js"
+    "test:light-mode": "playwright test -c playwright.app.config.js tests/light-mode.spec.js",
+    "test:release-min": "npm run test:export:snapshots && npm run test:light-mode"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.7.0",

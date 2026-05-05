@@ -746,25 +746,29 @@ def _group_by(items: list[dict[str, Any]], key_fn, value_fn, *, limit: int | Non
         entries.sort(key=lambda entry: abs(entry[1]), reverse=True)
     else:
         entries.sort(key=lambda entry: entry[1], reverse=True)
+    total_groups = len(entries)
     if limit is not None:
         entries = entries[:limit]
     return {
         "labels": [key for key, _ in entries],
         "data": [round(float(value), 2) for _, value in entries],
+        "totalGroups": total_groups,
+        "truncated": bool(limit is not None and total_groups > limit),
+        "limit": limit,
     }
 
 
 def _build_distribution(values: list[float]) -> dict[str, list[Any]]:
     clean = [value for value in values if isinstance(value, (int, float)) and math.isfinite(value)]
     if not clean:
-        return {"labels": [], "data": []}
+        return {"labels": [], "data": [], "totalValues": 0, "bucketCount": 0}
     if len(clean) == 1:
-        return {"labels": ["Único"], "data": [1]}
+        return {"labels": ["Único"], "data": [1], "totalValues": 1, "bucketCount": 1}
 
     minimum = min(clean)
     maximum = max(clean)
     if minimum == maximum:
-        return {"labels": [f"{minimum:.2f}"], "data": [len(clean)]}
+        return {"labels": [f"{minimum:.2f}"], "data": [len(clean)], "totalValues": len(clean), "bucketCount": 1}
 
     bucket_count = min(8, max(4, int(math.sqrt(len(clean)))))
     step = (maximum - minimum) / bucket_count
@@ -782,7 +786,7 @@ def _build_distribution(values: list[float]) -> dict[str, list[Any]]:
         end = maximum if index == bucket_count - 1 else start + step
         labels.append(f"{start:.2f} - {end:.2f}")
 
-    return {"labels": labels, "data": buckets}
+    return {"labels": labels, "data": buckets, "totalValues": len(clean), "bucketCount": bucket_count}
 
 
 def _chart_option_base(*, dark: bool = False) -> dict[str, Any]:
@@ -811,13 +815,24 @@ def _resolve_chart_source(chart_key: str, chart_cfg: dict[str, Any], index: int)
     explicit = str(chart_cfg.get("source") or chart_cfg.get("aggregation") or "").strip()
     if explicit:
         return explicit
-    default_sources = {
-        0: "by_category",
-        1: "distribution",
+
+    default_sources_by_key = {
+        "g1": "distribution",
+        "g2": "by_category",
+        "g3": "by_date",
+        "g4": "top_items",
+    }
+    normalized_key = str(chart_key or "").strip().lower()
+    if normalized_key in default_sources_by_key:
+        return default_sources_by_key[normalized_key]
+
+    default_sources_by_position = {
+        0: "distribution",
+        1: "by_category",
         2: "by_date",
         3: "top_items",
     }
-    return default_sources.get(index, "")
+    return default_sources_by_position.get(index, "")
 
 
 def _chart_full_width(chart_cfg: dict[str, Any], index: int) -> bool:
@@ -1085,6 +1100,7 @@ def _build_charts(config: dict[str, Any], dataset: dict[str, Any]) -> list[dict[
         normalized_type = "bar" if chart_type == "hbar" else chart_type
         chart = {
             "id": str(raw_chart.get("id") or chart_key or f"chart-{index + 1}"),
+            "source": source_key,
             "title": str(raw_chart.get("title") or "Gráfico"),
             "type": chart_type,
             "labels": labels,
@@ -1095,6 +1111,16 @@ def _build_charts(config: dict[str, Any], dataset: dict[str, Any]) -> list[dict[
         }
         if "d2" in aggregation:
             chart["d2"] = aggregation.get("d2") or []
+        if "totalGroups" in aggregation:
+            chart["totalGroups"] = aggregation.get("totalGroups")
+        if "truncated" in aggregation:
+            chart["truncated"] = aggregation.get("truncated")
+        if "limit" in aggregation:
+            chart["limit"] = aggregation.get("limit")
+        if "totalValues" in aggregation:
+            chart["totalValues"] = aggregation.get("totalValues")
+        if "bucketCount" in aggregation:
+            chart["bucketCount"] = aggregation.get("bucketCount")
         if "name1" in raw_chart:
             chart["name1"] = raw_chart.get("name1")
         if "name2" in raw_chart:
