@@ -656,8 +656,6 @@ def _validate_column_type(field: str, column: dict[str, Any] | None, expected: s
         return
     received = str(column.get("type") or "text").lower()
     allowed_aliases = {
-        "monetary": {"number"},
-        "percent": {"number"},
         "category": {"text"},
     }
     if received == expected or received in allowed_aliases.get(expected, set()):
@@ -1193,11 +1191,15 @@ def _metric_unit(metric_type: str) -> str:
 
 
 def _build_detail_items(metric_type: str, metric_rows: list[dict[str, Any]], fields: dict[str, int], columns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _number(row: dict[str, Any], key: str) -> float:
+        value = parse_number(row.get(key))
+        return value if value is not None else 0.0
+
     if metric_type == "ECONOMIA":
         if fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0:
             base_name = columns[fields["base"]]["name"]
             percent_name = columns[fields["percent"]]["name"]
-            base_total = round(_sum(float(row.get(base_name) or 0) for row in metric_rows), 2)
+            base_total = round(_sum(_number(row, base_name) for row in metric_rows), 2)
             percent_avg = round(_mean([float(row.get("percent_value") or 0) for row in metric_rows]) * 100, 2)
             return [
                 {"kind": "currency", "label": columns[fields["base"]]["name"], "value": base_total},
@@ -1206,19 +1208,20 @@ def _build_detail_items(metric_type: str, metric_rows: list[dict[str, Any]], fie
         if fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0:
             initial_name = columns[fields["initial"]]["name"]
             final_name = columns[fields["final"]]["name"]
-            initial_total = round(_sum(float(row.get(initial_name) or 0) for row in metric_rows), 2)
-            final_total = round(_sum(float(row.get(final_name) or 0) for row in metric_rows), 2)
+            initial_total = round(_sum(_number(row, initial_name) for row in metric_rows), 2)
+            final_total = round(_sum(_number(row, final_name) for row in metric_rows), 2)
             return [
                 {"kind": "currency", "label": columns[fields["initial"]]["name"], "value": initial_total},
                 {"kind": "currency", "label": columns[fields["final"]]["name"], "value": final_total, "accent": True},
             ]
     if metric_type == "TOTAL":
-        return [{"kind": "currency", "label": columns[fields["value"]]["name"], "value": round(_sum(float(row.get(columns[fields["value"]]["name"]) or 0) for row in metric_rows), 2)}]
+        value_name = columns[fields["value"]]["name"]
+        return [{"kind": "currency", "label": value_name, "value": round(_sum(_number(row, value_name) for row in metric_rows), 2)}]
     if metric_type == "VARIACAO":
         initial_name = columns[fields["initial"]]["name"]
         final_name = columns[fields["final"]]["name"]
-        initial_total = round(_sum(float(row.get(initial_name) or 0) for row in metric_rows), 2)
-        final_total = round(_sum(float(row.get(final_name) or 0) for row in metric_rows), 2)
+        initial_total = round(_sum(_number(row, initial_name) for row in metric_rows), 2)
+        final_total = round(_sum(_number(row, final_name) for row in metric_rows), 2)
         return [
             {"kind": "currency", "label": initial_name, "value": initial_total},
             {"kind": "currency", "label": final_name, "value": final_total, "accent": True},
@@ -1383,6 +1386,23 @@ def _metric_field_config(config: dict[str, Any], columns: list[dict[str, Any]], 
     return {}
 
 
+def _has_explicit_metric_field(config: dict[str, Any], metric_type: str) -> bool:
+    saving_cfg = config.get("saving") if isinstance(config.get("saving"), dict) else {}
+
+    def _has_value(*keys: str) -> bool:
+        return any(saving_cfg.get(key) not in (None, "") for key in keys)
+
+    if metric_type == "ECONOMIA":
+        return _has_value("baseCol", "savingBaseCol", "percentCol", "savingPercentCol", "initialCol", "originalCol", "v1Col", "finalCol", "negotiatedCol", "v2Col")
+    if metric_type == "TOTAL":
+        return _has_value("valueCol", "savingCol")
+    if metric_type == "VARIACAO":
+        return _has_value("initialCol", "originalCol", "v1Col", "finalCol", "negotiatedCol", "v2Col")
+    if metric_type == "TAXA":
+        return _has_value("categoryCol") or config.get("groupCol") not in (None, "")
+    return False
+
+
 def _validate_metric_config(metric_type: str, fields: dict[str, int], columns: list[dict[str, Any]]) -> None:
     if metric_type == "ECONOMIA":
         if fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0:
@@ -1438,16 +1458,20 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
     mapping = _resolve_effective_mapping(auto_mapping, columns, payload_config, metric_type)
     validation = _build_validation(metric_type, analysis, mapping)
     legacy_fields = _metric_field_config(payload_config, columns, metric_type)
+    explicit_metric_config = isinstance(payload_config.get("saving"), dict) and (payload_config["saving"].get("metricType") not in (None, ""))
+    explicit_metric_fields = _has_explicit_metric_field(payload_config, metric_type)
     fields = _build_runtime_fields(metric_type, columns, analysis, legacy_fields, mapping)
 
     if validation["errors"] and not any(index >= 0 for index in legacy_fields.values()) and not any(value is not None for value in auto_mapping.values()):
+        if explicit_metric_config:
+            _validate_metric_config(metric_type, fields, columns)
         artifact = _empty_metric_response(analysis, validation, mapping)
         artifact["schemaVersion"] = SCHEMA_VERSION
         artifact["sourceHash"] = source_hash
         return artifact
 
-    if any(index >= 0 for index in legacy_fields.values()):
-        _validate_metric_config(metric_type, fields, columns)
+    if explicit_metric_fields:
+        _validate_metric_config(metric_type, legacy_fields, columns)
 
     if validation["errors"] and not _runtime_fields_valid_for_metric(metric_type, fields):
         artifact = _empty_metric_response(analysis, validation, mapping)

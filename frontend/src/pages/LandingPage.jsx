@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { BarChart3, Zap, Shield, Download, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react'
+import { BarChart3, Zap, Shield, Download, ArrowRight } from 'lucide-react'
 import Navbar from '@/components/layout/Navbar'
+import PublicFooter from '@/components/layout/PublicFooter'
 
 const FEATURES = [
   { icon: <BarChart3 className="w-5 h-5" />, title: 'Gráficos interativos', desc: 'Recharts com animações suaves. Donut, barras, linhas, Top N — todos configuráveis.' },
@@ -174,14 +175,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-10 px-4 text-center text-ink-600 text-sm">
-        <div className="flex items-center justify-center gap-1 mb-2">
-          <Sparkles className="w-4 h-4 text-brand-400" />
-          <span className="font-semibold text-ink-300">Report Flow</span>
-        </div>
-        <p>© {new Date().getFullYear()} · Relatórios profissionais para equipes de procurement</p>
-      </footer>
+      <PublicFooter />
     </div>
   )
 }

@@ -8,6 +8,7 @@ import api from '@/lib/api'
 import { buildAppUrl } from '@/lib/appUrl'
 import { useAuthStore } from '@/store/authStore'
 import Navbar from '@/components/layout/Navbar'
+import PublicFooter from '@/components/layout/PublicFooter'
 import EmbeddedCheckoutModal from '@/components/billing/EmbeddedCheckoutModal'
 
 const PLAN_RANK = {
@@ -389,6 +390,8 @@ export default function PricingPage() {
         }}
         planName={embeddedCheckoutPlan?.name || 'selecionado'}
       />
+
+      <PublicFooter />
     </div>
   )
 }

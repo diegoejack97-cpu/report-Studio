@@ -62,17 +62,27 @@ class Settings(BaseSettings):
 
     def get_cors_origins(self) -> List[str]:
         configured = [x.strip() for x in self.CORS_ORIGINS.split(",") if x.strip()]
-        defaults = [
-            "http://localhost",
-            "http://localhost:3000",
-            "https://reportflow.com.br",
-            "https://www.reportflow.com.br",
-            "https://report-studio-zeta.vercel.app",
-            self.get_public_app_url(),
-        ]
+        app_url = (self.APP_URL or "").strip().rstrip("/")
+        app_url_is_public = bool(app_url) and "localhost" not in app_url.lower() and "127.0.0.1" not in app_url.lower()
 
         merged: list[str] = []
-        for origin in [*configured, *defaults]:
+        if self.is_production():
+            candidates = [
+                *configured,
+                *( [app_url] if app_url_is_public else [] ),
+            ]
+        else:
+            candidates = [
+                *configured,
+                "http://localhost",
+                "http://localhost:3000",
+                "https://reportflow.com.br",
+                "https://www.reportflow.com.br",
+                "https://report-studio-zeta.vercel.app",
+                self.get_public_app_url(),
+            ]
+
+        for origin in candidates:
             if origin and origin not in merged:
                 merged.append(origin)
         return merged

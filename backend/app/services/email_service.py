@@ -5,6 +5,7 @@ import logging
 import requests
 
 from app.core.config import settings
+from app.core.log_safety import mask_email
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +40,20 @@ async def _send_resend_email(payload: dict, *, log_context: str) -> tuple[bool, 
         if response.status_code >= 400:
             logger.error("%s: falha ao enviar email via Resend.", log_context)
             logger.error("%s: status HTTP %s", log_context, response.status_code)
-            logger.error("%s: resposta da API %s", log_context, response.text)
-            return False, response.text
+            logger.error(
+                "%s: resposta da API omitida por seguranca. response_chars=%s",
+                log_context,
+                len(response.text or ""),
+            )
+            return False, f"Erro da API Resend (status {response.status_code})"
 
         logger.info("%s: email enviado com sucesso.", log_context)
         logger.info("%s: status HTTP %s", log_context, response.status_code)
-        logger.info("%s: resposta da API %s", log_context, response.text)
+        logger.info(
+            "%s: resposta da API recebida com sucesso. response_chars=%s",
+            log_context,
+            len(response.text or ""),
+        )
         return True, None
     except Exception:
         logger.exception("%s: excecao ao enviar email via Resend.", log_context)
@@ -63,7 +72,10 @@ async def send_email(to: str, subject: str, body: str) -> bool:
         "text": body,
     }
 
-    sent, _ = await _send_resend_email(payload, log_context=f"email_transacional:{to}")
+    sent, _ = await _send_resend_email(
+        payload,
+        log_context=f"email_transacional:{mask_email(to)}",
+    )
     return sent
 
 
@@ -101,4 +113,7 @@ async def send_contact_email(*, name: str, email: str, phone: str, company: str,
         ),
     }
 
-    return await _send_resend_email(payload, log_context=f"lead_comercial:{email}")
+    return await _send_resend_email(
+        payload,
+        log_context=f"lead_comercial:{mask_email(email)}",
+    )

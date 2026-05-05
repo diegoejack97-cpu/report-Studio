@@ -4,14 +4,14 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="panel-2d rounded-xl overflow-hidden mb-2">
+    <div className="rf-panel overflow-hidden mb-2">
       <button onClick={() => setOpen(o => !o)}
         className="card-clickable w-full flex items-center justify-between px-3 py-2.5 rounded-none border-x-0 border-t-0 text-xs font-bold uppercase tracking-wider"
         style={{background:'var(--s2)',color:'var(--ts)'}}>
         {title}
         {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
       </button>
-      {open && <div className="px-3 py-3 space-y-3" style={{background:'var(--s1)'}}>{children}</div>}
+      {open && <div className="px-3 py-3 space-y-3">{children}</div>}
     </div>
   )
 }
@@ -138,7 +138,7 @@ export default function ChartsPanel({ state, update }) {
       </ChartBlock>
 
       {/* Info sobre gráficos automáticos */}
-      <div className="panel-2d rounded-xl p-3 mt-1" style={{background:'var(--s2)'}}>
+      <div className="rf-panel p-3 mt-1">
         <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{color:'var(--ts)'}}>
           Gráficos automáticos
         </div>

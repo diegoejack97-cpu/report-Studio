@@ -1,71 +1,118 @@
 from pathlib import Path
 import sys
-import unittest
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.routers.reports import _build_tabular_data_from_config, _enrich_report_config_with_insights
+from app.routers import reports
+from app.services.metrics_engine import build_metric_report_data
 
 
-class ReportsInsightsIntegrationTestCase(unittest.TestCase):
-    def test_build_tabular_data_from_config_maps_cols_and_rows(self):
-        config = {
-            "cols": [
-                {"name": "Saving (%)"},
-                {"name": "Conformidade"},
-            ],
-            "rows": [
-                {"cells": [11.76, "Não"]},
-                {"cells": [5.54, "Sim"]},
-            ],
-        }
-
-        result = _build_tabular_data_from_config(config)
-
-        self.assertEqual(
-            result,
-            [
-                {"Saving (%)": 11.76, "Conformidade": "Não"},
-                {"Saving (%)": 5.54, "Conformidade": "Sim"},
-            ],
-        )
-
-    def test_build_tabular_data_from_config_calculates_saving_from_config(self):
-        config = {
-            "cols": [
-                {"name": "Fornecedor"},
-                {"name": "Valor Base"},
-                {"name": "Saving (%)"},
-            ],
-            "rows": [
-                {"cells": ["Alpha", "1000", "10"]},
-                {"cells": ["Beta", "2500,50", "4,2"]},
-            ],
-            "saving": {
-                "savingBaseCol": "1",
-                "savingPercentCol": "2",
-            },
-        }
-
-        result = _build_tabular_data_from_config(config)
-
-        self.assertEqual(result[0]["saving_calculado"], 100.0)
-        self.assertAlmostEqual(result[1]["saving_calculado"], 105.021, places=3)
-
-    def test_enrich_report_config_with_insights_adds_payload(self):
-        config = {
-            "cols": [{"name": "Saving (%)"}],
-            "rows": [{"cells": [5.0]}, {"cells": [6.0]}, {"cells": [4.0]}],
-        }
-
-        result = _enrich_report_config_with_insights(config)
-
-        self.assertIn("insights", result)
-        self.assertIn("insightsMeta", result)
-        self.assertEqual(result["insightsMeta"]["record_count"], 3)
-        self.assertTrue(any(item["titulo"] == "Saving médio abaixo do benchmark" for item in result["insights"]))
+def _sample_report_source():
+    return {
+        "cols": [
+            {"name": "Fornecedor", "type": "category"},
+            {"name": "Valor Base", "type": "monetary"},
+            {"name": "Saving (%)", "type": "percent"},
+            {"name": "Data", "type": "date"},
+        ],
+        "rows": [
+            {"cells": ["Alpha", "1000", "10", "2026-01-10"]},
+            {"cells": ["Beta", "2500.50", "4.2", "2026-02-15"]},
+            {"cells": ["Alpha", "500", "6", "2026-02-28"]},
+        ],
+    }
 
 
-if __name__ == "__main__":
-    unittest.main()
+def _sample_report_config():
+    return {
+        "groupCol": "0",
+        "saving": {
+            "metricType": "ECONOMIA",
+            "baseCol": "1",
+            "percentCol": "2",
+            "categoryCol": "0",
+            "dateCol": "3",
+            "label": "Saving Total",
+        },
+        "kpis": [
+            {"label": "Fornecedores", "col": "0", "fmt": "countuniq", "icon": "users", "color": "#2563eb"},
+        ],
+        "charts": {
+            "g1": {"on": True, "source": "distribution", "title": "Distribuição", "type": "doughnut"},
+            "g2": {"on": True, "source": "by_category", "title": "Por Categoria", "type": "bar"},
+            "g3": {"on": True, "source": "by_date", "title": "Evolução", "type": "line"},
+            "g4": {"on": True, "source": "top_items", "title": "Top Itens", "type": "hbar"},
+        },
+    }
+
+
+def test_build_metric_report_data_returns_current_artifact_shape():
+    artifact = build_metric_report_data(_sample_report_source(), _sample_report_config())
+
+    assert artifact["schemaVersion"] == 1
+    assert artifact["mapping"]["monetary"] == "Valor Base"
+    assert artifact["mapping"]["percent"] == "Saving (%)"
+    assert artifact["mapping"]["category"] == "Fornecedor"
+    assert artifact["mapping"]["date"] == "Data"
+
+    assert len(artifact["dataset"]) == 3
+    assert artifact["dataset"][0]["Fornecedor"] == "Alpha"
+    assert artifact["dataset"][0]["metric_value"] == 100.0
+    assert round(artifact["dataset"][1]["metric_value"], 3) == 105.021
+    assert artifact["dataset"][2]["metric_value"] == 30.0
+
+    assert artifact["metric"]["value"] == 235.02
+    assert artifact["metric"]["type"] == "ECONOMIA"
+    assert artifact["summary"]["totals"]["count"] == 3
+    assert artifact["summary"]["totals"]["value"] == 235.02
+
+
+def test_build_metric_report_data_generates_kpis_charts_and_insights():
+    artifact = build_metric_report_data(_sample_report_source(), _sample_report_config())
+
+    assert len(artifact["kpis"]) == 1
+    assert artifact["kpis"][0]["label"] == "Fornecedores"
+    assert artifact["kpis"][0]["value"] == 2
+    assert artifact["kpis"][0]["display"] == "2"
+
+    assert len(artifact["charts"]) == 4
+    assert [chart["source"] for chart in artifact["charts"]] == [
+        "distribution",
+        "by_category",
+        "by_date",
+        "top_items",
+    ]
+    assert [chart["title"] for chart in artifact["charts"]] == [
+        "Distribuição",
+        "Por Categoria",
+        "Evolução",
+        "Top Itens",
+    ]
+
+    insight_titles = [item["titulo"] for item in artifact["insights"]]
+    assert "Saving médio abaixo do benchmark" in insight_titles
+
+
+def test_public_preview_response_exposes_current_report_payload():
+    artifact = build_metric_report_data(_sample_report_source(), _sample_report_config())
+
+    preview = reports._public_preview_response(artifact)
+
+    assert set(preview.keys()) == {
+        "analysis",
+        "validation",
+        "mapping",
+        "dataset",
+        "summary",
+        "kpis",
+        "detail_items",
+        "metric",
+        "charts",
+        "insights",
+    }
+    assert len(preview["dataset"]) == 3
+    assert len(preview["charts"]) == 4
+    assert len(preview["kpis"]) == 1
+    assert preview["metric"]["type"] == "ECONOMIA"
+    assert preview["summary"]["primary_metric"]["label"] == "Saving Total"

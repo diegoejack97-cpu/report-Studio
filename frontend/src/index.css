@@ -7,11 +7,23 @@
   --s0: #080f18; --s1: #0d1a26; --s2: #112233; --s3: #16293e; --s4: #1c3350;
   --bd: rgba(255,255,255,0.08); --bdh: rgba(255,255,255,0.18);
   --tp: #d9e2ec; --ts: #829ab1; --tm: #486581;
+  --rf-brand: #2563eb; --rf-brand-soft: rgba(37,99,235,0.18); --rf-brand-glow: rgba(37,99,235,0.28);
+  --rf-accent: #22d3ee; --rf-success: #16a34a; --rf-danger: #ef4444; --rf-warning: #f59e0b;
   --elev-1: 0 8px 22px rgba(1, 8, 16, 0.38), 0 1px 0 rgba(255,255,255,0.03) inset;
   --elev-2: 0 14px 34px rgba(1, 8, 16, 0.46), 0 1px 0 rgba(255,255,255,0.06) inset;
   --elev-3: 0 22px 44px rgba(1, 8, 16, 0.55), 0 1px 0 rgba(255,255,255,0.09) inset;
   --surf-grad-1: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
   --surf-grad-2: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0));
+  --rf-page-bg: radial-gradient(circle at top, rgba(37,99,235,0.10), transparent 34rem), var(--s0);
+  --rf-surface-bg: var(--surf-grad-1), var(--s1);
+  --rf-surface-strong-bg: var(--surf-grad-2), var(--s1);
+  --rf-glass-bg: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)), rgba(13,26,38,0.78);
+  --rf-control-bg: var(--surf-grad-1), var(--s3);
+  --rf-control-bg-hover: var(--surf-grad-2), var(--s3);
+  --rf-control-bg-focus: var(--surf-grad-2), var(--s4);
+  --rf-metric-bg: linear-gradient(135deg, var(--rf-brand), var(--rf-accent));
+  --rf-table-head-bg: linear-gradient(180deg, var(--rf-brand), #1d4ed8);
+  --rf-radius-sm: 0.5rem; --rf-radius-md: 0.75rem; --rf-radius-lg: 1rem; --rf-radius-xl: 1.25rem;
   --focus-ring: rgba(59,130,246,0.38);
   color-scheme: dark;
 }
@@ -21,11 +33,23 @@
   --s0: #f0f4f8; --s1: #ffffff; --s2: #f8fafc; --s3: #edf2f7; --s4: #e2eaf3;
   --bd: rgba(0,0,0,0.09); --bdh: rgba(0,0,0,0.20);
   --tp: #1e293b; --ts: #486581; --tm: #829ab1;
+  --rf-brand: #2563eb; --rf-brand-soft: rgba(37,99,235,0.10); --rf-brand-glow: rgba(37,99,235,0.16);
+  --rf-accent: #0891b2; --rf-success: #16a34a; --rf-danger: #dc2626; --rf-warning: #d97706;
   --elev-1: 0 6px 20px rgba(15,23,42,0.08), 0 1px 0 rgba(255,255,255,0.85) inset;
   --elev-2: 0 12px 30px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.92) inset;
   --elev-3: 0 18px 42px rgba(15,23,42,0.16), 0 1px 0 rgba(255,255,255,0.95) inset;
   --surf-grad-1: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.72));
   --surf-grad-2: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.8));
+  --rf-page-bg: radial-gradient(circle at top, rgba(37,99,235,0.08), transparent 32rem), var(--s0);
+  --rf-surface-bg: var(--surf-grad-1), var(--s1);
+  --rf-surface-strong-bg: var(--surf-grad-2), var(--s1);
+  --rf-glass-bg: linear-gradient(180deg, rgba(255,255,255,0.90), rgba(255,255,255,0.72)), rgba(255,255,255,0.82);
+  --rf-control-bg: var(--surf-grad-1), var(--s2);
+  --rf-control-bg-hover: var(--surf-grad-2), var(--s2);
+  --rf-control-bg-focus: var(--surf-grad-2), var(--s1);
+  --rf-metric-bg: linear-gradient(135deg, var(--rf-brand), var(--rf-accent));
+  --rf-table-head-bg: linear-gradient(180deg, var(--rf-brand), #1d4ed8);
+  --rf-radius-sm: 0.5rem; --rf-radius-md: 0.75rem; --rf-radius-lg: 1rem; --rf-radius-xl: 1.25rem;
   --focus-ring: rgba(37,99,235,0.3);
   color-scheme: light;
 }
@@ -49,30 +73,38 @@
 }
 
 @layer components {
+  .rf-page-surface {
+    background: var(--rf-page-bg);
+    color: var(--tp);
+  }
+
   .surface-0  { background: var(--s0); }
   .surface-1  { background: var(--s1); }
   .surface-2  { background: var(--s2); }
   .surface-3  { background: var(--s3); }
   .border-theme { border-color: var(--bd); }
 
-  .glass {
-    background: rgba(255,255,255,0.03);
+  .glass,
+  .rf-panel-glass {
+    background: var(--rf-glass-bg);
     border: 1px solid var(--bd);
     backdrop-filter: blur(12px);
+    box-shadow: var(--elev-2);
   }
-  [data-theme="light"] .glass { background: rgba(255,255,255,0.75); }
 
   .gradient-text {
     @apply bg-gradient-to-r from-brand-400 to-cyan-400 bg-clip-text text-transparent;
   }
 
-  .btn-primary {
+  .btn-primary,
+  .rf-btn-primary {
     @apply px-5 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold text-sm transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
     border: 1px solid rgba(255,255,255,0.14);
-    box-shadow: 0 10px 20px rgba(37,99,235,0.24), 0 1px 0 rgba(255,255,255,0.18) inset;
+    box-shadow: 0 10px 20px var(--rf-brand-glow), 0 1px 0 rgba(255,255,255,0.18) inset;
   }
-  .btn-primary:hover {
-    box-shadow: 0 14px 26px rgba(37,99,235,0.28), 0 1px 0 rgba(255,255,255,0.22) inset;
+  .btn-primary:hover,
+  .rf-btn-primary:hover {
+    box-shadow: 0 14px 26px var(--rf-brand-glow), 0 1px 0 rgba(255,255,255,0.22) inset;
     transform: translateY(-1px);
   }
   .btn-ghost {
@@ -86,89 +118,152 @@
     border-color: var(--bd);
     box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.2) inset;
   }
-  .btn-outline {
+  .btn-outline,
+  .rf-btn-secondary {
     @apply px-4 py-2 rounded-lg font-medium text-sm transition-all duration-150;
     border: 1px solid var(--bd); color: var(--tp);
-    background: var(--surf-grad-1);
+    background: var(--rf-surface-bg);
     box-shadow: var(--elev-1);
   }
-  .btn-outline:hover {
+  .btn-outline:hover,
+  .rf-btn-secondary:hover {
     border-color: var(--bdh);
     box-shadow: var(--elev-2);
     transform: translateY(-1px);
   }
 
-  .input-field {
+  .input-field,
+  .rf-control {
     @apply w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-150;
-    background: var(--surf-grad-1), var(--s3);
+    background: var(--rf-control-bg);
     border: 1px solid var(--bd);
     color: var(--tp);
     box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset, 0 1px 6px rgba(2,8,20,0.07);
   }
-  .input-field::placeholder { color: var(--tm); }
-  .input-field:focus {
-    border-color: #2563eb;
-    background: var(--surf-grad-2), var(--s4);
+  .input-field::placeholder,
+  .rf-control::placeholder { color: var(--tm); }
+  .input-field:focus,
+  .rf-control:focus {
+    border-color: var(--rf-brand);
+    background: var(--rf-control-bg-focus);
     box-shadow: 0 0 0 3px var(--focus-ring), 0 2px 10px rgba(37,99,235,0.12);
   }
-  .input-field:hover:not(:disabled) {
+  .input-field:hover:not(:disabled),
+  .rf-control:hover:not(:disabled) {
     border-color: var(--bdh);
-    background: var(--surf-grad-2), var(--s3);
+    background: var(--rf-control-bg-hover);
   }
-  .input-field:disabled {
+  .input-field:disabled,
+  .rf-control:disabled {
     opacity: 0.55;
     cursor: not-allowed;
     box-shadow: none;
   }
 
-  .card {
-    background: var(--surf-grad-1), var(--s1);
+  .card,
+  .rf-card-premium {
+    background: var(--rf-surface-bg);
     border: 1px solid var(--bd);
     box-shadow: var(--elev-1);
     @apply rounded-xl;
   }
-  .card:hover {
+  .card:hover,
+  .rf-card-premium:hover {
     border-color: var(--bdh);
     box-shadow: var(--elev-2);
   }
 
-  .badge {
+  .badge,
+  .rf-badge {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
     border: 1px solid var(--bd);
+    background: var(--rf-brand-soft);
+    color: var(--tp);
     box-shadow: 0 1px 0 rgba(255,255,255,0.14) inset;
   }
 
-  .panel-2d {
-    background: var(--surf-grad-1), var(--s1);
+  .panel-2d,
+  .rf-panel {
+    background: var(--rf-surface-bg);
     border: 1px solid var(--bd);
     box-shadow: var(--elev-1);
     @apply rounded-2xl;
   }
 
-  .panel-2d-strong {
-    background: var(--surf-grad-2), var(--s1);
+  .panel-2d-strong,
+  .rf-panel-strong {
+    background: var(--rf-surface-strong-bg);
     border: 1px solid var(--bd);
     box-shadow: var(--elev-2);
     @apply rounded-2xl;
   }
 
-  .chart-shell {
-    background: var(--surf-grad-2), var(--s1);
+  .chart-shell,
+  .rf-chart-card {
+    background: var(--rf-surface-strong-bg);
     border: 1px solid var(--bd);
     box-shadow: var(--elev-2);
     @apply rounded-2xl;
   }
 
-  .kpi-shell {
-    background: var(--surf-grad-1), var(--s1);
+  .kpi-shell,
+  .rf-kpi-card {
+    background: var(--rf-surface-bg);
     border: 1px solid var(--bd);
     box-shadow: var(--elev-1);
     @apply rounded-2xl;
+  }
+
+  .rf-metric-hero {
+    position: relative;
+    overflow: hidden;
+    background: var(--rf-metric-bg);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: var(--elev-2), inset 0 1px 0 rgba(255,255,255,0.22);
+    color: #fff;
+    @apply rounded-2xl;
+  }
+  .rf-metric-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(110deg, rgba(255,255,255,0.20), rgba(255,255,255,0) 38%);
+    opacity: 0.6;
+  }
+  .rf-metric-hero > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .rf-table-premium {
+    overflow: hidden;
+    background: var(--rf-surface-bg);
+    border: 1px solid var(--bd);
+    box-shadow: var(--elev-1);
+    @apply rounded-2xl;
+  }
+  .rf-table-premium table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .rf-table-premium thead tr {
+    background: var(--rf-table-head-bg);
+    color: #fff;
+  }
+  .rf-table-premium th {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0;
+  }
+  .rf-table-premium td,
+  .rf-table-premium th {
+    border-bottom: 1px solid var(--bd);
   }
 
   .surface-3d {
     position: relative;
-    background: var(--surf-grad-2), var(--s1);
+    background: var(--rf-surface-strong-bg);
     border: 1px solid var(--bd);
     box-shadow: var(--elev-2);
     transform-style: preserve-3d;
@@ -279,9 +374,12 @@
   }
 
   .btn-primary:focus-visible,
+  .rf-btn-primary:focus-visible,
   .btn-ghost:focus-visible,
   .btn-outline:focus-visible,
+  .rf-btn-secondary:focus-visible,
   .input-field:focus-visible,
+  .rf-control:focus-visible,
   .card-clickable:focus-visible,
   .toggle-2d:focus-visible,
   .tab-button:focus-visible,
@@ -291,8 +389,10 @@
   }
 
   .btn-primary:active:not(:disabled),
+  .rf-btn-primary:active:not(:disabled),
   .btn-ghost:active:not(:disabled),
   .btn-outline:active:not(:disabled),
+  .rf-btn-secondary:active:not(:disabled),
   .icon-action:active:not(:disabled),
   .card-clickable:active:not(:disabled),
   .tab-button:active:not(:disabled) {
@@ -300,8 +400,10 @@
   }
 
   .btn-primary:disabled,
+  .rf-btn-primary:disabled,
   .btn-ghost:disabled,
   .btn-outline:disabled,
+  .rf-btn-secondary:disabled,
   .icon-action:disabled,
   .tab-button:disabled,
   .card-clickable:disabled {

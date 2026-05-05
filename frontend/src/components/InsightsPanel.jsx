@@ -32,26 +32,27 @@ export default function InsightsPanel({ insights = [], dark = false }) {
   if (!insights.length) {
     return (
       <div
-        className="panel-2d"
+        className="rf-panel"
         style={{
           margin: '16px 0',
-          padding: '14px 18px',
-          borderRadius: 9,
+          padding: '16px 18px',
           fontSize: 13,
           color: emptyColor,
         }}
       >
-        Não foram identificados pontos críticos nos dados analisados.
+        <div className="flex items-center gap-2">
+          <BarChart3 size={16} />
+          <span>Não foram identificados pontos críticos nos dados analisados.</span>
+        </div>
       </div>
     )
   }
 
   return (
     <div
-      className="panel-2d"
+      className="rf-panel-strong"
       style={{
         margin: '16px 0',
-        borderRadius: 9,
         overflow: 'hidden',
       }}
     >
@@ -66,7 +67,10 @@ export default function InsightsPanel({ insights = [], dark = false }) {
           letterSpacing: '.05em',
         }}
       >
-        Insights Automáticos
+        <span className="inline-flex items-center gap-2">
+          <SparklesIcon />
+          Insights Automáticos
+        </span>
       </div>
       <div style={{ padding: '12px 16px' }}>
         {insights.map((insight, index) => {
@@ -84,9 +88,12 @@ export default function InsightsPanel({ insights = [], dark = false }) {
                 padding: '10px 14px',
                 marginBottom: index === insights.length - 1 ? 0 : 8,
                 borderLeft: `3px solid ${styles.border}`,
-                background: dark ? '#102132' : '#f8fafc',
-                borderRadius: '0 6px 6px 0',
-                boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset',
+                background: dark ? 'linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0)), #102132' : 'linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.72)), #f8fafc',
+                borderRadius: '0 10px 10px 0',
+                borderTop: `1px solid ${border}`,
+                borderRight: `1px solid ${border}`,
+                borderBottom: `1px solid ${border}`,
+                boxShadow: 'var(--elev-1)',
               }}
             >
               <span style={{ flexShrink: 0, marginTop: 1, display: 'inline-flex' }}>
@@ -124,4 +131,8 @@ export default function InsightsPanel({ insights = [], dark = false }) {
     </div>
   )
 }
+function SparklesIcon() {
+  return <span className="h-1.5 w-1.5 rounded-full bg-brand-400 shadow-[0_0_12px_rgba(96,165,250,0.8)]" />
+}
+
 import { AlertTriangle, BarChart3, DollarSign, Settings2 } from 'lucide-react'

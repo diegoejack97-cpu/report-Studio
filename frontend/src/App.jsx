@@ -13,6 +13,8 @@ import ContactPage    from './pages/ContactPage'
 import BillingPage    from './pages/BillingPage'
 import ProfilePage    from './pages/ProfilePage'
 import BillingSuccessPage from './pages/BillingSuccessPage'
+import TermsPage      from './pages/TermsPage'
+import PrivacyPage    from './pages/PrivacyPage'
 
 const INACTIVITY_LIMIT_MS = 10 * 60 * 1000
 const LAST_ACTIVITY_KEY = 'rs-last-activity'
@@ -157,6 +159,8 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/contato" element={<ContactPage />} />
+        <Route path="/termos" element={<TermsPage />} />
+        <Route path="/privacidade" element={<PrivacyPage />} />
         <Route path="/billing" element={<PrivateRoute><BillingPage /></PrivateRoute>} />
         <Route path="/success" element={<BillingSuccessPage />} />
         <Route path="/billing/success" element={<BillingSuccessPage />} />

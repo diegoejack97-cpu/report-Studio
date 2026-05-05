@@ -17,6 +17,8 @@ export default function Navbar() {
 
       <div className="flex items-center gap-2">
         <Link to="/pricing" className="btn-ghost hidden sm:block">Preços</Link>
+        <Link to="/termos" className="btn-ghost hidden lg:block">Termos</Link>
+        <Link to="/privacidade" className="btn-ghost hidden lg:block">Privacidade</Link>
 
         {/* Toggle dark/light */}
         <button onClick={toggle} className="btn-ghost p-2 rounded-lg" title={dark ? 'Modo claro' : 'Modo escuro'}>

@@ -1,4 +1,5 @@
 import { selectMetricCharts } from './chartSelection.js'
+import { premiumizeEChartOption } from './chartTheme.js'
 
 export function escapeHtml(str) {
   return String(str ?? '')
@@ -51,7 +52,23 @@ export function buildReportHTML(state, options = {}) {
     ? Math.max(1, Number(options.tableRenderLimit))
     : 500
   const rawCharts = Array.isArray(safeReportData.charts) ? safeReportData.charts : []
-  const charts = selectMetricCharts(rawCharts, metric.type || 'ECONOMIA', rows.length)
+  const chartTypeOf = chart => {
+    const firstSeries = Array.isArray(chart?.option?.series) ? chart.option.series[0] : chart?.option?.series
+    if (chart?.type) return String(chart.type).toLowerCase()
+    if (firstSeries?.type) return String(firstSeries.type).toLowerCase()
+    if (chart?.source === 'top_items') return 'hbar'
+    if (chart?.source === 'by_date') return 'line'
+    return 'bar'
+  }
+  const selectedCharts = selectMetricCharts(rawCharts, metric.type || 'ECONOMIA', rows.length)
+  const charts = selectedCharts.map((chart, index) => {
+    const type = chartTypeOf(chart)
+    const sameTypeIndex = selectedCharts.slice(0, index).filter(item => chartTypeOf(item) === type).length
+    return {
+      ...chart,
+      option: chart?.option ? premiumizeEChartOption(chart.option, { isDark, chart, chartIndex: index, sameTypeIndex }) : chart?.option,
+    }
+  })
   const chartsJSON = JSON.stringify(charts)
   const reportDataJSON = JSON.stringify(reportData)
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
@@ -73,11 +90,9 @@ export function buildReportHTML(state, options = {}) {
 
   function renderInsightsHTML(items = []) {
     if (!items.length) {
-      return `<div style="margin:16px 0;padding:14px 18px;background:${cardBg};
-                  border:1px solid ${bdColor};border-radius:9px;
-                  box-shadow:${expElev1};background-image:${expPanelSubtle};
-                  font-size:13px;color:${subTxt};">
-          Não foram identificados pontos críticos nos dados analisados.
+      return `<div class="insights-empty">
+        <span class="insight-dot"></span>
+        Não foram identificados pontos críticos nos dados analisados.
       </div>`
     }
 
@@ -93,41 +108,27 @@ export function buildReportHTML(state, options = {}) {
       const tipo = ins?.tipo || 'operacional'
       const palette = severityColors[sev] || severityColors.baixa
       return `
-        <div style="display:flex;gap:12px;align-items:flex-start;
-                    padding:10px 14px;border-left:3px solid ${palette.border};
-                    background:${isDark ? '#102132' : '#f8fafc'};
-                    border-radius:0 8px 8px 0;margin-bottom:${index === items.length - 1 ? 0 : 8}px;
-                    box-shadow:inset 0 1px 0 ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.9)'};">
-            <span style="font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">${typeIcons[tipo] || 'CHT'}</span>
+        <div class="insight-card" style="--insight-color:${palette.border};margin-bottom:${index === items.length - 1 ? 0 : 8}px;">
+            <span class="insight-icon">${typeIcons[tipo] || 'CHT'}</span>
             <div>
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
-                    <span style="font-size:13px;font-weight:700;color:${txt}">
-                        ${escapeHtml(ins?.titulo || '')}
-                    </span>
-                    <span style="font-size:10px;font-weight:600;padding:1px 7px;
-                                 border-radius:999px;background:${palette.badgeBg};
-                                 color:${palette.badgeTxt};">
+                <div class="insight-head">
+                    <span class="insight-title">${escapeHtml(ins?.titulo || '')}</span>
+                    <span class="insight-badge" style="background:${palette.badgeBg};color:${palette.badgeTxt};">
                         ${escapeHtml(String(sev).toUpperCase())}
                     </span>
                 </div>
-                <div style="font-size:12px;color:${isDark ? '#7f9ab5' : '#64748b'};line-height:1.5">
-                    ${escapeHtml(ins?.descricao || '')}
-                </div>
+                <div class="insight-body">${escapeHtml(ins?.descricao || '')}</div>
             </div>
         </div>`
     }).join('')
 
     return `
-    <div style="margin:16px 0;background:${cardBg};border:1px solid ${bdColor};
-                border-radius:12px;overflow:hidden;box-shadow:${expElev1};
-                background-image:${expPanelSubtle};">
-        <div style="padding:10px 16px;border-bottom:1px solid ${bdColor};
-                    font-size:12px;font-weight:700;color:${isDark ? '#2e5c8a' : '#1d4ed8'};
-                    text-transform:uppercase;letter-spacing:.05em;
-                    background:${isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)'};">
-            Insights Automáticos
+    <div class="insights">
+        <div class="insights-title">
+            <span class="insight-dot"></span>
+            Insights automáticos
         </div>
-        <div style="padding:12px 16px;">
+        <div class="insights-body">
             ${itemsHTML}
         </div>
     </div>`
@@ -141,7 +142,13 @@ export function buildReportHTML(state, options = {}) {
   const savTotal = metric.value ?? summary?.primary_metric?.value ?? 0
 
   const kpiHTML = sections?.kpi && kpis.length ? `<div class="kpi-row">${kpis.map(k => {
-    return `<div class="kpi" style="border-top-color:${k.color || p2}"><div class="kpi-ico">${escapeHtml(k.icon || 'KPI')}</div><div class="kpi-v" style="color:${k.color || p2}">${escapeHtml(k.display ?? k.value ?? '—')}</div><div class="kpi-l">${escapeHtml(k.label || 'KPI')}</div></div>`
+    const kpiColor = k.color || p2
+    return `<div class="kpi" style="--kpi-color:${kpiColor};border-top-color:${kpiColor}">
+      <div class="kpi-badge">Indicador</div>
+      <div class="kpi-ico">${escapeHtml(k.icon || 'KPI')}</div>
+      <div class="kpi-v" style="color:${kpiColor}">${escapeHtml(k.display ?? k.value ?? '—')}</div>
+      <div class="kpi-l">${escapeHtml(k.label || 'KPI')}</div>
+    </div>`
   }).join('')}</div>` : ''
 
   const savDetailsHTML = detailItems.map((item, index) => {
@@ -152,7 +159,18 @@ export function buildReportHTML(state, options = {}) {
   }).join('')
   const savDisplay = metric.formatted_value || summary?.primary_metric?.formatted_value || formatMetricValue(metricType, savTotal, metric.unit)
   const metricDisplayType = summary?.primary_metric?.type || (metricType === 'TAXA' || metricType === 'VARIACAO' ? 'percentual' : metricType === 'VOLUME' ? 'quantidade' : 'monetário')
-  const savHTML = sections?.saving ? `<div class="sav"><div><div class="sav-lbl">${escapeHtml(metric.label || summary?.primary_metric?.label || 'Métrica principal')}</div><div class="sav-val" style="color:${metricColor}">${escapeHtml(savDisplay)}</div><div style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:999px;border:1px solid ${metricColor}55;background:${metricColor}22;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.88)">${escapeHtml(metricType)} · ${escapeHtml(metricDisplayType)}</div>${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}</div><div style="font-size:20px;opacity:.2;font-weight:700;letter-spacing:.06em">METRICA</div></div>` : ''
+  const savHTML = sections?.saving ? `<div class="sav" style="--metric-color:${metricColor}">
+    <div class="sav-main">
+      <div class="sav-badges">
+        <span>Métrica principal</span>
+        <span>${escapeHtml(metricType)} · ${escapeHtml(metricDisplayType)}</span>
+      </div>
+      <div class="sav-lbl">${escapeHtml(metric.label || summary?.primary_metric?.label || 'Métrica principal')}</div>
+      <div class="sav-val">${escapeHtml(savDisplay)}</div>
+      ${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}
+    </div>
+    <div class="sav-mark">METRICA</div>
+  </div>` : ''
   const insightsHTML = renderInsightsHTML(insights)
 
   const summaryHTML = sections?.summary && summary.rows.length ? `
@@ -320,35 +338,57 @@ window.addEventListener('keydown', (e) => {
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"><\/script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:${bg};font-family:'DM Sans',sans-serif;color:${txt};padding:20px;}
+html{background:${bg};}
+body{background:radial-gradient(circle at top,${isDark ? 'rgba(37,99,235,.12)' : 'rgba(37,99,235,.08)'},transparent 34rem),${bg};font-family:'DM Sans',sans-serif;color:${txt};padding:24px 20px;min-height:100vh;}
 .wrap{max-width:1400px;margin:0 auto;}
-.hd{position:relative;padding:1rem 1rem 1.15rem;margin-bottom:1.25rem;background:${expPanelSubtle};border:1px solid ${bdColor};border-radius:12px;box-shadow:${expElev1};}
-.hd-accent{position:absolute;top:0;left:0;width:48px;height:3px;border-radius:2px;background:linear-gradient(90deg,${p1},#0ea5e9);}
+.hd{position:relative;overflow:hidden;padding:1.15rem 1.2rem 1.2rem;margin-bottom:1.35rem;background:${cardBg};background-image:${expPanelGrad};border:1px solid ${bdColor};border-radius:16px;box-shadow:${expElev2};}
+.hd::after{content:"";position:absolute;inset:auto -10% -45% 55%;height:140%;background:radial-gradient(circle,${p1}22,transparent 62%);pointer-events:none;}
+.hd-accent{position:absolute;top:0;left:0;width:76px;height:3px;border-radius:2px;background:linear-gradient(90deg,${p1},#22d3ee);}
 .hd-divider{position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,${p1}66,transparent);}
-.hd-inner{padding-top:1rem;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:.5rem;}
-.hd-title{font-size:1.6rem;font-weight:700;letter-spacing:-.03em;line-height:1.15;}
-.hd-sub{font-size:.8rem;color:${subTxt};margin-top:.2rem;}
+.hd-inner{position:relative;z-index:1;padding-top:.85rem;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:1rem;}
+.hd-kicker{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:${p2};margin-bottom:.45rem;}
+.hd-title{font-size:clamp(1.65rem,3vw,2.2rem);font-weight:800;letter-spacing:-.03em;line-height:1.08;}
+.hd-sub{font-size:.88rem;color:${subTxt};margin-top:.35rem;}
 .hd-badges{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;}
 .badge{font-size:.7rem;font-weight:600;color:${subTxt};background:${cardBg};border:1px solid ${bdColor};border-radius:999px;padding:.2rem .7rem;box-shadow:inset 0 1px 0 ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.95)'};}
 .badge-blue{color:${p2};background:${p1}22;border-color:${p1}55;font-weight:600;}
-.sav{background:linear-gradient(135deg,${p1},${p2});color:#fff;border-radius:14px;padding:22px 28px;margin:18px 0;display:flex;align-items:center;justify-content:space-between;border:1px solid ${p1}66;box-shadow:${expElev2},inset 0 1px 0 rgba(255,255,255,.2);}
-.sav-lbl{font-size:11px;opacity:.7;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;}
-.sav-val{font-size:40px;font-weight:800;color:${acc};font-family:'DM Mono',monospace;}
+.insights-empty{margin:16px 0;padding:16px 18px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:13px;box-shadow:${expElev1};font-size:13px;color:${subTxt};display:flex;align-items:center;gap:10px;}
+.insights{margin:18px 0;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:14px;overflow:hidden;box-shadow:${expElev1};}
+.insights-title{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid ${bdColor};font-size:12px;font-weight:800;color:${p2};text-transform:uppercase;letter-spacing:.06em;background:${isDark ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.65)'};}
+.insight-dot{width:7px;height:7px;border-radius:999px;background:#60a5fa;box-shadow:0 0 14px rgba(96,165,250,.75);flex-shrink:0;}
+.insights-body{padding:14px 16px;}
+.insight-card{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-left:3px solid var(--insight-color);background:${isDark ? 'linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,0)),#102132' : 'linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,255,255,.76)),#f8fafc'};border-radius:0 10px 10px 0;border-top:1px solid ${bdColor};border-right:1px solid ${bdColor};border-bottom:1px solid ${bdColor};box-shadow:${expElev1};}
+.insight-icon{width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--insight-color) 14%,transparent);border:1px solid color-mix(in srgb,var(--insight-color) 32%,transparent);color:var(--insight-color);font-size:10px;font-weight:800;flex-shrink:0;}
+.insight-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;}
+.insight-title{font-size:13px;font-weight:800;color:${txt};}
+.insight-badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;text-transform:uppercase;}
+.insight-body{font-size:12px;color:${isDark ? '#7f9ab5' : '#64748b'};line-height:1.55;}
+.sav{position:relative;overflow:hidden;background:radial-gradient(circle at 18% 12%,rgba(255,255,255,.24),transparent 30%),radial-gradient(circle at 92% 8%,color-mix(in srgb,var(--metric-color) 28%,transparent),transparent 34%),linear-gradient(135deg,${p1},${p2});color:#fff;border-radius:16px;padding:24px 30px;margin:20px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;border:1px solid rgba(255,255,255,.18);box-shadow:0 24px 58px color-mix(in srgb,var(--metric-color) 28%,transparent),${expElev2},inset 0 1px 0 rgba(255,255,255,.24);}
+.sav-main{min-width:0;flex:1;}
+.sav-badges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.sav-badges span{display:inline-flex;align-items:center;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);border-radius:999px;padding:4px 10px;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.9);}
+.sav-lbl{font-size:11px;opacity:.76;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;}
+.sav-val{font-size:52px;line-height:1.02;font-weight:800;color:#f8fafc;text-shadow:0 0 34px color-mix(in srgb,var(--metric-color) 45%,transparent);font-family:'DM Mono',monospace;overflow-wrap:anywhere;}
 .sav-det{display:flex;gap:24px;margin-top:12px;flex-wrap:wrap;align-items:center;}
-.sav-dv{font-size:14px;font-weight:700;font-family:'DM Mono',monospace;}
-.sav-dl{font-size:10px;opacity:.6;margin-top:2px;}
+.sav-dv{font-size:14px;font-weight:800;font-family:'DM Mono',monospace;}
+.sav-dl{font-size:10px;opacity:.68;margin-top:2px;text-transform:uppercase;letter-spacing:.04em;}
+.sav-mark{font-size:20px;opacity:.18;font-weight:800;letter-spacing:.08em;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.09);border-radius:12px;padding:14px 16px;}
 .kpi-row{display:flex;gap:12px;margin:18px 0;flex-wrap:wrap;}
-.kpi{flex:1;min-width:110px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:11px;padding:14px;text-align:center;border-top:4px solid ${p2};box-shadow:${expElev1};}
-.kpi-ico{font-size:18px;margin-bottom:4px;}
-.kpi-v{font-size:18px;font-weight:800;font-family:'DM Mono',monospace;}
-.kpi-l{font-size:10px;color:${subTxt};margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;}
-.cg{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0;}
-.cc{background:${cardBg};background-image:${expPanelGrad};border:1px solid ${bdColor};border-radius:11px;padding:16px;box-shadow:${expElev1};}
+.kpi{position:relative;overflow:hidden;flex:1;min-width:150px;background:${cardBg};background-image:radial-gradient(circle at 100% 0%,var(--kpi-color)18,transparent 42%),${expPanelSubtle};border:1px solid ${bdColor};border-radius:13px;padding:16px;text-align:left;border-top:4px solid ${p2};box-shadow:${expElev1};}
+.kpi-badge{display:inline-flex;border:1px solid color-mix(in srgb,var(--kpi-color) 36%,transparent);background:color-mix(in srgb,var(--kpi-color) 12%,transparent);color:var(--kpi-color);border-radius:999px;padding:3px 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px;}
+.kpi-ico{position:absolute;right:14px;top:14px;width:38px;height:38px;border-radius:12px;border:1px solid ${bdColor};background:${isDark ? 'rgba(255,255,255,.05)' : 'rgba(15,23,42,.04)'};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--kpi-color);}
+.kpi-v{font-size:26px;line-height:1.04;font-weight:800;font-family:'DM Mono',monospace;padding-right:44px;overflow-wrap:anywhere;}
+.kpi-l{font-size:10px;color:${subTxt};margin-top:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;}
+.cg{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:20px 0;}
+.cc{background:${cardBg};background-image:${expPanelGrad};border:1px solid ${bdColor};border-radius:14px;padding:18px;box-shadow:${expElev2};}
 .cc.full{grid-column:1/-1;}
-.ct{font-size:13px;font-weight:700;color:${p2};margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid ${bdColor};}
-.cw{position:relative;}
-.summary{margin-top:22px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:12px;padding:14px;box-shadow:${expElev1};}
-.summary-title{font-size:12px;font-weight:700;color:${p2};margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid ${bdColor};text-transform:uppercase;letter-spacing:.05em;}
+.ch{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid ${bdColor};}
+.ct{font-size:13px;font-weight:800;color:${txt};text-transform:uppercase;letter-spacing:.04em;}
+.ct-reason{font-size:10px;font-weight:600;color:${subTxt};text-transform:none;letter-spacing:0;margin-top:3px;}
+.ct-badge{font-size:10px;font-weight:700;color:${p2};background:${p1}1f;border:1px solid ${p1}55;border-radius:999px;padding:3px 8px;white-space:nowrap;}
+.cw{position:relative;border-radius:12px;padding:8px;background:${isDark ? 'rgba(255,255,255,0.012)' : 'rgba(15,23,42,0.018)'};}
+.summary{margin-top:22px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:14px;padding:16px;box-shadow:${expElev1};}
+.summary-title{font-size:12px;font-weight:800;color:${p2};margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid ${bdColor};text-transform:uppercase;letter-spacing:.06em;}
 .summary-scroll,.table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .summary-table{width:100%;border-collapse:collapse;font-size:12px;}
 .summary-table th{background:linear-gradient(180deg,${p1},${p2});color:#fff;padding:8px 10px;font-size:11px;text-align:left;}
@@ -356,17 +396,17 @@ body{background:${bg};font-family:'DM Sans',sans-serif;color:${txt};padding:20px
 .summary-table td{padding:7px 10px;border-bottom:1px solid ${bdColor};color:${txt};}
 .summary-table .mono{font-family:'DM Mono',monospace;}
 .summary-total{background:${isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0'};font-weight:700;border-top:2px solid ${bdColor};}
-.tbl-section{margin-top:22px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:12px;overflow:hidden;box-shadow:${expElev1};}
-.tbl-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid ${bdColor};background:${isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)'};}
-.st{font-size:13px;font-weight:700;color:${p2};}
+.tbl-section{margin-top:22px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:14px;overflow:hidden;box-shadow:${expElev1};}
+.tbl-header{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid ${bdColor};background:${isDark ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.65)'};}
+.st{font-size:13px;font-weight:800;color:${p2};text-transform:uppercase;letter-spacing:.04em;}
 .tbl-active{font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(37,99,235,0.2);color:#60a5fa;margin-left:auto;margin-right:8px;}
 .tbl-filters{padding:12px 16px;border-bottom:1px solid ${bdColor};background:${isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)'};}
 .tbl-compact-row{display:grid;grid-template-columns:minmax(180px,240px) minmax(220px,1fr);gap:10px;}
 .tbl-limit{padding:10px 14px;border-top:1px solid ${bdColor};font-size:12px;color:${subTxt};background:${isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc'};}
 table#mt{width:100%;border-collapse:collapse;font-size:12px;}
-table#mt th{background:linear-gradient(180deg,${p1},${p2});color:#fff;padding:9px 11px;font-size:11px;font-weight:700;text-transform:uppercase;white-space:nowrap;}
-table#mt td{padding:7px 11px;border-bottom:1px solid ${bdColor};color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
-.footer{margin-top:24px;padding:10px 16px;background:linear-gradient(180deg,${p1},${p2});color:rgba(255,255,255,.74);border:1px solid ${p1}88;border-radius:10px;font-size:11px;text-align:center;box-shadow:${expElev1};}
+table#mt th{background:linear-gradient(180deg,${p1},${p2});color:#fff;padding:10px 12px;font-size:11px;font-weight:800;text-transform:uppercase;white-space:nowrap;letter-spacing:.03em;}
+table#mt td{padding:8px 12px;border-bottom:1px solid ${bdColor};color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
+.footer{margin-top:26px;padding:12px 16px;background:${cardBg};background-image:linear-gradient(90deg,${p1}22,transparent),${expPanelSubtle};color:${subTxt};border:1px solid ${bdColor};border-radius:12px;font-size:11px;text-align:center;box-shadow:${expElev1};}
 @media(max-width:768px){
   html,body{width:100%;max-width:100%;overflow-x:hidden;}
   body{padding:12px;}
@@ -386,11 +426,11 @@ table#mt td{padding:7px 11px;border-bottom:1px solid ${bdColor};color:${txt};whi
   .kpi{min-width:0;}
   .kpi-v{font-size:clamp(16px,5vw,18px);overflow-wrap:anywhere;}
   .cg{grid-template-columns:1fr;gap:12px;margin:14px 0;}
-  .cc,.summary{padding:12px;border-radius:9px;}
+  .cc,.summary{padding:12px;border-radius:10px;}
   .cc{min-width:0;}
   .cc.full{grid-column:auto;}
   .ct,.summary-title,.st,.footer{overflow-wrap:anywhere;}
-  .cw{min-height:220px;}
+  .cw{min-height:220px;padding:4px;}
   .tbl-header{align-items:flex-start;flex-direction:column;gap:8px;padding:12px;}
   .tbl-active{margin-left:0;margin-right:0;}
   .tbl-filters{padding:12px;}
@@ -413,6 +453,7 @@ table#mt td{padding:7px 11px;border-bottom:1px solid ${bdColor};color:${txt};whi
   <div class="hd-accent"></div>
   <div class="hd-inner">
     <div>
+      <div class="hd-kicker">Report Flow · Relatório executivo</div>
       <div class="hd-title">${escapeHtml(title || 'Relatório')}</div>
       ${subtitle ? `<div class="hd-sub">${escapeHtml(subtitle)}</div>` : ''}
     </div>
@@ -446,12 +487,27 @@ if (!Array.isArray(_charts) || !_charts.length || !cg || !window.echarts) {
   }
   return;
 }
-function mk(id, full, title, h){
+function mk(id, full, title, h, reason){
   const card = document.createElement('div');
   card.className = 'cc' + (full ? ' full' : '');
-  const ct = document.createElement('div');
-  ct.className = 'ct';
-  ct.textContent = title || 'Gráfico';
+  const header = document.createElement('div');
+  header.className = 'ch';
+  const titleWrap = document.createElement('div');
+  const titleText = document.createElement('div');
+  titleText.className = 'ct';
+  titleText.textContent = title || 'Gráfico';
+  titleWrap.appendChild(titleText);
+  if (reason) {
+    const reasonEl = document.createElement('div');
+    reasonEl.className = 'ct-reason';
+    reasonEl.textContent = reason;
+    titleWrap.appendChild(reasonEl);
+  }
+  const badge = document.createElement('span');
+  badge.className = 'ct-badge';
+  badge.textContent = 'Gráfico';
+  header.appendChild(titleWrap);
+  header.appendChild(badge);
   const cw = document.createElement('div');
   cw.className = 'cw';
   cw.style.height = (h || 260) + 'px';
@@ -460,7 +516,7 @@ function mk(id, full, title, h){
   target.style.width = '100%';
   target.style.height = '100%';
   cw.appendChild(target);
-  card.appendChild(ct);
+  card.appendChild(header);
   card.appendChild(cw);
   cg.appendChild(card);
   return target;
@@ -472,7 +528,7 @@ function baseGrid(horizontal){
   return horizontal ? { left:'22%', right:'4%', top:'8%', bottom:'12%', containLabel:false } : { left:'3%', right:'4%', top:'8%', bottom:'12%', containLabel:true };
 }
 function render(item){
-  const el = mk(item.id, !!item.full, item.title, item.h || 260);
+  const el = mk(item.id, !!item.full, item.title, item.h || 260, item.selectionReason);
   const inst = echarts.init(el);
   if (!item?.option) return;
   inst.setOption(item.option, true);

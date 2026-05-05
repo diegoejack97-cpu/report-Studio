@@ -4,6 +4,8 @@
 
 .PHONY: help up down build logs shell-backend shell-db reset clean frontend-build frontend-test backend-test release-check
 
+PYTEST ?= $(shell if [ -x backend/.venv-test/bin/pytest ]; then printf '%s' '.venv-test/bin/pytest'; elif [ -x venv/bin/pytest ]; then printf '%s' '../venv/bin/pytest'; else printf '%s' 'pytest'; fi)
+
 help:
 	@echo ""
 	@echo "  make up          → Sobe todos os containers"
@@ -66,9 +68,9 @@ frontend-test:
 	cd frontend && npm run test:release-min
 
 backend-test:
-	cd backend && pytest -q
+	cd backend && $(PYTEST) -q
 
 release-check:
 	cd frontend && npm run build
 	cd frontend && npm run test:release-min
-	cd backend && pytest -q
+	cd backend && $(PYTEST) -q

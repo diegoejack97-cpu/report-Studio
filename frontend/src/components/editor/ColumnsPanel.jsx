@@ -54,7 +54,7 @@ export default function ColumnsPanel({ state, update }) {
         </div>
       </div>
 
-      <div className="panel-2d rounded-lg bg-[var(--s2)] p-2.5">
+      <div className="rf-panel p-2.5">
         <p className="text-[10px] text-ink-500 font-semibold uppercase tracking-wider mb-1">Agrupamento do resumo</p>
         <p className="text-[11px] text-[color:var(--ts)]">
           O agrupamento do resumo é definido automaticamente pelo backend para manter consistência do cálculo.

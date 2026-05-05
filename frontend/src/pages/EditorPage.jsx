@@ -534,7 +534,7 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="h-screen bg-[var(--s0)] flex flex-col overflow-hidden">
+    <div className="rf-page-surface h-screen flex flex-col overflow-hidden">
       <TopBar
         title={state.title}
         saving={saving}
@@ -572,15 +572,15 @@ export default function EditorPage() {
                 animate={{ width: 380, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="flex-shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--s1)', borderRight: '1px solid var(--bd)', width: 380 }}
+                className="rf-panel-glass flex-shrink-0 flex flex-col overflow-hidden rounded-none border-y-0 border-l-0" style={{ width: 380 }}
               >
                 {/* Tabs */}
-                <div className="flex overflow-x-auto flex-shrink-0" style={{ background: 'var(--s0)', borderBottom: '1px solid var(--bd)' }}>
+                <div className="flex overflow-x-auto flex-shrink-0 px-2 pt-2 gap-1" style={{ borderBottom: '1px solid var(--bd)' }}>
                   {TABS.map(t => (
                     <button
                       key={t.id}
                       onClick={() => setTab(t.id)}
-                      className="tab-button px-3 py-2.5 text-xs font-semibold whitespace-nowrap"
+                      className="tab-button px-3 py-2.5 text-xs font-semibold whitespace-nowrap rounded-t-lg"
                       data-active={tab === t.id}
                     >
                       <span className="inline-flex items-center gap-1.5">
@@ -610,7 +610,7 @@ export default function EditorPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex-1 overflow-auto min-w-0" style={{ background: 'var(--s0)' }}
+              className="rf-page-surface flex-1 overflow-auto min-w-0"
             >
               <ReportPreview state={{ ...state, update }} />
             </motion.div>
@@ -636,19 +636,18 @@ export default function EditorPage() {
                   animate={{ x: 0, opacity: 1 }}
                   exit={{ x: '-100%', opacity: 0.9 }}
                   transition={{ duration: 0.22 }}
-                  className="absolute left-0 top-0 bottom-0 z-40 w-[92vw] max-w-[420px] flex flex-col overflow-hidden"
-                  style={{ background: 'var(--s1)', borderRight: '1px solid var(--bd)' }}
+                  className="rf-panel-glass absolute left-0 top-0 bottom-0 z-40 w-[92vw] max-w-[420px] flex flex-col overflow-hidden rounded-none border-y-0 border-l-0"
                 >
-                  <div className="h-12 px-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: '1px solid var(--bd)', background: 'var(--s0)' }}>
+                  <div className="h-12 px-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: '1px solid var(--bd)' }}>
                     <div className="text-xs font-bold uppercase tracking-wider text-ink-400">Edição</div>
                     <button onClick={() => setShowSidebar(false)} className="btn-ghost px-3 py-2 text-xs min-h-[40px]">Fechar</button>
                   </div>
-                  <div className="flex overflow-x-auto flex-shrink-0" style={{ background: 'var(--s0)', borderBottom: '1px solid var(--bd)' }}>
+                  <div className="flex overflow-x-auto flex-shrink-0 px-2 pt-2 gap-1" style={{ borderBottom: '1px solid var(--bd)' }}>
                     {TABS.map(t => (
                       <button
                         key={t.id}
                         onClick={() => setTab(t.id)}
-                        className="tab-button px-3 py-3 text-xs font-semibold whitespace-nowrap min-h-[44px]"
+                        className="tab-button px-3 py-3 text-xs font-semibold whitespace-nowrap min-h-[44px] rounded-t-lg"
                         data-active={tab === t.id}
                       >
                         <span className="inline-flex items-center gap-1.5">
@@ -678,21 +677,22 @@ function TopBar({ title, saving, onBack, onSave, onExport, canExport, onToggleSi
   const { dark, toggle } = useThemeStore()
   if (isMobile) {
     return (
-      <div className="px-2 py-2 flex flex-col gap-1.5 flex-shrink-0 min-w-0" style={{ background: 'var(--s1)', borderBottom: '1px solid var(--bd)' }}>
+      <div className="rf-panel-glass rounded-none border-x-0 border-t-0 px-2 py-2 flex flex-col gap-1.5 flex-shrink-0 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
           <button onClick={onBack} className="btn-ghost p-2 min-h-[40px] min-w-[40px]">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <span className="text-xs font-semibold truncate min-w-0" style={{ color: 'var(--tp)' }}>{title || 'Relatório'}</span>
+          <span className="rf-badge hidden sm:inline-flex text-[10px]">Preview executivo</span>
           <button onClick={toggle} className="btn-ghost p-2 min-h-[40px] min-w-[40px] ml-auto" title={dark ? 'Modo claro' : 'Modo escuro'}>
             {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-brand-400" />}
           </button>
         </div>
         <div className="grid grid-cols-4 gap-1">
-          <button onClick={onToggleSidebar} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showSidebar ? 'text-brand-400 border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
+        <button onClick={onToggleSidebar} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showSidebar ? 'text-[color:var(--tp)] border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
             Editar
           </button>
-          <button onClick={onTogglePreview} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showPreview ? 'text-brand-400 border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
+          <button onClick={onTogglePreview} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showPreview ? 'text-[color:var(--tp)] border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
             <Eye className="w-3.5 h-3.5 inline mr-1" /> Ver
           </button>
           <button onClick={onSave} disabled={saving} className="btn-ghost px-2 py-2 min-h-[40px] text-[11px] text-[color:var(--ts)] disabled:opacity-50">
@@ -707,17 +707,20 @@ function TopBar({ title, saving, onBack, onSave, onExport, canExport, onToggleSi
   }
 
   return (
-    <div className="h-12 px-3 gap-2 flex items-center flex-shrink-0 min-w-0" style={{ background: 'var(--s1)', borderBottom: '1px solid var(--bd)' }}>
+    <div className="rf-panel-glass h-14 px-3 gap-2 flex items-center flex-shrink-0 min-w-0 rounded-none border-x-0 border-t-0">
       <button onClick={onBack} className="btn-ghost p-2 min-h-[40px] min-w-[40px]">
         <ArrowLeft className="w-4 h-4" />
       </button>
       <div className="h-4 w-px" style={{background:"var(--bd)"}} />
-      <span className="text-sm max-w-[200px] font-semibold truncate" style={{color:"var(--tp)"}}>{title || 'Relatório'}</span>
+      <div className="min-w-0">
+        <div className="text-sm max-w-[240px] font-semibold truncate" style={{color:"var(--tp)"}}>{title || 'Relatório'}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--tm)]">Área executiva de relatório</div>
+      </div>
       <div className="ml-auto flex items-center gap-1.5">
-        <button onClick={onToggleSidebar} className={`btn-ghost p-2 text-xs ${showSidebar ? 'text-brand-400 border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
+        <button onClick={onToggleSidebar} className={`btn-ghost p-2 text-xs ${showSidebar ? 'text-[color:var(--tp)] border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
           ◀ Edição
         </button>
-        <button onClick={onTogglePreview} className={`btn-ghost p-2 text-xs ${showPreview ? 'text-brand-400 border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
+        <button onClick={onTogglePreview} className={`btn-ghost p-2 text-xs ${showPreview ? 'text-[color:var(--tp)] border-[color:var(--bd)] bg-[rgba(127,127,127,0.08)]' : 'text-[color:var(--ts)]'}`}>
           <Eye className="w-4 h-4 inline mr-1" />Preview
         </button>
         <div className="h-4 w-px" style={{background:"var(--bd)"}} />

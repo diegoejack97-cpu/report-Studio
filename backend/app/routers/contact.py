@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr, field_validator
 
+from app.core.log_safety import mask_email
 from app.services.email_service import send_contact_email
 
 router = APIRouter(prefix="/api", tags=["Contact"])
@@ -57,9 +58,10 @@ class ContactRequest(BaseModel):
 
 @router.post("/contact", status_code=200)
 async def create_contact_lead(payload: ContactRequest):
+    safe_email = mask_email(str(payload.email))
     logger.info(
         "Novo lead comercial recebido. email=%s empresa=%s mensagem_chars=%s",
-        payload.email,
+        safe_email,
         payload.company or "nao_informada",
         len(payload.message),
     )
@@ -75,10 +77,10 @@ async def create_contact_lead(payload: ContactRequest):
     if not sent:
         logger.error(
             "Falha ao enviar lead comercial via Resend. email=%s detalhe=%s",
-            payload.email,
+            safe_email,
             error_detail or "sem_detalhe",
         )
         raise HTTPException(status_code=502, detail="Não foi possível enviar sua mensagem no momento")
 
-    logger.info("Lead comercial enviado com sucesso. email=%s", payload.email)
+    logger.info("Lead comercial enviado com sucesso. email=%s", safe_email)
     return {"message": "Mensagem enviada com sucesso! Entraremos em contato em breve."}

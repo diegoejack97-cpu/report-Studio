@@ -19,6 +19,11 @@ const METRIC_COLORS = {
 }
 
 const DEFAULT_LABELS = new Set(Object.values(METRIC_LABELS))
+const labelClass = 'text-[10px] font-bold text-[color:var(--ts)] uppercase tracking-wider block mb-1.5'
+const fieldClass = 'rf-control'
+const compactFieldClass = 'rf-control text-xs py-2'
+const sectionClass = 'rf-panel p-4 space-y-3'
+const helperTextClass = 'text-[10px] text-[color:var(--tm)] mt-1'
 
 // ── Utilitários de detecção ────────────────────────────────────────
 function detectColumns(cols, rows) {
@@ -88,10 +93,11 @@ function ModalBackdrop({ children, onClose }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(6,14,25,0.88)', backdropFilter: 'blur(8px)' }}
+      className="rf-page-surface fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
+      style={{ backdropFilter: 'blur(12px)' }}
       onClick={e => e.target === e.currentTarget && onClose?.()}
     >
+      <div className="pointer-events-none absolute inset-0 bg-[rgba(6,14,25,0.62)] dark:bg-[rgba(6,14,25,0.74)]" />
       {children}
     </motion.div>
   )
@@ -104,7 +110,7 @@ function WizardCard({ children, wide }) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: -10 }}
       transition={{ type: 'spring', stiffness: 300, damping: 26 }}
-      className={`relative bg-[#0b1828] border border-white/[0.12] rounded-2xl shadow-2xl overflow-hidden ${wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'}`}
+      className={`rf-panel-glass surface-3d relative max-h-[92vh] overflow-hidden ${wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'}`}
     >
       {children}
     </motion.div>
@@ -116,12 +122,13 @@ function ProgressBar({ current, total }) {
   return (
     <div className="px-6 pt-5 pb-1">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Configuração do relatório</span>
-        <span className="text-[11px] font-semibold text-slate-300">Etapa {current} de {total}</span>
+        <span className="text-[10px] font-bold text-brand-400 uppercase tracking-wider">Configuração do relatório</span>
+        <span className="rf-badge text-[11px] font-semibold">Etapa {current} de {total}</span>
       </div>
-      <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
+      <div className="h-1.5 bg-[var(--s3)] rounded-full overflow-hidden border border-theme">
         <motion.div
-          className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full"
+          className="h-full rounded-full"
+          style={{ background: 'linear-gradient(90deg, var(--rf-brand), var(--rf-accent))', boxShadow: '0 0 18px var(--rf-brand-glow)' }}
           initial={{ width: 0 }}
           animate={{ width: `${(current / total) * 100}%` }}
           transition={{ duration: 0.5 }}
@@ -133,10 +140,10 @@ function ProgressBar({ current, total }) {
             key={step}
             className={`h-1.5 rounded-full transition-colors ${
               step === current
-                ? 'bg-cyan-400'
+                ? 'bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.45)]'
                 : step < current
                   ? 'bg-blue-500/80'
-                  : 'bg-white/[0.1]'
+                  : 'bg-[var(--s3)]'
             }`}
           />
         ))}
@@ -149,10 +156,10 @@ function StepTitle({ Icon, title, desc }) {
   return (
     <div className="px-6 pt-4 pb-2">
       <div className="mb-2">
-        {Icon ? <Icon className="w-5 h-5 text-slate-300" /> : null}
+        {Icon ? <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-theme bg-[var(--s2)] text-brand-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"><Icon className="w-5 h-5" /></div> : null}
       </div>
-      <h2 className="text-lg font-bold text-white mb-1">{title}</h2>
-      <p className="text-sm text-slate-400 leading-relaxed">{desc}</p>
+      <h2 className="text-xl font-bold text-[color:var(--tp)] mb-1">{title}</h2>
+      <p className="text-sm text-[color:var(--ts)] leading-relaxed">{desc}</p>
     </div>
   )
 }
@@ -161,16 +168,16 @@ function ColSelect({ label, value, onChange, cols, filter, placeholder = '— se
   const options = filter ? cols.filter(filter) : cols
   return (
     <div>
-      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">{label}</label>
+      <label className={labelClass}>{label}</label>
       <select
         value={value ?? ''}
         onChange={e => onChange(e.target.value)}
-        className="w-full px-3 py-2.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 transition-colors"
+        className={fieldClass}
       >
         <option value="">{placeholder}</option>
         {options.map(c => <option key={c.i} value={String(c.i)}>{c.name}</option>)}
       </select>
-      {hint && <p className="text-[10px] text-slate-600 mt-1">{hint}</p>}
+      {hint && <p className={helperTextClass}>{hint}</p>}
     </div>
   )
 }
@@ -179,25 +186,19 @@ function NavButtons({ onBack, onNext, nextLabel = 'Próximo', nextDisabled, onSk
   return (
     <div className="flex items-center gap-3 px-6 pb-6 pt-2">
       {onBack && (
-        <button onClick={onBack} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white/[0.05] border border-white/[0.1] text-slate-300 text-sm font-semibold hover:bg-white/[0.08] transition-all">
+        <button onClick={onBack} className="rf-btn-secondary flex items-center gap-1.5">
           <ChevronLeft className="w-4 h-4" /> Voltar
         </button>
       )}
       {onSkip && (
-        <button onClick={onSkip} className="px-4 py-2 rounded-lg text-slate-500 text-sm font-semibold hover:text-slate-300 transition-colors ml-auto">
+        <button onClick={onSkip} className="btn-ghost ml-auto">
           Pular
         </button>
       )}
       <button
         onClick={onNext}
         disabled={nextDisabled}
-        className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-bold transition-all ${onSkip ? '' : 'ml-auto'} ${
-          nextDisabled
-            ? 'bg-white/[0.05] text-slate-600 cursor-not-allowed'
-            : isLast
-              ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-900/40 hover:shadow-blue-900/60'
-              : 'bg-blue-600 text-white hover:bg-blue-500'
-        }`}
+        className={`rf-btn-primary flex items-center gap-1.5 ${onSkip ? '' : 'ml-auto'}`}
       >
         {isLast ? <><Sparkles className="w-4 h-4" /> Gerar relatório!</> : <>{nextLabel} <ChevronRight className="w-4 h-4" /></>}
       </button>
@@ -223,29 +224,29 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
       <StepTitle Icon={ClipboardList} title="Identificação do relatório" desc="Defina o nome e contexto do seu relatório" />
       <div className="px-6 pb-2 space-y-3">
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Título do relatório</label>
+          <label className={labelClass}>Título do relatório</label>
           <input
             autoFocus
             value={title}
             onChange={e => setTitle(e.target.value)}
             placeholder="Ex: Contratos Procurement 2025"
-            className="w-full px-3 py-2.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 placeholder:text-slate-600 transition-colors"
+            className={fieldClass}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Empresa / Área</label>
-            <input value={company} onChange={e => setCompany(e.target.value)} placeholder="Ex: Acme Corp" className="w-full px-3 py-2.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 placeholder:text-slate-600 transition-colors" />
+            <label className={labelClass}>Empresa / Área</label>
+            <input value={company} onChange={e => setCompany(e.target.value)} placeholder="Ex: Acme Corp" className={fieldClass} />
           </div>
           <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Período</label>
-            <input value={period} onChange={e => setPeriod(e.target.value)} placeholder="Ex: Q1 2025" className="w-full px-3 py-2.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 placeholder:text-slate-600 transition-colors" />
+            <label className={labelClass}>Período</label>
+            <input value={period} onChange={e => setPeriod(e.target.value)} placeholder="Ex: Q1 2025" className={fieldClass} />
           </div>
         </div>
 
         {/* Preview colunas detectadas */}
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-lg p-3 mt-1">
-          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Colunas detectadas automaticamente</div>
+        <div className="rf-panel p-3 mt-1">
+          <div className="text-[10px] font-bold text-[color:var(--ts)] uppercase tracking-wider mb-2">Colunas detectadas automaticamente</div>
           <div className="flex flex-wrap gap-1.5">
             {analyzed.map(c => (
               <span key={c.i} className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
@@ -330,24 +331,24 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
     onNext()
   }
 
-  const cardBg = `linear-gradient(135deg, ${metricColor} 0%, ${metricColor}cc 100%)`
+  const cardBg = `radial-gradient(circle at 18% 12%, rgba(255,255,255,0.22), transparent 28%), linear-gradient(135deg, ${metricColor} 0%, ${metricColor}dd 52%, #0f172a 120%)`
 
   return (
     <>
       <StepTitle Icon={DollarSign} title="Configuração da métrica" desc="Escolha como o sistema calculará seu resultado principal" />
       <div className="px-6 pb-2 space-y-3">
-        <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg bg-white/[0.03] border border-white/[0.07] hover:border-white/[0.12]">
-          <div className={`w-10 h-5 rounded-full relative transition-colors ${enabled ? '' : 'bg-white/10'}`} style={enabled ? { backgroundColor: metricColor } : undefined} onClick={() => setEnabled(e => !e)}>
+        <label className="rf-panel flex items-center gap-3 cursor-pointer p-3 hover:border-[color:var(--bdh)]">
+          <div className={`toggle-2d relative flex-shrink-0 ${enabled ? '' : ''}`} data-state={enabled ? 'checked' : 'unchecked'} style={enabled ? { backgroundColor: metricColor } : undefined} onClick={() => setEnabled(e => !e)}>
             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </div>
-          <span className="text-sm font-semibold text-slate-200">Mostrar banner da métrica</span>
+          <span className="text-sm font-semibold text-[color:var(--tp)]">Mostrar banner da métrica</span>
         </label>
 
         {enabled && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Tipo de métrica</label>
-              <select value={metricType} onChange={e => setMetricType(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm text-white outline-none transition-colors" style={{ borderColor: metricColor, background: `${metricColor}14`, boxShadow: `0 0 0 1px ${metricColor}44 inset` }}>
+              <label className={labelClass}>Tipo de métrica</label>
+              <select value={metricType} onChange={e => setMetricType(e.target.value)} className={fieldClass} style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}33 inset` }}>
                 <option value="ECONOMIA">Economia</option>
                 <option value="TOTAL">Total Financeiro</option>
                 <option value="VARIACAO">Variação</option>
@@ -356,36 +357,36 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Rótulo da métrica</label>
-              <input value={customLabel} onChange={e => setCustomLabel(e.target.value)} placeholder={`Ex: ${metricTitle}`} className="w-full px-3 py-2 bg-white/[0.05] border rounded-lg text-sm text-white outline-none transition-colors" style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}22 inset` }} />
+              <label className={labelClass}>Rótulo da métrica</label>
+              <input value={customLabel} onChange={e => setCustomLabel(e.target.value)} placeholder={`Ex: ${metricTitle}`} className={fieldClass} style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}22 inset` }} />
             </div>
 
             {isWaitingPreview && (
-              <div className="rounded-lg border border-blue-700/30 bg-blue-950/30 px-3 py-2 text-[11px] text-blue-100">
+              <div className="rf-panel border-blue-500/30 px-3 py-2 text-[11px] text-brand-300">
                 Validando cálculo da métrica...
               </div>
             )}
 
             {!isWaitingPreview && validationMessage && (
-              <div className="rounded-lg border border-rose-700/30 bg-rose-950/30 px-3 py-2 text-[11px] text-rose-200">
+              <div className="rounded-lg border border-rose-500/35 bg-rose-950/30 px-3 py-2 text-[11px] text-rose-200">
                 Não foi possível calcular essa métrica com os dados atuais. {validationMessage}
               </div>
             )}
 
             {!isWaitingPreview && !validationMessage && !hasValidationErrors && hasValidSaving && (
-              <div className="rounded-lg border border-emerald-700/30 bg-emerald-950/30 px-3 py-2 text-[11px] text-emerald-200">
+              <div className="rounded-lg border border-emerald-500/35 bg-emerald-950/25 px-3 py-2 text-[11px] text-emerald-200">
                 Métrica válida e pronta para uso
               </div>
             )}
 
             {!isWaitingPreview && !hasValidationErrors && hasValidSaving && !hasMeaningfulValue && (
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-300">
+              <div className="rf-panel px-3 py-2 text-[11px] text-[color:var(--ts)]">
                 Métrica calculada sem valor relevante no momento.
               </div>
             )}
 
             {hasBlockingValidation && (
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-300">
+              <div className="rf-panel px-3 py-2 text-[11px] text-[color:var(--ts)]">
                 {isWaitingPreview
                   ? 'Aguarde a validação da métrica antes de continuar'
                   : 'Ajuste os dados para continuar'}
@@ -404,15 +405,24 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
             )}
 
             {canRenderMetric && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl p-4 flex items-center justify-between" style={{ background: cardBg }}>
-                <div>
-                  <div className="text-[10px] text-white/60 uppercase tracking-wider mb-1">{primaryMetric?.label || label}</div>
-                  <div className="text-2xl font-bold font-mono" style={{ color: '#d1fae5' }}>
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rf-metric-hero p-4 sm:p-5 flex items-start justify-between gap-4"
+                style={{ background: cardBg, boxShadow: `0 22px 52px ${metricColor}34, inset 0 1px 0 rgba(255,255,255,0.26)` }}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-white/25 bg-white/[0.12] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90">Métrica principal</span>
+                    <span className="rounded-full border border-emerald-200/30 bg-emerald-400/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-100">Validada</span>
+                  </div>
+                  <div className="text-[10px] text-white/72 uppercase tracking-wider mb-1">{primaryMetric?.label || label}</div>
+                  <div className="text-4xl sm:text-5xl font-extrabold font-mono leading-[1.02] break-words" style={{ color: '#f8fafc', textShadow: `0 0 30px ${metricColor}72` }}>
                     {hasValidSaving
                       ? (primaryMetric?.formatted_value ?? (displayMode === 'percent' ? fmtPct(saving) : displayMode === 'number' ? fmtN(saving) : fmtBRL(saving)))
                       : '—'}
                   </div>
-                  <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
+                  <div className="mt-3 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" style={{ borderColor: 'rgba(255,255,255,0.26)', background: 'rgba(255,255,255,0.12)' }}>
                     Tipo: {metricType} · {primaryMetric?.type || (displayMode === 'percent' ? 'percentual' : displayMode === 'number' ? 'quantidade' : 'monetário')}
                   </div>
                   {breakdown?.formula && (
@@ -421,29 +431,37 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
                     </div>
                   )}
                   {hasMeaningfulBreakdown && (
-                    <div className="mt-1 text-[10px] text-white/70">
-                      {hasBaseValue ? `Base: ${fmtBRL(breakdown.base_value)}` : ''}
-                      {hasBaseValue && hasPercentValue ? ' · ' : ''}
-                      {hasPercentValue ? `Percentual: ${fmtPct(breakdown.percent)}` : ''}
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {hasBaseValue && (
+                        <div className="rounded-lg border border-white/20 bg-white/[0.10] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+                          <div className="text-[9px] uppercase tracking-wider text-white/60">Base</div>
+                          <div className="text-sm font-bold font-mono text-white">{fmtBRL(breakdown.base_value)}</div>
+                        </div>
+                      )}
+                      {hasPercentValue && (
+                        <div className="rounded-lg border border-white/20 bg-white/[0.10] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+                          <div className="text-[9px] uppercase tracking-wider text-white/60">Percentual</div>
+                          <div className="text-sm font-bold font-mono text-white">{fmtPct(breakdown.percent)}</div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {detailItems.length > 0 && (
-                    <div className="flex items-center gap-3 mt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
                       {detailItems.map((item, index) => (
-                        <div key={`${item.label}-${index}`} className="flex items-center gap-3">
-                          {index > 0 && <span className="text-white/30 text-sm">→</span>}
-                          <div>
-                            <div className={`text-xs font-bold font-mono ${item.accent ? 'text-green-400' : 'text-white'}`}>
-                              {item.kind === 'percent' ? fmtPct(item.value) : item.kind === 'number' ? fmtN(item.value) : fmtBRL(item.value)}
-                            </div>
-                            <div className="text-[9px] text-white/50">{item.label}</div>
+                        <div key={`${item.label}-${index}`} className="rounded-lg border border-white/20 bg-white/[0.09] px-3 py-2">
+                          <div className={`text-xs font-bold font-mono ${item.accent ? 'text-emerald-200' : 'text-white'}`}>
+                            {item.kind === 'percent' ? fmtPct(item.value) : item.kind === 'number' ? fmtN(item.value) : fmtBRL(item.value)}
                           </div>
+                          <div className="text-[9px] text-white/60">{item.label}</div>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
-                <TrendingUp className="w-8 h-8 opacity-20" />
+                <div className="hidden sm:flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
+                  <TrendingUp className="w-7 h-7 opacity-75" />
+                </div>
               </motion.div>
             )}
           </motion.div>
@@ -494,29 +512,29 @@ function StepKPIs({ data, analyzed, onChange, onNext, onBack, onSkip }) {
             key={i}
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 space-y-2"
+            className="rf-kpi-card p-3 space-y-2"
           >
-            <div className="flex items-center gap-2">
-              <select value={kpi.icon} onChange={e => updKpi(i, { icon: e.target.value })} className="w-24 h-8 bg-white/[0.06] border border-white/[0.1] rounded-lg text-xs text-center outline-none">
+            <div className="flex flex-wrap items-center gap-2">
+              <select value={kpi.icon} onChange={e => updKpi(i, { icon: e.target.value })} className="rf-control w-24 h-9 py-1 text-xs text-center">
                 {ICONS.map(ic => <option key={ic.value} value={ic.value}>{ic.label}</option>)}
               </select>
-              <input value={kpi.label} onChange={e => updKpi(i, { label: e.target.value })} placeholder="Rótulo" className="flex-1 px-2.5 py-1.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 transition-colors" />
+              <input value={kpi.label} onChange={e => updKpi(i, { label: e.target.value })} placeholder="Rótulo" className="rf-control flex-1 min-w-[150px] py-2 text-sm" />
               <input type="color" value={kpi.color || '#3b82f6'} onChange={e => updKpi(i, { color: e.target.value })} className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
-              <button onClick={() => remKpi(i)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-red-900/30 hover:text-red-400 transition-all">
+              <button onClick={() => remKpi(i)} className="icon-action w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-900/30 hover:text-red-400 transition-all">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
-                <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Coluna</label>
-                <select value={kpi.col ?? ''} onChange={e => updKpi(i, { col: e.target.value })} className="w-full px-2 py-1.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-xs text-white outline-none focus:border-blue-500">
+                <label className="text-[9px] text-[color:var(--tm)] font-bold uppercase block mb-1">Coluna</label>
+                <select value={kpi.col ?? ''} onChange={e => updKpi(i, { col: e.target.value })} className={compactFieldClass}>
                   <option value="">— total registros —</option>
                   {analyzed.map(c => <option key={c.i} value={String(c.i)}>{c.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Cálculo</label>
-                <select value={kpi.fmt || 'count'} onChange={e => updKpi(i, { fmt: e.target.value })} className="w-full px-2 py-1.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-xs text-white outline-none focus:border-blue-500">
+                <label className="text-[9px] text-[color:var(--tm)] font-bold uppercase block mb-1">Cálculo</label>
+                <select value={kpi.fmt || 'count'} onChange={e => updKpi(i, { fmt: e.target.value })} className={compactFieldClass}>
                   {FMTS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                 </select>
               </div>
@@ -524,7 +542,7 @@ function StepKPIs({ data, analyzed, onChange, onNext, onBack, onSkip }) {
           </motion.div>
         ))}
         {kpis.length < 6 && (
-          <button onClick={addKpi} className="w-full py-2.5 border border-dashed border-white/[0.12] rounded-xl text-slate-500 hover:text-slate-300 hover:border-white/25 text-sm transition-all">
+          <button onClick={addKpi} className="card-clickable w-full py-2.5 border-dashed rounded-xl text-[color:var(--ts)] hover:text-[color:var(--tp)] text-sm transition-all">
             + Adicionar KPI
           </button>
         )}
@@ -569,21 +587,21 @@ function StepChartsDist({ data, analyzed, onChange, onNext, onBack, onSkip }) {
       <StepTitle Icon={BarChart3} title="Gráficos de distribuição" desc="Visualize como os dados se distribuem por categorias" />
       <div className="px-6 pb-2 space-y-4">
         {/* G1 */}
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 space-y-3">
+        <div className={sectionClass}>
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-white">Gráfico 1 — Distribuição</span>
+            <span className="text-sm font-bold text-[color:var(--tp)]">Gráfico 1 — Distribuição</span>
             <label className="flex items-center gap-2 cursor-pointer">
-              <div className={`w-8 h-4 rounded-full relative transition-colors ${g1on ? 'bg-blue-600' : 'bg-white/10'}`} onClick={() => setG1on(v => !v)}>
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform shadow ${g1on ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              <div className="toggle-2d relative cursor-pointer" data-state={g1on ? 'checked' : 'unchecked'} onClick={() => setG1on(v => !v)}>
+                <div className="toggle-2d-thumb absolute top-[0.18rem] left-[0.18rem]" />
               </div>
             </label>
           </div>
           {g1on && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <ColSelect label="Coluna de categoria" value={g1col} onChange={setG1col} cols={cats} hint={cats[0] ? `${cats[0].uniq} valores únicos` : ''} />
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Tipo de gráfico</label>
-                <select value={g1type} onChange={e => setG1type(e.target.value)} className="w-full px-3 py-2.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                <label className={labelClass}>Tipo de gráfico</label>
+                <select value={g1type} onChange={e => setG1type(e.target.value)} className={fieldClass}>
                   {CHART_TYPES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
@@ -592,21 +610,21 @@ function StepChartsDist({ data, analyzed, onChange, onNext, onBack, onSkip }) {
         </div>
 
         {/* G2 */}
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 space-y-3">
+        <div className={sectionClass}>
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-white">Gráfico 2 — Por Categoria</span>
+            <span className="text-sm font-bold text-[color:var(--tp)]">Gráfico 2 — Por Categoria</span>
             <label className="flex items-center gap-2 cursor-pointer">
-              <div className={`w-8 h-4 rounded-full relative transition-colors ${g2on ? 'bg-blue-600' : 'bg-white/10'}`} onClick={() => setG2on(v => !v)}>
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform shadow ${g2on ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              <div className="toggle-2d relative cursor-pointer" data-state={g2on ? 'checked' : 'unchecked'} onClick={() => setG2on(v => !v)}>
+                <div className="toggle-2d-thumb absolute top-[0.18rem] left-[0.18rem]" />
               </div>
             </label>
           </div>
           {g2on && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <ColSelect label="Coluna de categoria" value={g2col} onChange={setG2col} cols={cats} />
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Tipo de gráfico</label>
-                <select value={g2type} onChange={e => setG2type(e.target.value)} className="w-full px-3 py-2.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                <label className={labelClass}>Tipo de gráfico</label>
+                <select value={g2type} onChange={e => setG2type(e.target.value)} className={fieldClass}>
                   {CHART_TYPES2.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
@@ -646,18 +664,18 @@ function StepChartsAdvanced({ data, analyzed, onChange, onNext, onBack, onSkip }
       <StepTitle Icon={TrendingUp} title="Análises avançadas" desc="Explore tendências e rankings dos seus dados" />
       <div className="px-6 pb-2 space-y-4">
         {/* G3 Temporal */}
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 space-y-3">
+        <div className={sectionClass}>
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-sm font-bold text-white">Evolução Temporal</span>
+              <span className="text-sm font-bold text-[color:var(--tp)]">Evolução Temporal</span>
               {dates.length === 0 && <span className="ml-2 text-[10px] text-amber-400 bg-amber-900/20 border border-amber-700/30 px-2 py-0.5 rounded-full">nenhuma coluna de data detectada</span>}
             </div>
-            <div className={`w-8 h-4 rounded-full relative transition-colors cursor-pointer ${g3on ? 'bg-blue-600' : 'bg-white/10'}`} onClick={() => setG3on(v => !v)}>
-              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform shadow ${g3on ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            <div className="toggle-2d relative cursor-pointer" data-state={g3on ? 'checked' : 'unchecked'} onClick={() => setG3on(v => !v)}>
+              <div className="toggle-2d-thumb absolute top-[0.18rem] left-[0.18rem]" />
             </div>
           </div>
           {g3on && (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <ColSelect label="Coluna de DATA" value={g3date} onChange={setG3date} cols={[...dates, ...analyzed.filter(c => c.type === 'text' && /data|dt_|date|mes|ano/i.test(c.name))]} />
               <ColSelect label="Valor 1 (linha)" value={g3v1} onChange={setG3v1} cols={nums} />
               <ColSelect label="Valor 2 (linha)" value={g3v2} onChange={setG3v2} cols={nums} placeholder="— opcional —" />
@@ -666,20 +684,20 @@ function StepChartsAdvanced({ data, analyzed, onChange, onNext, onBack, onSkip }
         </div>
 
         {/* G4 Top N */}
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 space-y-3">
+        <div className={sectionClass}>
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-white">Top N por Valor</span>
-            <div className={`w-8 h-4 rounded-full relative transition-colors cursor-pointer ${g4on ? 'bg-blue-600' : 'bg-white/10'}`} onClick={() => setG4on(v => !v)}>
-              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform shadow ${g4on ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            <span className="text-sm font-bold text-[color:var(--tp)]">Top N por Valor</span>
+            <div className="toggle-2d relative cursor-pointer" data-state={g4on ? 'checked' : 'unchecked'} onClick={() => setG4on(v => !v)}>
+              <div className="toggle-2d-thumb absolute top-[0.18rem] left-[0.18rem]" />
             </div>
           </div>
           {g4on && (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <ColSelect label="Coluna de rótulo" value={g4label} onChange={setG4label} cols={cats} hint="Ex: Fornecedor" />
               <ColSelect label="Coluna de valor" value={g4val} onChange={setG4val} cols={nums} hint="Soma por grupo" />
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Top N</label>
-                <select value={g4n} onChange={e => setG4n(parseInt(e.target.value))} className="w-full px-3 py-2.5 bg-white/[0.05] border border-white/[0.1] rounded-lg text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                <label className={labelClass}>Top N</label>
+                <select value={g4n} onChange={e => setG4n(parseInt(e.target.value))} className={fieldClass}>
                   {[5, 8, 10, 15, 20].map(n => <option key={n} value={n}>Top {n}</option>)}
                 </select>
               </div>

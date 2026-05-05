@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react'
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="panel-2d rounded-lg overflow-hidden mb-2">
+    <div className="rf-panel overflow-hidden mb-2">
       <button
         onClick={() => setOpen(o => !o)}
         className="card-clickable w-full flex items-center justify-between px-3 py-2.5 rounded-none border-x-0 border-t-0 bg-[var(--s2)] text-xs font-bold text-[color:var(--ts)] uppercase tracking-wider"
@@ -12,7 +12,7 @@ function Accordion({ title, children, defaultOpen = false }) {
         {title}
         {open ? <ChevronDown className="w-3.5 h-3.5 text-[color:var(--tm)]" /> : <ChevronRight className="w-3.5 h-3.5 text-[color:var(--tm)]" />}
       </button>
-      {open && <div className="px-3 py-3 bg-[var(--s1)] space-y-3">{children}</div>}
+      {open && <div className="px-3 py-3 space-y-3">{children}</div>}
     </div>
   )
 }
@@ -91,7 +91,7 @@ export default function LayoutPanel({ state, update }) {
       <Accordion title="KPIs">
         <div className="space-y-2">
           {kpis.map((k, i) => (
-            <div key={i} className="panel-2d rounded-lg p-2 space-y-1.5 bg-[var(--s2)]">
+            <div key={i} className="rf-kpi-card rounded-lg p-2 space-y-1.5">
               <div className="flex flex-wrap sm:flex-nowrap gap-1.5">
                 <input className="input-field text-xs py-2 sm:py-1 flex-1 min-w-[140px]" value={k.label} onChange={e => updKPI(i, 'label', e.target.value)} placeholder="Rótulo" />
                 <input className="input-field text-xs py-2 sm:py-1 w-14 sm:w-9 text-center" value={k.icon} onChange={e => updKPI(i, 'icon', e.target.value)} />

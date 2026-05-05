@@ -5,6 +5,7 @@ import { AlertTriangle, BarChart3, CheckCircle, DollarSign, TrendingUp } from 'l
 import { useThemeStore } from '@/store/themeStore'
 import InsightsPanel from '@/components/InsightsPanel'
 import { inferChartType, selectMetricCharts } from '@/lib/chartSelection'
+import { getPremiumChartTheme, premiumizeEChartOption } from '@/lib/chartTheme'
 
 function TableSection({ rows, visCols, dark, cardBg, bdColor, p1, p2, textColor, subText, showFilters = true }) {
   const [selectedCol, setSelectedCol] = useState('')
@@ -50,26 +51,26 @@ function TableSection({ rows, visCols, dark, cardBg, bdColor, p1, p2, textColor,
   }, [showFilters])
 
   return (
-    <div className="panel-2d overflow-hidden mb-5">
+    <div className="rf-table-premium panel-2d overflow-hidden mb-5">
       <div className="px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2" style={{ borderBottom: `1px solid ${bdColor}` }}>
         <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider break-words" style={{ color: p2 }}>
           Todos os Registros — {hasFilter ? `${filteredRows.length} de ${rows.length}` : rows.length.toLocaleString('pt-BR')}
         </span>
         <div className="flex items-center gap-2 flex-wrap">
-          {hasFilter && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(37,99,235,0.2)', color: '#60a5fa' }}>{activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''}</span>}
-          {hasFilter && <button onClick={() => { setSelectedCol(''); setSelectedVal(''); setGlobalSearch('') }} className="min-h-[36px] px-2" style={{ fontSize: '0.7rem', color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 5, padding: '0.15rem 0.5rem' }}>x Limpar</button>}
+          {hasFilter && <span className="rf-badge text-[10px] text-brand-300">{activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''}</span>}
+          {hasFilter && <button onClick={() => { setSelectedCol(''); setSelectedVal(''); setGlobalSearch('') }} className="btn-ghost min-h-[36px] px-2 text-[11px] text-red-400">x Limpar</button>}
         </div>
       </div>
       {showFilters && (
         <div className="px-3 sm:px-4 py-3" style={{ borderBottom: `1px solid ${bdColor}`, background: dark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)' }}>
-          <input ref={searchRef} style={{ ...pillStyle, marginBottom: '0.6rem' }} placeholder="Buscar em todos os campos... (/)" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
+          <input ref={searchRef} className="rf-control rounded-full text-xs mb-2" placeholder="Buscar em todos os campos... (/)" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
           {categoricalCols.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-[minmax(180px,220px)_minmax(220px,1fr)] gap-2">
-              <select style={{ ...pillStyle, borderColor: selectedCol ? '#3b82f6' : bdColor, appearance: 'none', cursor: 'pointer' }} value={selectedCol} onChange={e => { setSelectedCol(e.target.value); setSelectedVal('') }}>
+              <select className="rf-control rounded-full text-xs" style={{ borderColor: selectedCol ? '#3b82f6' : bdColor, appearance: 'none', cursor: 'pointer' }} value={selectedCol} onChange={e => { setSelectedCol(e.target.value); setSelectedVal('') }}>
                 <option value="">Filtrar por campo...</option>
                 {categoricalCols.map(vc => <option key={vc.i} value={String(vc.i)}>{vc.name}</option>)}
               </select>
-              <select style={{ ...pillStyle, borderColor: selectedVal ? '#3b82f6' : bdColor, appearance: 'none', cursor: 'pointer' }} value={selectedVal} onChange={e => setSelectedVal(e.target.value)} disabled={!activeCol}>
+              <select className="rf-control rounded-full text-xs" style={{ borderColor: selectedVal ? '#3b82f6' : bdColor, appearance: 'none', cursor: 'pointer' }} value={selectedVal} onChange={e => setSelectedVal(e.target.value)} disabled={!activeCol}>
                 <option value="">{activeCol ? 'Selecionar valor...' : 'Selecione um campo primeiro'}</option>
                 {(activeCol?.vals || []).map(v => <option key={v} value={v}>{v}</option>)}
               </select>
@@ -97,9 +98,6 @@ function TableSection({ rows, visCols, dark, cardBg, bdColor, p1, p2, textColor,
     </div>
   )
 }
-
-const PAL_DARK = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#eab308']
-const PAL_LIGHT = ['#1d4ed8', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5', '#0f766e', '#ca8a04']
 
 const fmtBRL = v => Number(v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
 const fmtN = v => Number(v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
@@ -160,15 +158,16 @@ function formatMetricValue(metricType, value, unit) {
 }
 
 function getTheme(dark) {
+  const premium = getPremiumChartTheme(dark)
   return {
     bg: 'transparent',
-    textColor: dark ? '#94a3b8' : '#64748b',
-    axisLine: dark ? '#1c3350' : '#e2e8f0',
-    splitLine: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)',
+    textColor: premium.text,
+    axisLine: premium.axisLine,
+    splitLine: premium.splitLine,
     tooltip: dark
-      ? { bg: '#0d1a26', border: 'rgba(255,255,255,0.12)', text: '#d9e2ec' }
-      : { bg: '#ffffff', border: 'rgba(0,0,0,0.12)', text: '#1e293b' },
-    pal: dark ? PAL_DARK : PAL_LIGHT,
+      ? { bg: premium.tooltipBg, border: premium.tooltipBorder, text: premium.tooltipText }
+      : { bg: premium.tooltipBg, border: premium.tooltipBorder, text: premium.tooltipText },
+    pal: premium.palette,
   }
 }
 
@@ -188,24 +187,28 @@ function baseOpts(t) {
   }
 }
 
-function EChart({ option, h = 240, style }) {
-  return <ReactECharts option={option} style={{ height: h, width: '100%', ...style }} opts={{ renderer: 'canvas' }} notMerge />
+function EChart({ option, h = 240, style, chart, chartIndex = 0, sameTypeIndex = 0 }) {
+  const { dark } = useThemeStore()
+  return <ReactECharts option={premiumizeEChartOption(option, { isDark: dark, chart, chartIndex, sameTypeIndex })} style={{ height: h, width: '100%', ...style }} opts={{ renderer: 'canvas' }} notMerge />
 }
 
 function ChartCard({ title, reason, h = 240, full = false, children }) {
   const { dark } = useThemeStore()
   return (
     <motion.div initial={{ opacity: 0, scale: .97 }} animate={{ opacity: 1, scale: 1 }}
-      className={`chart-shell p-3 sm:p-4 ${full ? 'lg:col-span-2' : ''}`}>
-      <div className="text-xs font-bold uppercase tracking-wider mb-3 pb-2" style={{ color: dark ? '#94a3b8' : '#64748b', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.06)' : '#f1f5f9'}` }}>
-        <div>{title}</div>
-        {reason && (
-          <div className="mt-1 text-[10px] normal-case font-medium tracking-normal" style={{ color: dark ? '#486581' : '#94a3b8' }}>
-            {reason}
-          </div>
-        )}
+      className={`rf-chart-card chart-shell p-4 sm:p-5 transition-all hover:-translate-y-0.5 hover:shadow-[var(--elev-3)] ${full ? 'lg:col-span-2' : ''}`}>
+      <div className="flex items-start justify-between gap-3 text-xs font-bold uppercase tracking-wider mb-4 pb-3" style={{ color: dark ? '#94a3b8' : '#64748b', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : '#e2e8f0'}` }}>
+        <div className="min-w-0">
+          <div className="text-[13px] text-[color:var(--tp)] truncate">{title}</div>
+          {reason && (
+            <div className="mt-1 text-[10px] normal-case font-semibold tracking-normal" style={{ color: dark ? '#829ab1' : '#64748b' }}>
+              {reason}
+            </div>
+          )}
+        </div>
+        <span className="rf-badge text-[10px] shrink-0">Gráfico</span>
       </div>
-      <div style={{ height: h }}>{children}</div>
+      <div className="rounded-xl p-1 sm:p-2" style={{ height: h, background: dark ? 'rgba(255,255,255,0.012)' : 'rgba(15,23,42,0.018)' }}>{children}</div>
     </motion.div>
   )
 }
@@ -570,13 +573,17 @@ function KPICard({ kpi, dark }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-      className="kpi-shell p-4 flex-1 min-w-[120px] text-center"
-      style={{ borderTop: `4px solid ${kpi.color || '#3b82f6'}` }}>
-      <div className="mb-1 flex items-center justify-center">
-        <IconComp className="w-5 h-5" />
+      className="rf-kpi-card kpi-shell relative overflow-hidden p-4 flex-1 min-w-[150px] text-left transition-all hover:-translate-y-0.5 hover:shadow-[var(--elev-3)]"
+      style={{
+        borderTop: `4px solid ${kpi.color || '#3b82f6'}`,
+        backgroundImage: `radial-gradient(circle at 100% 0%, ${kpi.color || '#3b82f6'}18, transparent 42%), var(--rf-surface-bg)`,
+      }}>
+      <div className="absolute right-3 top-3 h-10 w-10 rounded-xl border border-theme bg-[var(--s2)] flex items-center justify-center opacity-90 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+        <IconComp className="w-5 h-5" style={{ color: kpi.color || '#3b82f6' }} />
       </div>
-      <div className="text-lg font-extrabold font-mono break-words leading-tight" style={{ color: kpi.color || '#3b82f6' }}>{kpi.display ?? kpi.value ?? '—'}</div>
-      <div className="text-[10px] mt-1 font-bold uppercase tracking-wider" style={{ color: dark ? '#486581' : '#94a3b8' }}>{kpi.label}</div>
+      <div className="rf-badge mb-4 text-[10px]" style={{ color: kpi.color || '#3b82f6', borderColor: `${kpi.color || '#3b82f6'}55`, background: `${kpi.color || '#3b82f6'}18` }}>Indicador</div>
+      <div className="pr-11 text-2xl sm:text-3xl font-extrabold font-mono break-words leading-[1.04]" style={{ color: kpi.color || '#3b82f6' }}>{kpi.display ?? kpi.value ?? '—'}</div>
+      <div className="text-[10px] mt-3 font-bold uppercase tracking-wider" style={{ color: dark ? '#9fb3c8' : '#475569' }}>{kpi.label}</div>
     </motion.div>
   )
 }
@@ -804,24 +811,24 @@ export default function ReportPreview({ state }) {
   }
 
   return (
-    <div className="p-4" style={{ background: bgColor, minHeight: '100%', color: textColor, transition: 'background .25s,color .25s' }}>
+    <div className="rf-page-surface p-3 sm:p-5" style={{ minHeight: '100%', color: textColor, transition: 'background .25s,color .25s' }}>
       <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-        <div className="mb-6" style={{ position: 'relative', paddingBottom: '1.25rem' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: 48, height: 3, borderRadius: 2, background: dark ? 'linear-gradient(90deg,#2563eb,#06b6d4)' : 'linear-gradient(90deg,#2563eb,#0ea5e9)' }} />
-          <div style={{ paddingTop: '1rem', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div className="rf-panel-strong mb-6 p-4 sm:p-5 relative overflow-hidden">
+          <div style={{ position: 'absolute', top: 0, left: 0, width: 72, height: 3, borderRadius: 2, background: dark ? 'linear-gradient(90deg,#2563eb,#06b6d4)' : 'linear-gradient(90deg,#2563eb,#0ea5e9)' }} />
+          <div className="flex items-end justify-between flex-wrap gap-3">
             <div>
-              <h1 style={{ fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.03em', color: textColor, lineHeight: 1.15, marginBottom: state.subtitle ? '0.2rem' : 0 }}>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-brand-400 mb-2">Preview executivo</div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold leading-tight" style={{ color: textColor, marginBottom: state.subtitle ? '0.2rem' : 0 }}>
                 {state.title || 'Relatorio'}
               </h1>
               {state.subtitle && <p style={{ fontSize: '0.8rem', fontWeight: 400, color: subText, margin: 0 }}>{state.subtitle}</p>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {state.period && <span style={{ fontSize: '0.7rem', fontWeight: 500, color: dark ? '#64748b' : '#94a3b8', background: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', border: `1px solid ${bdColor}`, borderRadius: 6, padding: '0.2rem 0.6rem' }}>{state.period}</span>}
-              {state.company && <span style={{ fontSize: '0.7rem', fontWeight: 500, color: dark ? '#64748b' : '#94a3b8', background: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', border: `1px solid ${bdColor}`, borderRadius: 6, padding: '0.2rem 0.6rem' }}>{state.company}</span>}
-              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: dark ? '#3b82f6' : '#2563eb', background: dark ? 'rgba(37,99,235,0.12)' : 'rgba(37,99,235,0.08)', border: `1px solid ${dark ? 'rgba(37,99,235,0.3)' : 'rgba(37,99,235,0.2)'}`, borderRadius: 6, padding: '0.2rem 0.6rem' }}>{recordCount.toLocaleString('pt-BR')} registros</span>
+              {state.period && <span className="rf-badge">{state.period}</span>}
+              {state.company && <span className="rf-badge">{state.company}</span>}
+              <span className="rf-badge text-brand-300">{recordCount.toLocaleString('pt-BR')} registros</span>
             </div>
           </div>
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: dark ? 'linear-gradient(90deg,rgba(37,99,235,0.4),rgba(255,255,255,0.05) 60%,transparent)' : 'linear-gradient(90deg,rgba(37,99,235,0.3),rgba(0,0,0,0.04) 60%,transparent)' }} />
         </div>
 
         {!isNewSchema && (
@@ -829,7 +836,7 @@ export default function ReportPreview({ state }) {
         )}
 
         {isNewSchema && hasValidationWarnings && (
-          <div className="rounded-2xl p-4 mb-4" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
+          <div className="rf-panel p-4 mb-4">
             <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#f59e0b' }}>
               Warnings globais
             </div>
@@ -848,7 +855,7 @@ export default function ReportPreview({ state }) {
         })()}
 
         {!showSkeleton && primaryMetric && requiresBreakdownWarning && !breakdown && (
-          <div className="rounded-2xl p-4 mb-4" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
+          <div className="rf-panel p-4 mb-4">
             <div className="inline-flex items-center gap-1.5 text-sm" style={{ color: '#f59e0b' }}>
               <AlertTriangle className="w-4 h-4" />
               <span>Dados insuficientes para detalhamento da métrica</span>
@@ -897,7 +904,7 @@ export default function ReportPreview({ state }) {
 
         {sections.saving !== false && (
           showSkeleton ? (
-            <div className="rounded-2xl p-5 mb-5 overflow-hidden relative" style={{ background: `linear-gradient(135deg,${p1},${p2})`, color: '#fff' }}>
+            <div className="rf-metric-hero p-5 sm:p-6 mb-5 overflow-hidden relative" style={{ background: `radial-gradient(circle at 18% 12%, rgba(255,255,255,0.22), transparent 30%), linear-gradient(135deg,${p1},${p2})`, color: '#fff' }}>
               <div className="space-y-3 max-w-[520px]">
                 <SkeletonBlock h={10} w={140} dark />
                 <SkeletonBlock h={40} w={220} dark />
@@ -911,15 +918,16 @@ export default function ReportPreview({ state }) {
             </div>
           ) : (primaryMetric && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl p-5 mb-5 flex items-center justify-between overflow-hidden relative"
-              style={{ background: `linear-gradient(135deg,${p1},${p2})`, color: '#fff' }}>
-              <div>
-                <div className="text-xs opacity-60 uppercase tracking-widest mb-1">{primaryMetric.label || 'Métrica principal'}</div>
-                <div className="text-4xl font-extrabold font-mono" style={{ color: metricColor }}>
-                  {hasInvalidMetricValue ? 'Dados insuficientes para cálculo desta métrica' : (primaryMetric.formatted_value || '—')}
+              className="rf-metric-hero p-5 sm:p-6 mb-5 flex items-start justify-between gap-4 overflow-hidden relative"
+              style={{ background: `radial-gradient(circle at 18% 12%, rgba(255,255,255,0.24), transparent 30%), radial-gradient(circle at 92% 8%, ${metricColor}44, transparent 34%), linear-gradient(135deg,${p1},${p2})`, color: '#fff', boxShadow: `0 24px 58px ${metricColor}30, var(--elev-2)` }}>
+              <div className="min-w-0 flex-1">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-white/25 bg-white/[0.12] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90">Métrica principal</span>
+                  <span className="rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90" style={{ borderColor: `${metricColor}66`, background: `${metricColor}28` }}>{primaryMetric.type || metricType}</span>
                 </div>
-                <div className="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/80" style={{ borderColor: `${metricColor}55`, background: `${metricColor}22` }}>
-                  {primaryMetric.type || metricType}
+                <div className="text-xs opacity-78 uppercase tracking-widest mb-2">{primaryMetric.label || 'Métrica principal'}</div>
+                <div className="text-4xl sm:text-6xl font-extrabold font-mono leading-[1.02] break-words" style={{ color: '#f8fafc', textShadow: `0 0 34px ${metricColor}72` }}>
+                  {hasInvalidMetricValue ? 'Dados insuficientes para cálculo desta métrica' : (primaryMetric.formatted_value || '—')}
                 </div>
                 {friendlyWarning && (
                   <div className="mt-2 text-[11px] text-white/80">
@@ -929,19 +937,19 @@ export default function ReportPreview({ state }) {
                 {!hasInvalidMetricValue && breakdown && (breakdown.base_value !== undefined || breakdown.percent !== undefined || breakdown.formula) && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
                     {breakdown.base_value !== undefined && (
-                      <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                      <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.11)', border: '1px solid rgba(255,255,255,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)' }}>
                         <div className="text-[10px] uppercase tracking-wider opacity-70">base_value</div>
                         <div className="text-sm font-bold font-mono">{String(breakdown.base_value)}</div>
                       </div>
                     )}
                     {breakdown.percent !== undefined && Number.isFinite(Number(breakdown.percent)) && (
-                      <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                      <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.11)', border: '1px solid rgba(255,255,255,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)' }}>
                         <div className="text-[10px] uppercase tracking-wider opacity-70">percent</div>
                         <div className="text-sm font-bold font-mono">{String(breakdown.percent)}%</div>
                       </div>
                     )}
                     {breakdown.formula && (
-                      <div className="rounded-lg px-3 py-2 md:col-span-1" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                      <div className="rounded-lg px-3 py-2 md:col-span-1" style={{ background: 'rgba(255,255,255,0.11)', border: '1px solid rgba(255,255,255,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)' }}>
                         <div className="text-[10px] uppercase tracking-wider opacity-70">formula</div>
                         <div className="text-sm font-bold break-words">{String(breakdown.formula)}</div>
                       </div>
@@ -949,13 +957,15 @@ export default function ReportPreview({ state }) {
                   </div>
                 )}
               </div>
-              <TrendingUp className="w-10 h-10 opacity-[0.2]" />
+              <div className="hidden sm:flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/[0.10]">
+                <TrendingUp className="w-7 h-7 opacity-75" />
+              </div>
             </motion.div>
           ))
         )}
 
         {sections.kpi !== false && kpis.length > 0 && (
-          <div className="flex gap-3 mb-5 flex-wrap">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
             {kpis.map((k, i) => <KPICard key={i} kpi={k} dark={dark} />)}
           </div>
         )}
@@ -974,27 +984,31 @@ export default function ReportPreview({ state }) {
             </div>
           ) : metricCharts.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
-              {metricCharts.map((chart, index) => (
-                <ChartCard key={`${inferChartType(chart) || chart?.type || 'chart'}-${chart.id || index}`} title={chart.title || 'Gráfico'} reason={chart.selectionReason} h={chart.h || (index >= 1 ? 300 : 320)} full={index === 0}>
+              {metricCharts.map((chart, index) => {
+                const chartType = inferChartType(chart) || chart?.type || 'chart'
+                const sameTypeIndex = metricCharts.slice(0, index).filter(item => (inferChartType(item) || item?.type || 'chart') === chartType).length
+                return (
+                <ChartCard key={`${chartType}-${chart.id || index}`} title={chart.title || 'Gráfico'} reason={chart.selectionReason} h={chart.h || (index >= 1 ? 300 : 320)} full={index === 0}>
                   {chart.option
-                    ? <EChart option={chart.option} h={chart.h || (index >= 2 ? 300 : 260)} />
+                    ? <EChart option={chart.option} h={chart.h || (index >= 2 ? 300 : 260)} chart={chart} chartIndex={index} sameTypeIndex={sameTypeIndex} />
                     : (
                       <div className="rounded-xl p-4 text-sm" style={{ background: dark ? '#102132' : '#f8fafc', border: `1px solid ${bdColor}`, color: subText }}>
                         O backend enviou este gráfico sem option de renderização.
                       </div>
                     )}
                 </ChartCard>
-              ))}
+                )
+              })}
             </div>
           ) : (
-            <div className="rounded-2xl p-5 mb-5" style={{ background: cardBg, border: `1px solid ${bdColor}`, color: subText }}>
+            <div className="rf-panel p-5 mb-5" style={{ color: subText }}>
               Não há gráficos suficientes do backend para este tipo de métrica.
             </div>
           )
         )}
 
         {sections.summary !== false && summary.rows.length > 0 && (
-          <div className="rounded-2xl p-4 mb-5 shadow-sm" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
+          <div className="rf-table-premium p-4 mb-5 shadow-sm" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
             <div className="text-xs font-bold uppercase tracking-wider mb-3 pb-2" style={{ color: p2, borderBottom: `1px solid ${bdColor}` }}>
               Resumo por {summaryLabel}
             </div>

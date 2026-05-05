@@ -74,8 +74,8 @@ export default function DataTable({ state, update }) {
   const hasActiveFilter = globalFilter || activeFilters > 0
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden min-h-0">
-      <div className="border-b" style={{background:'var(--s0)',borderColor:'var(--bd)'}}>
+    <div className="rf-table-premium flex flex-col flex-1 overflow-hidden min-h-0 rounded-none border-x-0 border-b-0">
+      <div className="border-b" style={{borderColor:'var(--bd)'}}>
         <div className="px-2 sm:px-3 pt-2 pb-1">
           <input className="input-field py-2 sm:py-1.5 text-xs w-full" placeholder="Buscar em todos os campos..." value={globalFilter} onChange={e => setGlobalFilter(e.target.value)} />
         </div>
@@ -106,7 +106,7 @@ export default function DataTable({ state, update }) {
       <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 border-b" style={{borderColor:'var(--bd)'}}>
         <button onClick={addRow} className="btn-ghost py-2 sm:py-1 px-2 text-xs flex items-center gap-1 min-h-[36px]"><Plus className="w-3 h-3"/>Linha</button>
         <button onClick={delSelected} disabled={!selRows.size} className="btn-ghost py-2 sm:py-1 px-2 text-xs text-red-400 disabled:opacity-30 flex items-center gap-1 min-h-[36px]"><Trash2 className="w-3 h-3"/>Excluir sel.</button>
-        {activeFilters > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{background:'rgba(37,99,235,0.2)',color:'#60a5fa'}}>{activeFilters} filtro{activeFilters>1?'s':''} ativo{activeFilters>1?'s':''}</span>}
+        {activeFilters > 0 && <span className="rf-badge text-[10px] text-brand-300">{activeFilters} filtro{activeFilters>1?'s':''} ativo{activeFilters>1?'s':''}</span>}
       </div>
       <div className="flex-1 overflow-auto min-h-0">
         <table className="text-xs border-collapse min-w-full sm:min-w-max">
