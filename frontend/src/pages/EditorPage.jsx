@@ -122,6 +122,28 @@ function getPreviewErrorMessage(err) {
   return err?.message || 'Erro ao validar a configuração no backend.'
 }
 
+function useIsMobile(breakpoint = 1024) {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth < breakpoint
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const media = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
+    const onChange = (event) => setIsMobile(event.matches)
+    setIsMobile(media.matches)
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', onChange)
+      return () => media.removeEventListener('change', onChange)
+    }
+    media.addListener(onChange)
+    return () => media.removeListener(onChange)
+  }, [breakpoint])
+
+  return isMobile
+}
+
 export default function EditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -146,10 +168,23 @@ export default function EditorPage() {
   const previewDebounceRef = useRef(null)
   const previewRequestRef = useRef(0)
   const stateRef = useRef(DEFAULT_STATE)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     stateRef.current = state
   }, [state])
+
+  useEffect(() => {
+    if (!isMobile) return
+    // Mobile keeps preview as primary surface and uses drawer for edition.
+    setShowPreview(true)
+    if (!showSidebar) return
+    const onEsc = (event) => {
+      if (event.key === 'Escape') setShowSidebar(false)
+    }
+    window.addEventListener('keydown', onEsc)
+    return () => window.removeEventListener('keydown', onEsc)
+  }, [isMobile, showSidebar])
 
   const syncStateWithReport = useCallback((report) => {
     if (!report?.config || Object.keys(report.config).length === 0) {
@@ -463,7 +498,7 @@ export default function EditorPage() {
 
   if (!hasData && !existingReport) {
     return (
-      <div className="min-h-screen bg-surface-0 flex flex-col">
+      <div className="min-h-screen bg-[var(--s0)] flex flex-col">
         <TopBar
           title={state.title}
           saving={saving}
@@ -474,6 +509,8 @@ export default function EditorPage() {
           onToggleSidebar={() => setShowSidebar(p => !p)}
           onTogglePreview={() => setShowPreview(p => !p)}
           showPreview={showPreview}
+          showSidebar={showSidebar}
+          isMobile={isMobile}
         />
         <div className="flex-1 flex items-center justify-center p-6">
           <UploadZone onLoad={handleFileLoad} />
@@ -497,7 +534,7 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="h-screen bg-surface-0 flex flex-col overflow-hidden">
+    <div className="h-screen bg-[var(--s0)] flex flex-col overflow-hidden">
       <TopBar
         title={state.title}
         saving={saving}
@@ -505,53 +542,69 @@ export default function EditorPage() {
         onSave={handleSave}
         onExport={handleExport}
         canExport={hasData}
-        onToggleSidebar={() => setShowSidebar(p => !p)}
-        onTogglePreview={() => setShowPreview(p => !p)}
+        onToggleSidebar={() => {
+          if (isMobile) {
+            setShowSidebar(true)
+            return
+          }
+          setShowSidebar(p => !p)
+        }}
+        onTogglePreview={() => {
+          if (isMobile) {
+            setShowSidebar(false)
+            setShowPreview(true)
+            return
+          }
+          setShowPreview(p => !p)
+        }}
         showPreview={showPreview}
         showSidebar={showSidebar}
+        isMobile={isMobile}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-w-0">
         {/* Sidebar */}
-        <AnimatePresence initial={false}>
-          {showSidebar && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 380, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="flex-shrink-0 flex flex-col overflow-hidden" style={{background:"var(--s1)",borderRight:"1px solid var(--bd)",width:380}}
-            >
-              {/* Tabs */}
-              <div className="flex overflow-x-auto flex-shrink-0" style={{background:"var(--s0)",borderBottom:"1px solid var(--bd)"}}>
-                {TABS.map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    className={`px-3 py-2.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-all ${
-                      tab === t.id
-                        ? 'text-brand-400 border-brand-500 bg-surface-1'
-                        : 'text-ink-500 border-transparent hover:text-ink-300'
-                    }`}
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      {t.icon ? <t.icon className="w-3.5 h-3.5" /> : null}
-                      <span>{t.label}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
+        {!isMobile && (
+          <AnimatePresence initial={false}>
+            {showSidebar && (
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 380, opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex-shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--s1)', borderRight: '1px solid var(--bd)', width: 380 }}
+              >
+                {/* Tabs */}
+                <div className="flex overflow-x-auto flex-shrink-0" style={{ background: 'var(--s0)', borderBottom: '1px solid var(--bd)' }}>
+                  {TABS.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      className={`px-3 py-2.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-all ${
+                        tab === t.id
+                          ? 'text-brand-400 border-brand-500 bg-[var(--s1)]'
+                          : 'text-ink-500 border-transparent hover:text-ink-300'
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        {t.icon ? <t.icon className="w-3.5 h-3.5" /> : null}
+                        <span>{t.label}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
 
-              {/* Panel content */}
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                {tab === 'data'    && <DataTable    state={state} update={update} />}
-                {tab === 'layout'  && <LayoutPanel  state={state} update={update} />}
-                {tab === 'charts'  && <ChartsPanel  state={state} update={update} />}
-                {tab === 'columns' && <ColumnsPanel state={state} update={update} />}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                {/* Panel content */}
+                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                  {tab === 'data' && <DataTable state={state} update={update} />}
+                  {tab === 'layout' && <LayoutPanel state={state} update={update} />}
+                  {tab === 'charts' && <ChartsPanel state={state} update={update} />}
+                  {tab === 'columns' && <ColumnsPanel state={state} update={update} />}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
 
         {/* Preview */}
         <AnimatePresence initial={false}>
@@ -560,32 +613,118 @@ export default function EditorPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex-1 overflow-auto min-w-0" style={{background:"var(--s0)"}}
+              className="flex-1 overflow-auto min-w-0" style={{ background: 'var(--s0)' }}
             >
               <ReportPreview state={{ ...state, update }} />
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Mobile editor drawer */}
+        {isMobile && (
+          <AnimatePresence initial={false}>
+            {showSidebar && (
+              <>
+                <motion.button
+                  type="button"
+                  aria-label="Fechar painel de edição"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowSidebar(false)}
+                  className="absolute inset-0 z-30 bg-black/45"
+                />
+                <motion.div
+                  initial={{ x: '-100%', opacity: 0.9 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: '-100%', opacity: 0.9 }}
+                  transition={{ duration: 0.22 }}
+                  className="absolute left-0 top-0 bottom-0 z-40 w-[92vw] max-w-[420px] flex flex-col overflow-hidden"
+                  style={{ background: 'var(--s1)', borderRight: '1px solid var(--bd)' }}
+                >
+                  <div className="h-12 px-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: '1px solid var(--bd)', background: 'var(--s0)' }}>
+                    <div className="text-xs font-bold uppercase tracking-wider text-ink-400">Edição</div>
+                    <button onClick={() => setShowSidebar(false)} className="btn-ghost px-3 py-2 text-xs min-h-[40px]">Fechar</button>
+                  </div>
+                  <div className="flex overflow-x-auto flex-shrink-0" style={{ background: 'var(--s0)', borderBottom: '1px solid var(--bd)' }}>
+                    {TABS.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => setTab(t.id)}
+                        className={`px-3 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-all min-h-[44px] ${
+                          tab === t.id
+                            ? 'text-brand-400 border-brand-500 bg-[var(--s1)]'
+                            : 'text-ink-500 border-transparent hover:text-ink-300'
+                        }`}
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          {t.icon ? <t.icon className="w-4 h-4" /> : null}
+                          <span>{t.label}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                    {tab === 'data' && <DataTable state={state} update={update} />}
+                    {tab === 'layout' && <LayoutPanel state={state} update={update} />}
+                    {tab === 'charts' && <ChartsPanel state={state} update={update} />}
+                    {tab === 'columns' && <ColumnsPanel state={state} update={update} />}
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        )}
       </div>
     </div>
   )
 }
 
-function TopBar({ title, saving, onBack, onSave, onExport, canExport, onToggleSidebar, onTogglePreview, showPreview, showSidebar }) {
+function TopBar({ title, saving, onBack, onSave, onExport, canExport, onToggleSidebar, onTogglePreview, showPreview, showSidebar, isMobile = false }) {
   const { dark, toggle } = useThemeStore()
+  if (isMobile) {
+    return (
+      <div className="px-2 py-2 flex flex-col gap-1.5 flex-shrink-0 min-w-0" style={{ background: 'var(--s1)', borderBottom: '1px solid var(--bd)' }}>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <button onClick={onBack} className="btn-ghost p-2 min-h-[40px] min-w-[40px]">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <span className="text-xs font-semibold truncate min-w-0" style={{ color: 'var(--tp)' }}>{title || 'Relatório'}</span>
+          <button onClick={toggle} className="btn-ghost p-2 min-h-[40px] min-w-[40px] ml-auto" title={dark ? 'Modo claro' : 'Modo escuro'}>
+            {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-brand-400" />}
+          </button>
+        </div>
+        <div className="grid grid-cols-4 gap-1">
+          <button onClick={onToggleSidebar} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showSidebar ? 'text-brand-400' : 'text-ink-400'}`}>
+            Editar
+          </button>
+          <button onClick={onTogglePreview} className={`btn-ghost px-2 py-2 min-h-[40px] text-[11px] ${showPreview ? 'text-brand-400' : 'text-ink-400'}`}>
+            <Eye className="w-3.5 h-3.5 inline mr-1" /> Ver
+          </button>
+          <button onClick={onSave} disabled={saving} className="btn-ghost px-2 py-2 min-h-[40px] text-[11px] text-ink-400 disabled:opacity-50">
+            <Save className="w-3.5 h-3.5 inline mr-1" />{saving ? '...' : 'Salvar'}
+          </button>
+          <button onClick={onExport} disabled={!canExport} className="btn-primary px-2 py-2 min-h-[40px] text-[11px] flex items-center justify-center gap-1 disabled:opacity-40">
+            <Download className="w-3.5 h-3.5" />Exportar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-12 flex items-center px-3 gap-2 flex-shrink-0" style={{background:"var(--s1)",borderBottom:"1px solid var(--bd)"}}>
-      <button onClick={onBack} className="btn-ghost p-2">
+    <div className="h-12 px-3 gap-2 flex items-center flex-shrink-0 min-w-0" style={{ background: 'var(--s1)', borderBottom: '1px solid var(--bd)' }}>
+      <button onClick={onBack} className="btn-ghost p-2 min-h-[40px] min-w-[40px]">
         <ArrowLeft className="w-4 h-4" />
       </button>
       <div className="h-4 w-px" style={{background:"var(--bd)"}} />
-      <span className="text-sm font-semibold truncate max-w-[200px]" style={{color:"var(--tp)"}}>{title || 'Relatório'}</span>
+      <span className="text-sm max-w-[200px] font-semibold truncate" style={{color:"var(--tp)"}}>{title || 'Relatório'}</span>
       <div className="ml-auto flex items-center gap-1.5">
-        <button onClick={onToggleSidebar} className={`btn-ghost p-2 text-xs ${!showSidebar ? 'text-brand-400' : 'text-ink-400'}`}>
+        <button onClick={onToggleSidebar} className={`btn-ghost p-2 text-xs ${showSidebar ? 'text-brand-400' : 'text-ink-400'}`}>
           ◀ Edição
         </button>
-        <button onClick={onTogglePreview} className={`btn-ghost p-2 text-xs ${!showPreview ? 'text-brand-400' : 'text-ink-400'}`}>
-          <Eye className="w-4 h-4 inline mr-1" /> Preview
+        <button onClick={onTogglePreview} className={`btn-ghost p-2 text-xs ${showPreview ? 'text-brand-400' : 'text-ink-400'}`}>
+          <Eye className="w-4 h-4 inline mr-1" />Preview
         </button>
         <div className="h-4 w-px" style={{background:"var(--bd)"}} />
         <button onClick={toggle} className="btn-ghost p-2" title={dark?"Modo claro":"Modo escuro"}>

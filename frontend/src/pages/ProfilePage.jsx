@@ -105,7 +105,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-0">
+    <div className="min-h-screen bg-[var(--s0)]">
       <Navbar />
       <div className="max-w-3xl mx-auto px-4 pt-20 pb-16">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
@@ -113,11 +113,11 @@ export default function ProfilePage() {
             <button onClick={() => navigate('/dashboard')} className="btn-ghost p-2 text-ink-400">
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <h1 className="text-xl font-bold text-white">Configurações da conta</h1>
+            <h1 className="text-xl font-bold text-[color:var(--tp)]">Configurações da conta</h1>
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mb-6 bg-surface-1 p-1 rounded-xl border border-white/[0.07] w-fit">
+          <div className="flex gap-1 mb-6 bg-[var(--s1)] p-1 rounded-xl border border-theme w-fit">
             {[
               { id: 'profile', icon: <User className="w-4 h-4" />, label: 'Perfil' },
               { id: 'plan',    icon: <CreditCard className="w-4 h-4" />, label: 'Plano' },
@@ -125,7 +125,7 @@ export default function ProfilePage() {
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.id ? 'bg-brand-600 text-white' : 'text-ink-400 hover:text-ink-200'}`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.id ? 'bg-brand-600 text-white' : 'text-[color:var(--ts)] hover:text-[color:var(--tp)]'}`}
               >
                 {t.icon} {t.label}
               </button>
@@ -136,7 +136,7 @@ export default function ProfilePage() {
           {tab === 'profile' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6 space-y-6">
               <div>
-                <h2 className="text-base font-bold text-white mb-1">Informações pessoais</h2>
+                <h2 className="text-base font-bold text-[color:var(--tp)] mb-1">Informações pessoais</h2>
                 <p className="text-ink-500 text-sm">Atualize seu nome e senha</p>
               </div>
 
@@ -151,8 +151,8 @@ export default function ProfilePage() {
                   <p className="text-[10px] text-ink-600 mt-1">O email não pode ser alterado</p>
                 </div>
 
-                <div className="border-t border-white/[0.07] pt-4">
-                  <h3 className="text-sm font-semibold text-ink-200 mb-3 flex items-center gap-2">
+                <div className="border-t border-theme pt-4">
+                  <h3 className="text-sm font-semibold text-[color:var(--tp)] mb-3 flex items-center gap-2">
                     <Lock className="w-4 h-4" /> Alterar senha
                   </h3>
                   <div className="space-y-3">
@@ -188,30 +188,30 @@ export default function ProfilePage() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               {/* Current status */}
               <div className="card p-5">
-                <h2 className="text-base font-bold text-white mb-4">Status da assinatura</h2>
+                <h2 className="text-base font-bold text-[color:var(--tp)] mb-4">Status da assinatura</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-surface-2 rounded-xl p-4">
+                  <div className="bg-[var(--s2)] rounded-xl p-4">
                     <p className="text-xs text-ink-500 mb-1">Plano atual</p>
-                    <p className={`text-lg font-bold ${PLAN_COLORS[user?.plan] || 'text-white'}`}>
+                    <p className={`text-lg font-bold ${PLAN_COLORS[user?.plan] || 'text-[color:var(--tp)]'}`}>
                       {PLAN_LABELS[user?.plan] || '—'}
                     </p>
                   </div>
-                  <div className="bg-surface-2 rounded-xl p-4">
+                  <div className="bg-[var(--s2)] rounded-xl p-4">
                     <p className="text-xs text-ink-500 mb-1">Uso este mês</p>
-                    <p className="text-lg font-bold text-white font-mono">
+                    <p className="text-lg font-bold text-[color:var(--tp)] font-mono">
                       {billing?.reports_this_month || 0}
                       <span className="text-ink-500 text-sm font-normal"> / {billing?.plan_limit >= 9999 ? '∞' : billing?.plan_limit}</span>
                     </p>
                   </div>
-                  <div className="bg-surface-2 rounded-xl p-4">
+                  <div className="bg-[var(--s2)] rounded-xl p-4">
                     <p className="text-xs text-ink-500 mb-1">Status</p>
                     <p className={`text-sm font-semibold ${billing?.subscription_status === 'active' ? 'text-green-400' : 'text-ink-400'}`}>
                       {billing?.subscription_status === 'active' ? '✓ Ativo' : billing?.subscription_status || 'Gratuito'}
                     </p>
                   </div>
-                  <div className="bg-surface-2 rounded-xl p-4">
+                  <div className="bg-[var(--s2)] rounded-xl p-4">
                     <p className="text-xs text-ink-500 mb-1">Expira em</p>
-                    <p className="text-sm font-semibold text-white">
+                    <p className="text-sm font-semibold text-[color:var(--tp)]">
                       {billing?.plan_expires_at ? new Date(billing.plan_expires_at).toLocaleDateString('pt-BR') : '—'}
                     </p>
                   </div>
@@ -242,10 +242,10 @@ export default function ProfilePage() {
                     <div key={plan.id} className={`card p-4 ${isCurrent ? 'border-brand-600' : ''}`}>
                       <div className="flex items-center justify-between mb-3">
                         <div>
-                          <span className="text-white font-bold">{plan.name}</span>
+                          <span className="text-[color:var(--tp)] font-bold">{plan.name}</span>
                           {isCurrent && <span className="ml-2 badge bg-brand-900 text-brand-300 text-[10px]">Atual</span>}
                         </div>
-                        <span className="text-xl font-extrabold text-white">R$ {plan.price_brl}<span className="text-ink-500 text-xs font-normal">/mês</span></span>
+                        <span className="text-xl font-extrabold text-[color:var(--tp)]">R$ {plan.price_brl}<span className="text-ink-500 text-xs font-normal">/mês</span></span>
                       </div>
                       <ul className="space-y-1.5 mb-4">
                         {plan.features.slice(0, 4).map((f, i) => (
@@ -257,7 +257,7 @@ export default function ProfilePage() {
                       <button
                         onClick={() => handlePlanAction(plan)}
                         disabled={isCurrent || checkoutMut.isPending || portalMut.isPending}
-                        className={`w-full py-2 rounded-lg text-sm font-semibold transition-all ${isCurrent ? 'bg-surface-3 text-ink-500 cursor-default' : 'bg-brand-600 hover:bg-brand-500 text-white active:scale-95'}`}
+                        className={`w-full py-2 rounded-lg text-sm font-semibold transition-all ${isCurrent ? 'bg-[var(--s3)] text-ink-500 cursor-default' : 'bg-brand-600 hover:bg-brand-500 text-white active:scale-95'}`}
                       >
                         {isCurrent ? '✓ Plano atual' : getPlanActionLabel(plan)}
                       </button>

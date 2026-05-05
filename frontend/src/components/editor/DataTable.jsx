@@ -76,18 +76,18 @@ export default function DataTable({ state, update }) {
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
       <div className="border-b" style={{background:'var(--s0)',borderColor:'var(--bd)'}}>
-        <div className="px-3 pt-2 pb-1">
-          <input className="input-field py-1.5 text-xs w-full" placeholder="Buscar em todos os campos..." value={globalFilter} onChange={e => setGlobalFilter(e.target.value)} />
+        <div className="px-2 sm:px-3 pt-2 pb-1">
+          <input className="input-field py-2 sm:py-1.5 text-xs w-full" placeholder="Buscar em todos os campos..." value={globalFilter} onChange={e => setGlobalFilter(e.target.value)} />
         </div>
         {categoricalCols.length > 0 && (
-          <div className="px-3 pb-2 flex flex-wrap gap-2 items-end">
+          <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2 items-end">
             {categoricalCols.map(({ ci, col, vals }) => {
               const active = !!colFilters[ci]
               return (
-                <div key={ci} className="flex flex-col gap-0.5" style={{minWidth:110}}>
+                <div key={ci} className="flex flex-col gap-0.5 w-full sm:w-auto sm:min-w-[110px]">
                   <label className="text-[10px] font-semibold uppercase tracking-wide truncate" style={{color:active?'#2563eb':'var(--ts)'}}>{col.name}</label>
                   <div className="relative">
-                    <select className="input-field py-1 pr-6 text-xs appearance-none w-full" style={active?{borderColor:'#2563eb',color:'var(--tp)'}:{color:'var(--tp)'}} value={colFilters[ci]||''} onChange={e => setColFilter(ci, e.target.value)}>
+                    <select className="input-field py-2 sm:py-1 pr-6 text-xs appearance-none w-full" style={active?{borderColor:'#2563eb',color:'var(--tp)'}:{color:'var(--tp)'}} value={colFilters[ci]||''} onChange={e => setColFilter(ci, e.target.value)}>
                       <option value="">Todos</option>
                       {vals.map(v => <option key={v} value={v}>{v}</option>)}
                     </select>
@@ -96,20 +96,20 @@ export default function DataTable({ state, update }) {
                 </div>
               )
             })}
-            <div className="flex flex-col justify-end gap-0.5 ml-auto">
+            <div className="flex flex-col justify-end gap-0.5 ml-auto max-sm:w-full max-sm:ml-0">
               <span className="text-[10px]" style={{color:'var(--ts)'}}>{hasActiveFilter ? `${filtered} de ${total} registros` : `${total} registros`}</span>
-              {hasActiveFilter && <button onClick={clearAll} className="flex items-center gap-1 text-xs text-red-400"><X className="w-3 h-3"/>Limpar</button>}
+              {hasActiveFilter && <button onClick={clearAll} className="flex items-center gap-1 text-xs text-red-400 min-h-[36px]"><X className="w-3 h-3"/>Limpar</button>}
             </div>
           </div>
         )}
       </div>
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b" style={{borderColor:'var(--bd)'}}>
-        <button onClick={addRow} className="btn-ghost py-1 px-2 text-xs flex items-center gap-1"><Plus className="w-3 h-3"/>Linha</button>
-        <button onClick={delSelected} disabled={!selRows.size} className="btn-ghost py-1 px-2 text-xs text-red-400 disabled:opacity-30 flex items-center gap-1"><Trash2 className="w-3 h-3"/>Excluir sel.</button>
+      <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 border-b" style={{borderColor:'var(--bd)'}}>
+        <button onClick={addRow} className="btn-ghost py-2 sm:py-1 px-2 text-xs flex items-center gap-1 min-h-[36px]"><Plus className="w-3 h-3"/>Linha</button>
+        <button onClick={delSelected} disabled={!selRows.size} className="btn-ghost py-2 sm:py-1 px-2 text-xs text-red-400 disabled:opacity-30 flex items-center gap-1 min-h-[36px]"><Trash2 className="w-3 h-3"/>Excluir sel.</button>
         {activeFilters > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{background:'rgba(37,99,235,0.2)',color:'#60a5fa'}}>{activeFilters} filtro{activeFilters>1?'s':''} ativo{activeFilters>1?'s':''}</span>}
       </div>
       <div className="flex-1 overflow-auto min-h-0">
-        <table className="text-xs border-collapse min-w-full">
+        <table className="text-xs border-collapse min-w-full sm:min-w-max">
           <thead>
             <tr>
               <th className="sticky top-0 z-10 w-8 border p-1 text-center" style={{background:'var(--s2)',borderColor:'var(--bd)'}}>
@@ -118,11 +118,11 @@ export default function DataTable({ state, update }) {
               {cols.map((col,ci) => (
                 <th key={ci} className="sticky top-0 z-10 border p-0" style={{background:'var(--s2)',borderColor:'var(--bd)',minWidth:90}}>
                   <div className="flex items-center group">
-                    <input className="bg-transparent border-none font-semibold px-2 py-1.5 w-full outline-none text-xs" style={{color:'var(--tp)'}} value={col.name} onChange={e => renameCol(ci, e.target.value)}/>
+                    <input className="bg-transparent border-none font-semibold px-2 py-2 sm:py-1.5 w-full outline-none text-xs" style={{color:'var(--tp)'}} value={col.name} onChange={e => renameCol(ci, e.target.value)}/>
                     <button onClick={() => toggleSort(ci)} className="p-1 flex-shrink-0" style={sortCol===ci?{color:'#2563eb'}:{color:'var(--tm)',opacity:0.35}}>
                       {sortCol===ci?(sortDir==='asc'?<ChevronUp className="w-3 h-3"/>:<ChevronDown className="w-3 h-3"/>):<ChevronUp className="w-3 h-3"/>}
                     </button>
-                    <button onClick={() => delCol(ci)} className="opacity-0 group-hover:opacity-100 p-1 text-red-400 flex-shrink-0">x</button>
+                    <button onClick={() => delCol(ci)} className="p-1 text-red-400 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">x</button>
                   </div>
                 </th>
               ))}
@@ -141,7 +141,7 @@ export default function DataTable({ state, update }) {
                   </td>
                   {row?.cells?.map((cell,ci) => (
                     <td key={ci} className="border p-0" style={{borderColor:'var(--bd)'}}>
-                      <input className="bg-transparent px-2 py-1.5 w-full outline-none text-xs" style={{color:'var(--tp)',minWidth:80}} value={cell} onChange={e => editCell(ri,ci,e.target.value)} onFocus={e => e.target.style.background='rgba(37,99,235,0.1)'} onBlur={e => e.target.style.background='transparent'}/>
+                      <input className="bg-transparent px-2 py-2 sm:py-1.5 w-full outline-none text-xs" style={{color:'var(--tp)',minWidth:80}} value={cell} onChange={e => editCell(ri,ci,e.target.value)} onFocus={e => e.target.style.background='rgba(37,99,235,0.1)'} onBlur={e => e.target.style.background='transparent'}/>
                     </td>
                   ))}
                   <td className="border" style={{borderColor:'var(--bd)'}}/>

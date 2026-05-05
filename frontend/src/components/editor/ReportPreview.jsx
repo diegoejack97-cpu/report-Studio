@@ -51,20 +51,20 @@ function TableSection({ rows, visCols, dark, cardBg, bdColor, p1, p2, textColor,
 
   return (
     <div className="rounded-2xl shadow-sm overflow-hidden mb-5" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
-      <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${bdColor}` }}>
-        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: p2 }}>
+      <div className="px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2" style={{ borderBottom: `1px solid ${bdColor}` }}>
+        <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider break-words" style={{ color: p2 }}>
           Todos os Registros — {hasFilter ? `${filteredRows.length} de ${rows.length}` : rows.length.toLocaleString('pt-BR')}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {hasFilter && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(37,99,235,0.2)', color: '#60a5fa' }}>{activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''}</span>}
-          {hasFilter && <button onClick={() => { setSelectedCol(''); setSelectedVal(''); setGlobalSearch('') }} style={{ fontSize: '0.7rem', color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 5, padding: '0.15rem 0.5rem' }}>x Limpar</button>}
+          {hasFilter && <button onClick={() => { setSelectedCol(''); setSelectedVal(''); setGlobalSearch('') }} className="min-h-[36px] px-2" style={{ fontSize: '0.7rem', color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 5, padding: '0.15rem 0.5rem' }}>x Limpar</button>}
         </div>
       </div>
       {showFilters && (
-        <div className="px-4 py-3" style={{ borderBottom: `1px solid ${bdColor}`, background: dark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)' }}>
+        <div className="px-3 sm:px-4 py-3" style={{ borderBottom: `1px solid ${bdColor}`, background: dark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)' }}>
           <input ref={searchRef} style={{ ...pillStyle, marginBottom: '0.6rem' }} placeholder="Buscar em todos os campos... (/)" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
           {categoricalCols.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,220px) minmax(220px,1fr)', gap: '0.5rem' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(180px,220px)_minmax(220px,1fr)] gap-2">
               <select style={{ ...pillStyle, borderColor: selectedCol ? '#3b82f6' : bdColor, appearance: 'none', cursor: 'pointer' }} value={selectedCol} onChange={e => { setSelectedCol(e.target.value); setSelectedVal('') }}>
                 <option value="">Filtrar por campo...</option>
                 {categoricalCols.map(vc => <option key={vc.i} value={String(vc.i)}>{vc.name}</option>)}
@@ -196,7 +196,7 @@ function ChartCard({ title, reason, h = 240, full = false, children }) {
   const { dark } = useThemeStore()
   return (
     <motion.div initial={{ opacity: 0, scale: .97 }} animate={{ opacity: 1, scale: 1 }}
-      className={`rounded-2xl p-4 shadow-sm ${full ? 'col-span-2' : ''}`}
+      className={`rounded-2xl p-3 sm:p-4 shadow-sm ${full ? 'lg:col-span-2' : ''}`}
       style={{ background: dark ? '#0d1a26' : '#ffffff', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}` }}>
       <div className="text-xs font-bold uppercase tracking-wider mb-3 pb-2" style={{ color: dark ? '#94a3b8' : '#64748b', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.06)' : '#f1f5f9'}` }}>
         <div>{title}</div>
@@ -963,7 +963,7 @@ export default function ReportPreview({ state }) {
 
         {sections.charts !== false && (
           showSkeleton ? (
-            <div className="grid grid-cols-2 gap-4 mb-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
               {[0, 1, 2, 3].map(index => (
                 <ChartCard key={`skeleton-chart-${index}`} title="Carregando gráfico" h={index >= 2 ? 300 : 260}>
                   <div className="space-y-3">
@@ -974,7 +974,7 @@ export default function ReportPreview({ state }) {
               ))}
             </div>
           ) : metricCharts.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4 mb-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
               {metricCharts.map((chart, index) => (
                 <ChartCard key={`${inferChartType(chart) || chart?.type || 'chart'}-${chart.id || index}`} title={chart.title || 'Gráfico'} reason={chart.selectionReason} h={chart.h || (index >= 1 ? 300 : 320)} full={index === 0}>
                   {chart.option

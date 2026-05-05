@@ -24,10 +24,10 @@ function Toggle({ checked, onChange, label }) {
   return (
     <label className="flex items-center justify-between cursor-pointer">
       <span className="text-xs" style={{color:'var(--ts)'}}>{label}</span>
-      <div className={`w-8 h-4 rounded-full relative transition-colors ${checked ? 'bg-brand-600' : ''}`}
+      <div className={`w-10 h-5 rounded-full relative transition-colors ${checked ? 'bg-brand-600' : ''}`}
         style={{background: checked ? undefined : 'var(--s4)'}}
         onClick={() => onChange(!checked)}>
-        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform shadow ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
       </div>
     </label>
   )
@@ -44,7 +44,7 @@ export default function ChartsPanel({ state, update }) {
     const val = ch[gid]?.[field] ?? ''
     return (
       <Field label={label}>
-        <select className="input-field text-xs py-1.5" value={val} onChange={e => setG(gid, field, e.target.value)}>
+        <select className="input-field text-xs py-2 sm:py-1.5" value={val} onChange={e => setG(gid, field, e.target.value)}>
           <option value="">— escolha —</option>
           {(opts||colOpts).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -58,16 +58,16 @@ export default function ChartsPanel({ state, update }) {
       <Accordion title={`${prefix ? `${prefix} ` : ''}${label}`}>
         <Toggle checked={g.on !== false} onChange={v => setG(id, 'on', v)} label="Mostrar" />
         <Field label="Título">
-          <input className="input-field text-xs py-1.5" value={g.title || ''} onChange={e => setG(id, 'title', e.target.value)} />
+          <input className="input-field text-xs py-2 sm:py-1.5" value={g.title || ''} onChange={e => setG(id, 'title', e.target.value)} />
         </Field>
         <Field label="Tipo de gráfico">
-          <select className="input-field text-xs py-1.5" value={g.type || typeOptions[0]?.value} onChange={e => setG(id, 'type', e.target.value)}>
+          <select className="input-field text-xs py-2 sm:py-1.5" value={g.type || typeOptions[0]?.value} onChange={e => setG(id, 'type', e.target.value)}>
             {typeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </Field>
         {children}
         <Field label="Altura (px)">
-          <input type="number" className="input-field text-xs py-1.5" value={g.h || 260} min={120} max={700} step={20}
+          <input type="number" className="input-field text-xs py-2 sm:py-1.5" value={g.h || 260} min={120} max={700} step={20}
             onChange={e => setG(id, 'h', parseInt(e.target.value) || 260)} />
         </Field>
       </Accordion>
@@ -127,7 +127,7 @@ export default function ChartsPanel({ state, update }) {
         <ColSelect gid="g4" field="labelCol" label="Coluna de rótulo" />
         <ColSelect gid="g4" field="valCol"   label="Coluna de valor (soma)" opts={numOpts} />
         <Field label="Top N">
-          <input type="number" className="input-field text-xs py-1.5" value={ch.g4?.n||10} min={3} max={50}
+          <input type="number" className="input-field text-xs py-2 sm:py-1.5" value={ch.g4?.n||10} min={3} max={50}
             onChange={e => setG('g4','n',parseInt(e.target.value)||10)} />
         </Field>
       </ChartBlock>

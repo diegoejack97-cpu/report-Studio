@@ -199,7 +199,7 @@ test.describe('Export strict parity snapshots', () => {
     await page.waitForTimeout(1200)
 
     await expect(page.locator('body')).toHaveAttribute('data-export-mode', 'strict')
-    await expect(page.locator('.wrap')).toHaveScreenshot('export-strict-dark.png', { animations: 'disabled' })
+    await expect(page.locator('.wrap')).toHaveScreenshot('export-strict-dark.png', { animations: 'disabled', timeout: 30000 })
   })
 
   test('strict light snapshot', async ({ page }) => {
@@ -208,7 +208,7 @@ test.describe('Export strict parity snapshots', () => {
     await page.waitForSelector('.cg .cc', { timeout: 15000 })
     await page.waitForTimeout(1200)
 
-    await expect(page.locator('.wrap')).toHaveScreenshot('export-strict-light.png', { animations: 'disabled' })
+    await expect(page.locator('.wrap')).toHaveScreenshot('export-strict-light.png', { animations: 'disabled', timeout: 30000 })
   })
 
   test('percent saving uses backend charts and metric total', async ({ page }) => {
@@ -218,5 +218,70 @@ test.describe('Export strict parity snapshots', () => {
     await expect(page.locator('.sav-val')).toContainText('620,00')
     await expect(page.locator('.cg .cc')).toHaveCount(1)
     await expect(page.locator('.ct').first()).toContainText('Waterfall direto')
+  })
+
+  test('limits rendered table rows for large exports', async ({ page }) => {
+    const largeRows = Array.from({ length: 650 }, (_, index) => ({
+      cells: [`Fornecedor ${index + 1}`, index % 2 === 0 ? 'Software' : 'Hardware', String(index + 1)],
+    }))
+    const html = buildReportHTML({
+      ...percentFixture,
+      cols: [
+        { name: 'Fornecedor', type: 'text', vis: true },
+        { name: 'Categoria', type: 'text', vis: true },
+        { name: 'Valor', type: 'number', vis: true },
+      ],
+      rows: largeRows,
+      sections: { saving: false, kpi: false, charts: false, summary: false, table: true, filters: true, footer: false },
+      reportData: {
+        ...percentFixture.reportData,
+        dataset: largeRows,
+        charts: [],
+      },
+    }, { isDark: false, strictParity: true })
+
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
+
+    await expect(page.locator('#tbl-body tr')).toHaveCount(500)
+    await expect(page.locator('#tbl-limit')).toContainText('Exibindo as primeiras 500 linhas de 650 registros.')
+  })
+
+  test('mobile layout keeps charts stacked and prevents global overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    const html = buildReportHTML(fixtureWithCharts, { isDark: false, strictParity: true })
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('.cg .cc', { timeout: 15000 })
+    await page.waitForSelector('.sav-val', { timeout: 15000 })
+    await page.waitForSelector('.table-scroll', { timeout: 15000 })
+
+    await expect(page.locator('.cg .cc')).toHaveCount(selectedFixtureCharts.length)
+
+    const chartsAreSingleColumn = await page.locator('.cg').evaluate((container) => {
+      const cards = Array.from(container.querySelectorAll('.cc'))
+      if (cards.length <= 1) return true
+      const lefts = cards.map((card) => Math.round(card.getBoundingClientRect().left))
+      const firstLeft = lefts[0]
+      return lefts.every((left) => Math.abs(left - firstLeft) <= 1)
+    })
+    expect(chartsAreSingleColumn).toBe(true)
+
+    const noGlobalOverflow = await page.evaluate(() => {
+      const root = document.documentElement
+      return root.scrollWidth <= root.clientWidth + 1
+    })
+    expect(noGlobalOverflow).toBe(true)
+
+    const tableUsesHorizontalScroll = await page.locator('.table-scroll').evaluate((wrapper) => wrapper.scrollWidth > wrapper.clientWidth)
+    expect(tableUsesHorizontalScroll).toBe(true)
+
+    const metricFitsContainer = await page.evaluate(() => {
+      const valueEl = document.querySelector('.sav-val')
+      const boxEl = document.querySelector('.sav')
+      if (!valueEl || !boxEl) return false
+      const valueRect = valueEl.getBoundingClientRect()
+      const boxRect = boxEl.getBoundingClientRect()
+      return valueRect.left >= boxRect.left - 1 && valueRect.right <= boxRect.right + 1
+    })
+    expect(metricFitsContainer).toBe(true)
   })
 })

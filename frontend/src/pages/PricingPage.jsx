@@ -216,7 +216,7 @@ export default function PricingPage() {
   }, [token, plans, searchParams, processingPlanId, startHostedCheckout, startEmbeddedCheckout, billingConfig, currentPlanRank, openBillingPortal])
 
   return (
-    <div className="min-h-screen bg-surface-0">
+    <div className="min-h-screen bg-[var(--s0)]">
       <Navbar />
 
       <div className="max-w-6xl mx-auto px-4 pt-24 pb-20">
@@ -225,10 +225,10 @@ export default function PricingPage() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-16"
         >
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          <h1 className="text-4xl md:text-5xl font-bold text-[color:var(--tp)] mb-4">
             Estrutura de planos
           </h1>
-          <p className="text-ink-400 text-lg max-w-xl mx-auto">
+          <p className="text-[color:var(--ts)] text-lg max-w-xl mx-auto">
             3 planos individuais self-service para começar e escalar no seu ritmo.
           </p>
         </motion.div>
@@ -243,7 +243,7 @@ export default function PricingPage() {
         {!!plansBySegment.individual?.length && (
           <div>
             <div className="mb-5">
-              <h2 className="text-2xl font-bold text-white">Planos Individuais</h2>
+              <h2 className="text-2xl font-bold text-[color:var(--tp)]">Planos Individuais</h2>
               <p className="text-ink-500 text-sm mt-1">
                 {billingConfig?.embedded_checkout_enabled ? 'Ativação imediata com pagamento incorporado' : 'Ativação imediata via checkout'}
               </p>
@@ -262,8 +262,8 @@ export default function PricingPage() {
                     transition={{ delay: i * 0.08 }}
                     className={`relative rounded-2xl p-6 border flex flex-col ${
                       isHighlighted
-                        ? 'border-brand-600 bg-gradient-to-b from-brand-950/80 to-surface-2 ring-1 ring-brand-600/30'
-                        : 'border-white/[0.08] bg-surface-1'
+                        ? 'border-brand-600 bg-[var(--s2)] ring-1 ring-brand-600/30'
+                        : 'border-theme bg-[var(--s1)]'
                     }`}
                   >
                     {isHighlighted && (
@@ -279,9 +279,9 @@ export default function PricingPage() {
                     )}
 
                     <div className="mb-6">
-                      <h3 className="text-base font-bold text-white mb-1">{plan.name}</h3>
+                      <h3 className="text-base font-bold text-[color:var(--tp)] mb-1">{plan.name}</h3>
                       <div className="flex items-baseline gap-1 mb-1">
-                        <span className="text-4xl font-extrabold text-white">
+                        <span className="text-4xl font-extrabold text-[color:var(--tp)]">
                           {plan.price_brl === 0 ? 'Grátis' : `R$\u00a0${plan.price_brl}`}
                         </span>
                         {plan.price_brl > 0 && <span className="text-ink-500 text-sm">/mês</span>}
@@ -299,7 +299,7 @@ export default function PricingPage() {
                       {plan.features.map((feature, featureIndex) => (
                         <li key={featureIndex} className="flex items-start gap-2 text-sm">
                           <CheckCircle2 className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isHighlighted ? 'text-brand-400' : 'text-green-500'}`} />
-                          <span className="text-ink-300">{feature}</span>
+                          <span className="text-[color:var(--ts)]">{feature}</span>
                         </li>
                       ))}
                     </ul>
@@ -309,10 +309,10 @@ export default function PricingPage() {
                       disabled={(isCurrent && plan.self_service) || !!processingPlanId || embeddedCheckoutLoading}
                       className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
                         isCurrent && plan.self_service
-                          ? 'bg-surface-3 text-ink-500 cursor-default'
+                          ? 'bg-[var(--s3)] text-ink-500 cursor-default'
                           : isHighlighted
                             ? 'bg-brand-600 hover:bg-brand-500 text-white active:scale-95'
-                            : 'border border-white/10 hover:border-white/20 text-ink-200 hover:text-white hover:bg-white/5 active:scale-95'
+                            : 'border border-theme hover:border-[color:var(--bdh)] text-[color:var(--ts)] hover:text-[color:var(--tp)] hover:bg-[var(--s2)] active:scale-95'
                       }`}
                     >
                       {isCurrent && plan.self_service
@@ -335,12 +335,12 @@ export default function PricingPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.18 }}
-          className="mt-10 rounded-3xl border border-brand-700/30 bg-gradient-to-br from-brand-950/80 via-surface-2 to-surface-1 p-8 md:p-10"
+          className="mt-10 rounded-3xl border border-brand-700/30 bg-gradient-to-br from-brand-950/80 via-[var(--s2)] to-[var(--s1)] p-8 md:p-10"
         >
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="max-w-2xl">
-              <h2 className="text-2xl md:text-3xl font-bold text-white">Soluções empresariais</h2>
-              <p className="mt-3 text-base leading-relaxed text-ink-400">
+              <h2 className="text-2xl md:text-3xl font-bold text-[color:var(--tp)]">Soluções empresariais</h2>
+              <p className="mt-3 text-base leading-relaxed text-[color:var(--ts)]">
                 Soluções personalizadas para equipes e grandes volumes. Entre em contato com nosso time para uma proposta sob medida.
               </p>
             </div>
@@ -365,7 +365,7 @@ export default function PricingPage() {
             { q: 'Aceita cartão de crédito/débito?', a: billingConfig?.embedded_checkout_enabled ? 'Sim. Os planos individuais usam Stripe com formulário incorporado nesta página.' : 'Sim, para planos individuais via Stripe. Soluções empresariais seguem atendimento comercial.' },
           ].map((item, i) => (
             <div key={i} className="card p-5">
-              <h4 className="text-white font-semibold mb-2 text-sm">{item.q}</h4>
+              <h4 className="text-[color:var(--tp)] font-semibold mb-2 text-sm">{item.q}</h4>
               <p className="text-ink-500 text-sm leading-relaxed">{item.a}</p>
             </div>
           ))}

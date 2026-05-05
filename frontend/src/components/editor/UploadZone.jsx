@@ -63,10 +63,10 @@ export default function UploadZone({ onLoad }) {
   }
 
   return (
-    <div className="w-full max-w-xl">
-      <div className="text-center mb-8">
+    <div className="w-full max-w-xl px-2 sm:px-0">
+      <div className="text-center mb-6 sm:mb-8">
         <div className="flex justify-center mb-3"><Sparkles className="w-9 h-9 text-brand-400" /></div>
-        <h2 className="text-2xl font-bold text-white mb-2">Importar dados</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-[color:var(--tp)] mb-2">Importar dados</h2>
         <p className="text-ink-500 text-sm">Carregue seu arquivo para começar a criar o relatório</p>
       </div>
 
@@ -74,10 +74,10 @@ export default function UploadZone({ onLoad }) {
         {...getRootProps()}
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
-        className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200 ${
+        className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-12 text-center cursor-pointer transition-all duration-200 ${
           isDragActive
             ? 'border-brand-500 bg-brand-900/20'
-            : 'border-white/[0.15] bg-surface-1 hover:border-white/[0.25] hover:bg-surface-2'
+            : 'border-theme bg-[var(--s1)] hover:border-[color:var(--bdh)] hover:bg-[var(--s2)]'
         }`}
       >
         <input {...getInputProps()} />
@@ -89,13 +89,13 @@ export default function UploadZone({ onLoad }) {
         ) : (
           <div>
             <Upload className={`w-10 h-10 mx-auto mb-4 ${isDragActive ? 'text-brand-400' : 'text-ink-500'}`} />
-            <p className="text-white font-semibold mb-1">
+            <p className="text-[color:var(--tp)] font-semibold mb-1">
               {isDragActive ? 'Solte aqui!' : 'Arraste ou clique para importar'}
             </p>
             <p className="text-ink-500 text-sm mb-4">XLSX, XLS, CSV, TXT</p>
-            <div className="flex gap-2 justify-center">
+            <div className="flex gap-2 justify-center flex-wrap">
               {['XLSX', 'XLS', 'CSV', 'TXT'].map(f => (
-                <span key={f} className="px-2 py-0.5 rounded-full bg-surface-3 border border-white/10 text-xs text-ink-400 font-mono">{f}</span>
+                <span key={f} className="px-2 py-0.5 rounded-full bg-[var(--s3)] border border-theme text-xs text-ink-400 font-mono">{f}</span>
               ))}
             </div>
           </div>
@@ -103,14 +103,14 @@ export default function UploadZone({ onLoad }) {
       </motion.div>
 
       <div className="flex items-center gap-3 my-4">
-        <div className="flex-1 h-px bg-white/[0.07]" />
+        <div className="flex-1 h-px border-t border-theme" />
         <span className="text-ink-600 text-xs">ou</span>
-        <div className="flex-1 h-px bg-white/[0.07]" />
+        <div className="flex-1 h-px border-t border-theme" />
       </div>
 
       <button
         onClick={loadDemo}
-        className="w-full py-3 rounded-xl border border-white/[0.1] text-ink-300 hover:text-white hover:bg-surface-2 text-sm font-medium transition-all flex items-center justify-center gap-2"
+        className="w-full py-3 rounded-xl border border-theme text-[color:var(--ts)] hover:text-[color:var(--tp)] hover:bg-[var(--s2)] text-sm font-medium transition-all flex items-center justify-center gap-2"
       >
         <FileSpreadsheet className="w-4 h-4" />
         Carregar dados de exemplo (60 contratos)

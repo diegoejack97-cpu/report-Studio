@@ -35,7 +35,9 @@ export function buildReportHTML(state, options = {}) {
   const subTxt = isDark ? '#486581' : '#94a3b8'
   const showFilters = sections?.filters !== false
   const showCharts = sections?.charts !== false
-  const rowRenderLimit = rows.length
+  const rowRenderLimit = Number.isFinite(Number(options.tableRenderLimit))
+    ? Math.max(1, Number(options.tableRenderLimit))
+    : 500
   const rawCharts = Array.isArray(safeReportData.charts) ? safeReportData.charts : []
   const charts = selectMetricCharts(rawCharts, metric.type || 'ECONOMIA', rows.length)
   const chartsJSON = JSON.stringify(charts)
@@ -201,6 +203,7 @@ export function buildReportHTML(state, options = {}) {
       <tbody id="tbl-body"></tbody>
     </table>
   </div>
+  <div id="tbl-limit" class="tbl-limit" style="display:none"></div>
   <div id="tbl-empty" style="display:none;text-align:center;padding:32px;color:${subTxt}">Nenhum registro encontrado</div>
 </div>
 <script>
@@ -229,11 +232,20 @@ function applyFilters(){
     return true;
   });
   const tbody = document.getElementById('tbl-body');
-  tbody.innerHTML = filtered.slice(0, _rowRenderLimit).map((r, ri) =>
+  const visibleRows = filtered.slice(0, _rowRenderLimit);
+  tbody.innerHTML = visibleRows.map((r, ri) =>
     '<tr style="background:' + (ri % 2 === 0 ? (_isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc') : 'transparent') + '">' +
     r.map(v => '<td>' + esc(v) + '</td>').join('') + '</tr>'
   ).join('');
   document.getElementById('tbl-empty').style.display = filtered.length === 0 ? 'block' : 'none';
+  const limitNotice = document.getElementById('tbl-limit');
+  if (limitNotice) {
+    const isLimited = filtered.length > _rowRenderLimit;
+    limitNotice.style.display = isLimited ? 'block' : 'none';
+    limitNotice.textContent = isLimited
+      ? 'Exibindo as primeiras ' + _rowRenderLimit.toLocaleString('pt-BR') + ' linhas de ' + filtered.length.toLocaleString('pt-BR') + ' registros.'
+      : '';
+  }
   document.getElementById('tbl-title').textContent = (_enableFilters && (q || (fieldIdx >= 0 && selectedVal)))
     ? 'Todos os Registros — ' + filtered.length + ' de ' + _totalRows.toLocaleString('pt-BR')
     : 'Todos os Registros — ' + _totalRows.toLocaleString('pt-BR');
@@ -334,6 +346,7 @@ body{background:${bg};font-family:'DM Sans',sans-serif;color:${txt};padding:20px
 .tbl-active{font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(37,99,235,0.2);color:#60a5fa;margin-left:auto;margin-right:8px;}
 .tbl-filters{padding:12px 16px;border-bottom:1px solid ${bdColor};background:${isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)'};}
 .tbl-compact-row{display:grid;grid-template-columns:minmax(180px,240px) minmax(220px,1fr);gap:10px;}
+.tbl-limit{padding:10px 14px;border-top:1px solid ${bdColor};font-size:12px;color:${subTxt};background:${isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc'};}
 table#mt{width:100%;border-collapse:collapse;font-size:12px;}
 table#mt th{background:${p1};color:#fff;padding:9px 11px;font-size:11px;font-weight:700;text-transform:uppercase;white-space:nowrap;}
 table#mt td{padding:7px 11px;border-bottom:1px solid ${bdColor};color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}

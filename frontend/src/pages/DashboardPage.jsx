@@ -44,7 +44,7 @@ export default function DashboardPage() {
   const handleNewReport = () => navigate('/editor')
 
   return (
-    <div className="min-h-screen bg-surface-0">
+    <div className="min-h-screen bg-[var(--s0)]">
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 pt-20 pb-12">
@@ -55,7 +55,7 @@ export default function DashboardPage() {
           className="flex items-center justify-between mb-8"
         >
           <div>
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-bold text-[color:var(--tp)]">
               Olá, {user?.full_name?.split(' ')[0] || 'bem-vindo'}
             </h1>
             <p className="text-ink-500 text-sm mt-0.5">{reports.length} relatório{reports.length !== 1 ? 's' : ''} salvo{reports.length !== 1 ? 's' : ''}</p>
@@ -74,7 +74,7 @@ export default function DashboardPage() {
             className="card p-5"
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-ink-300">Seu plano</h3>
+              <h3 className="text-sm font-semibold text-[color:var(--ts)]">Seu plano</h3>
               <span className="badge bg-brand-900/50 border border-brand-700/40 text-brand-300 capitalize">
                 {PLAN_LABELS[user?.plan] || '—'}
               </span>
@@ -91,12 +91,12 @@ export default function DashboardPage() {
                 const dash = pct * circ
                 return (
                   <svg width="128" height="128" viewBox="0 0 128 128">
-                    <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1c3350" strokeWidth="10" />
+                    <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--s4)" strokeWidth="10" />
                     <circle cx={cx} cy={cy} r={r} fill="none" stroke="#2563eb" strokeWidth="10"
                       strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
                       transform={`rotate(-90 ${cx} ${cy})`} />
-                    <text x={cx} y={cy - 6} textAnchor="middle" fill="#d9e2ec" fontSize="20" fontWeight="bold">{used}</text>
-                    <text x={cx} y={cy + 14} textAnchor="middle" fill="#486581" fontSize="11">/ {user?.plan_limit === 9999 ? '∞' : user?.plan_limit}</text>
+                    <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--tp)" fontSize="20" fontWeight="bold">{used}</text>
+                    <text x={cx} y={cy + 14} textAnchor="middle" fill="var(--ts)" fontSize="11">/ {user?.plan_limit === 9999 ? '∞' : user?.plan_limit}</text>
                   </svg>
                 )
               })()}
@@ -115,7 +115,7 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="card p-5 h-36 animate-pulse bg-surface-2" />
+                  <div key={i} className="card p-5 h-36 animate-pulse bg-[var(--s2)]" />
                 ))}
               </div>
             ) : reports.length === 0 ? (
@@ -125,7 +125,7 @@ export default function DashboardPage() {
                 className="card p-12 text-center"
               >
                 <div className="flex justify-center mb-3"><FileText className="w-10 h-10 text-ink-500" /></div>
-                <h3 className="text-white font-semibold mb-2">Nenhum relatório ainda</h3>
+                <h3 className="text-[color:var(--tp)] font-semibold mb-2">Nenhum relatório ainda</h3>
                 <p className="text-ink-500 text-sm mb-4">Faça upload de um Excel ou CSV para começar</p>
                 <button onClick={handleNewReport} className="btn-primary mx-auto">
                   <Plus className="w-4 h-4 inline mr-1" /> Criar primeiro relatório
@@ -139,14 +139,14 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="card p-5 hover:border-white/[0.12] transition-colors group"
+                    className="card p-5 hover:border-[color:var(--bdh)] transition-colors group"
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="w-8 h-8 rounded-lg bg-brand-900/40 border border-brand-800/30 flex items-center justify-center">
                         <FileText className="w-4 h-4 text-brand-400" />
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Link to={`/editor/${r.id}`} className="p-1.5 rounded hover:bg-white/5 text-ink-400 hover:text-white">
+                        <Link to={`/editor/${r.id}`} className="p-1.5 rounded hover:bg-[var(--s3)] text-ink-400 hover:text-[color:var(--tp)]">
                           <Edit3 className="w-3.5 h-3.5" />
                         </Link>
                         <button
@@ -158,10 +158,10 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <h3 className="text-sm font-semibold text-white mb-0.5 truncate">{r.title}</h3>
+                    <h3 className="text-sm font-semibold text-[color:var(--tp)] mb-0.5 truncate">{r.title}</h3>
                     <p className="text-ink-500 text-xs">{r.row_count.toLocaleString('pt-BR')} linhas · {r.col_count} colunas</p>
 
-                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/[0.06]">
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-theme">
                       <span className="text-xs text-ink-600">
                         {new Date(r.updated_at).toLocaleDateString('pt-BR')}
                       </span>
