@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import { Upload, FileSpreadsheet, Sparkles } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
+import { analyzeWorkbookSheet } from '@/lib/workbookAnalysis'
 
 const SAMPLE_ROW_LIMIT = 5
 
@@ -38,7 +39,7 @@ function parseSheet(ws, sheetName, sheetIndex) {
     .map(row => headers.map((_, index) => String(row[index] ?? '')))
   const useful = colCount > 0 && rows.length > 0
 
-  return {
+  const sheet = {
     sheetName,
     sheetIndex,
     rowCount: rows.length,
@@ -48,6 +49,10 @@ function parseSheet(ws, sheetName, sheetIndex) {
     sampleRows: rows.slice(0, SAMPLE_ROW_LIMIT),
     useful,
     isEmpty: !useful,
+  }
+  return {
+    ...sheet,
+    ...analyzeWorkbookSheet(sheet),
   }
 }
 
