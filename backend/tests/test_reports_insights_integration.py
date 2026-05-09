@@ -84,11 +84,12 @@ def test_build_metric_report_data_generates_kpis_charts_and_insights():
         "top_items",
     ]
     assert [chart["title"] for chart in artifact["charts"]] == [
-        "Distribuição",
-        "Por Categoria",
-        "Evolução",
-        "Top Itens",
+        "Distribuição de Saving Total",
+        "Saving Total por Fornecedor",
+        "Evolução Mensal de Saving Total",
+        "Top 10 por Fornecedor",
     ]
+    assert artifact["charts"][1]["sourceDescription"] == "Colunas: Fornecedor · Valor Base · Saving (%)"
 
     insight_titles = [item["titulo"] for item in artifact["insights"]]
     assert "Saving médio abaixo do benchmark" in insight_titles

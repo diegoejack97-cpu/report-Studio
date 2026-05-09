@@ -172,6 +172,8 @@ export function buildReportHTML(state, options = {}) {
     <div class="sav-mark">METRICA</div>
   </div>` : ''
   const insightsHTML = renderInsightsHTML(insights)
+  const summaryValueLabel = metric.label || summary?.primary_metric?.label || 'Valor'
+  const showSummaryValue = Array.isArray(summary.rows) && summary.rows.some(row => row?.value != null && Number.isFinite(Number(row.value)))
 
   const summaryHTML = sections?.summary && summary.rows.length ? `
 <div class="summary">
@@ -181,16 +183,19 @@ export function buildReportHTML(state, options = {}) {
       <thead><tr>
         <th>${escapeHtml(cols[summary.group_index]?.name || 'Grupo')}</th>
         <th class="tr">Qtd</th>
+        ${showSummaryValue ? `<th class="tr">${escapeHtml(summaryValueLabel)}</th>` : ''}
       </tr></thead>
       <tbody>
         ${summary.rows.map((v, i) => `
         <tr style="background:${i % 2 === 0 ? (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc') : 'transparent'}">
           <td>${escapeHtml(v.label)}</td>
           <td class="tr mono">${v.count.toLocaleString('pt-BR')}</td>
+          ${showSummaryValue ? `<td class="tr mono">${escapeHtml(formatMetricValue(metric.type, v.value, metric.unit))}</td>` : ''}
         </tr>`).join('')}
         <tr class="summary-total">
           <td>TOTAL GERAL</td>
           <td class="tr mono">${(summary.totals.count ?? 0).toLocaleString('pt-BR')}</td>
+          ${showSummaryValue ? `<td class="tr mono">${escapeHtml(formatMetricValue(metric.type, summary.totals.value ?? metric.value ?? 0, metric.unit))}</td>` : ''}
         </tr>
       </tbody>
     </table>
@@ -385,6 +390,7 @@ body{background:radial-gradient(circle at top,${isDark ? 'rgba(37,99,235,.12)' :
 .ch{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid ${bdColor};}
 .ct{font-size:13px;font-weight:800;color:${txt};text-transform:uppercase;letter-spacing:.04em;}
 .ct-reason{font-size:10px;font-weight:600;color:${subTxt};text-transform:none;letter-spacing:0;margin-top:3px;}
+.ct-source{font-size:10px;font-weight:500;color:${subTxt};text-transform:none;letter-spacing:0;margin-top:3px;opacity:.92;}
 .ct-badge{font-size:10px;font-weight:700;color:${p2};background:${p1}1f;border:1px solid ${p1}55;border-radius:999px;padding:3px 8px;white-space:nowrap;}
 .cw{position:relative;border-radius:12px;padding:8px;background:${isDark ? 'rgba(255,255,255,0.012)' : 'rgba(15,23,42,0.018)'};}
 .summary{margin-top:22px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:14px;padding:16px;box-shadow:${expElev1};}
@@ -487,7 +493,7 @@ if (!Array.isArray(_charts) || !_charts.length || !cg || !window.echarts) {
   }
   return;
 }
-function mk(id, full, title, h, reason){
+function mk(id, full, title, h, reason, sourceDescription){
   const card = document.createElement('div');
   card.className = 'cc' + (full ? ' full' : '');
   const header = document.createElement('div');
@@ -502,6 +508,12 @@ function mk(id, full, title, h, reason){
     reasonEl.className = 'ct-reason';
     reasonEl.textContent = reason;
     titleWrap.appendChild(reasonEl);
+  }
+  if (sourceDescription) {
+    const sourceEl = document.createElement('div');
+    sourceEl.className = 'ct-source';
+    sourceEl.textContent = sourceDescription;
+    titleWrap.appendChild(sourceEl);
   }
   const badge = document.createElement('span');
   badge.className = 'ct-badge';
@@ -528,7 +540,7 @@ function baseGrid(horizontal){
   return horizontal ? { left:'22%', right:'4%', top:'8%', bottom:'12%', containLabel:false } : { left:'3%', right:'4%', top:'8%', bottom:'12%', containLabel:true };
 }
 function render(item){
-  const el = mk(item.id, !!item.full, item.title, item.h || 260, item.selectionReason);
+  const el = mk(item.id, !!item.full, item.title, item.h || 260, item.selectionReason, item.sourceDescription);
   const inst = echarts.init(el);
   if (!item?.option) return;
   inst.setOption(item.option, true);

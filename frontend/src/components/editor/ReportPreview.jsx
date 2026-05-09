@@ -192,7 +192,7 @@ function EChart({ option, h = 240, style, chart, chartIndex = 0, sameTypeIndex =
   return <ReactECharts option={premiumizeEChartOption(option, { isDark: dark, chart, chartIndex, sameTypeIndex })} style={{ height: h, width: '100%', ...style }} opts={{ renderer: 'canvas' }} notMerge />
 }
 
-function ChartCard({ title, reason, h = 240, full = false, children }) {
+function ChartCard({ title, reason, sourceDescription, h = 240, full = false, children }) {
   const { dark } = useThemeStore()
   return (
     <motion.div initial={{ opacity: 0, scale: .97 }} animate={{ opacity: 1, scale: 1 }}
@@ -203,6 +203,11 @@ function ChartCard({ title, reason, h = 240, full = false, children }) {
           {reason && (
             <div className="mt-1 text-[10px] normal-case font-semibold tracking-normal" style={{ color: dark ? '#829ab1' : '#64748b' }}>
               {reason}
+            </div>
+          )}
+          {sourceDescription && (
+            <div className="mt-1 text-[10px] normal-case font-medium tracking-normal" style={{ color: dark ? '#6f8194' : '#64748b' }}>
+              {sourceDescription}
             </div>
           )}
         </div>
@@ -697,6 +702,7 @@ export default function ReportPreview({ state }) {
   const friendlyWarning = dedupedValidationWarnings.length > 0 ? 'Alguns dados não permitiram o cálculo completo desta métrica.' : ''
   const recordCount = summary.totals?.count ?? datasetRows.length
   const summaryLabel = summary.group_index >= 0 ? cols[summary.group_index]?.name || '—' : '—'
+  const summaryValueLabel = metric?.label || primaryMetric?.label || 'Valor'
   const metricCharts = selectMetricCharts(charts, metricType, datasetRows.length)
   const existingLoading = Boolean(state?.loading || state?.previewLoading || report?.loading || reportData?.loading)
   const waitingInitialPayload = !previewError && !hasValidationErrors && datasetRows.length === 0 && (!Array.isArray(charts) || charts.length === 0)
@@ -988,7 +994,7 @@ export default function ReportPreview({ state }) {
                 const chartType = inferChartType(chart) || chart?.type || 'chart'
                 const sameTypeIndex = metricCharts.slice(0, index).filter(item => (inferChartType(item) || item?.type || 'chart') === chartType).length
                 return (
-                <ChartCard key={`${chartType}-${chart.id || index}`} title={chart.title || 'Gráfico'} reason={chart.selectionReason} h={chart.h || (index >= 1 ? 300 : 320)} full={index === 0}>
+                <ChartCard key={`${chartType}-${chart.id || index}`} title={chart.title || 'Gráfico'} reason={chart.selectionReason} sourceDescription={chart.sourceDescription} h={chart.h || (index >= 1 ? 300 : 320)} full={index === 0}>
                   {chart.option
                     ? <EChart option={chart.option} h={chart.h || (index >= 2 ? 300 : 260)} chart={chart} chartIndex={index} sameTypeIndex={sameTypeIndex} />
                     : (
@@ -1018,7 +1024,7 @@ export default function ReportPreview({ state }) {
                   <tr style={{ background: p1, color: '#fff' }}>
                     <th className="px-3 py-2 text-left font-semibold">{summaryLabel}</th>
                     <th className="px-3 py-2 text-right font-semibold">Qtd</th>
-                    <th className="px-3 py-2 text-right font-semibold">Valor</th>
+                    <th className="px-3 py-2 text-right font-semibold">{summaryValueLabel}</th>
                   </tr>
                 </thead>
                 <tbody>

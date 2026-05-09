@@ -24,6 +24,16 @@ METRIC_META = {
 MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
 SCHEMA_VERSION = 1
 CLASSIFICATION_SAMPLE_SIZE = 25
+ANALYTIC_CATEGORY_PRIORITY = (
+    "categoria",
+    "empresa",
+    "status",
+    "tipo",
+    "fornecedor",
+    "cliente",
+    "grupo",
+    "setor",
+)
 
 METRIC_RULES = {
     "ECONOMIA": {
@@ -253,6 +263,64 @@ def _looks_like_score_name(name: str) -> bool:
 
 def _looks_like_category_name(name: str) -> bool:
     return bool(re.search(r"(?i)(categoria|category|tipo|fornecedor|empresa|cliente|grupo|setor)", name))
+
+
+def _analytic_category_rank(name: str) -> int:
+    normalized = _normalize_text(name)
+    for index, keyword in enumerate(ANALYTIC_CATEGORY_PRIORITY):
+        if re.search(rf"(?i)(^|\b){re.escape(keyword)}(\b|$)", normalized):
+            return index
+    return len(ANALYTIC_CATEGORY_PRIORITY)
+
+
+def _is_measure_or_identifier_name(name: str) -> bool:
+    normalized = _normalize_text(name)
+    return (
+        _looks_like_identifier_name(normalized)
+        or _looks_like_money_name(normalized)
+        or _looks_like_percent_name(normalized)
+        or _looks_like_date_name(normalized)
+        or _looks_like_score_name(normalized)
+    )
+
+
+def _resolve_analytic_category_index(columns: list[dict[str, Any]], rows: list[dict[str, Any]], preferred_idx: int = -1) -> int:
+    def _values_for(index: int) -> list[str]:
+        if index < 0 or index >= len(columns):
+            return []
+        name = columns[index]["name"]
+        return [str(row.get(name) or "").strip() for row in rows if str(row.get(name) or "").strip()]
+
+    def _candidate(index: int) -> tuple[int, float, int] | None:
+        if index < 0 or index >= len(columns):
+            return None
+        column = columns[index]
+        name = str(column.get("name") or "")
+        column_type = str(column.get("type") or "").lower()
+        if _is_measure_or_identifier_name(name) or column_type in {"number", "monetary", "percent", "date", "score"}:
+            return None
+        values = _values_for(index)
+        if not values:
+            return None
+        unique_count = len({_normalize_text(value) for value in values})
+        unique_ratio = unique_count / max(len(values), 1)
+        if unique_count < 2 or unique_count > 40 or unique_ratio > 0.8:
+            return None
+        return (_analytic_category_rank(name), unique_ratio, index)
+
+    preferred = _candidate(preferred_idx)
+    if preferred is not None:
+        return preferred_idx
+
+    candidates = [
+        (score, index)
+        for index in range(len(columns))
+        if (score := _candidate(index)) is not None
+    ]
+    if not candidates:
+        return -1
+    candidates.sort(key=lambda item: item[0])
+    return candidates[0][1]
 
 
 def _parse_numeric_like(value: Any) -> float | None:
@@ -955,6 +1023,80 @@ def _resolve_chart_source(chart_key: str, chart_cfg: dict[str, Any], index: int)
     return default_sources_by_position.get(index, "")
 
 
+def _dedupe_names(values: Iterable[Any]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        name = str(value or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        result.append(name)
+    return result
+
+
+def _metric_source_columns(metric_type: str, fields: dict[str, int], columns: list[dict[str, Any]]) -> list[str]:
+    def _name(index: int) -> str:
+        return columns[index]["name"] if 0 <= index < len(columns) else ""
+
+    if metric_type == "ECONOMIA":
+        if fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0:
+            return _dedupe_names([_name(fields["base"]), _name(fields["percent"])])
+        if fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0:
+            return _dedupe_names([_name(fields["initial"]), _name(fields["final"])])
+        if fields.get("value", -1) >= 0:
+            return _dedupe_names([_name(fields["value"])])
+    if metric_type == "TOTAL" and fields.get("value", -1) >= 0:
+        return _dedupe_names([_name(fields["value"])])
+    if metric_type == "VARIACAO" and fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0:
+        return _dedupe_names([_name(fields["initial"]), _name(fields["final"])])
+    return []
+
+
+def _metric_label_with_preposition(label: Any) -> str:
+    metric_label = str(label or "métrica").strip() or "métrica"
+    normalized = _normalize_text(metric_label)
+    if normalized.startswith(("economia", "variacao", "variação", "taxa")):
+        return f"da {metric_label}"
+    if normalized.startswith(("total",)):
+        return f"do {metric_label}"
+    return f"de {metric_label}"
+
+
+def _chart_source_columns(source_key: str, context: dict[str, Any]) -> list[str]:
+    metric_columns = context.get("metricColumns") if isinstance(context.get("metricColumns"), list) else []
+    category_column = context.get("categoryColumn")
+    entity_column = context.get("entityColumn") or category_column
+    date_column = context.get("dateColumn")
+
+    if source_key == "by_category":
+        return _dedupe_names([category_column, *metric_columns])
+    if source_key == "top_items":
+        return _dedupe_names([entity_column, *metric_columns])
+    if source_key == "by_date":
+        return _dedupe_names([date_column, *metric_columns])
+    if source_key == "distribution":
+        return _dedupe_names(metric_columns)
+    return _dedupe_names(metric_columns)
+
+
+def _chart_title(source_key: str, raw_chart: dict[str, Any], context: dict[str, Any]) -> str:
+    metric_label = str(context.get("metricLabel") or "Métrica").strip() or "Métrica"
+    category_column = str(context.get("categoryColumn") or "Categoria").strip() or "Categoria"
+    entity_column = str(context.get("entityColumn") or category_column).strip() or category_column
+    limit = raw_chart.get("n") or raw_chart.get("limit") or 10
+
+    if source_key == "distribution":
+        return f"Distribuição {_metric_label_with_preposition(metric_label)}"
+    if source_key == "by_category":
+        return f"{metric_label} por {category_column}"
+    if source_key == "by_date":
+        return f"Evolução Mensal {_metric_label_with_preposition(metric_label)}"
+    if source_key == "top_items":
+        return f"Top {limit} por {entity_column}"
+    return str(raw_chart.get("title") or "Gráfico")
+
+
 def _chart_full_width(chart_cfg: dict[str, Any], index: int) -> bool:
     if "full" in chart_cfg:
         return bool(chart_cfg.get("full"))
@@ -1184,6 +1326,7 @@ def _build_charts(config: dict[str, Any], dataset: dict[str, Any]) -> list[dict[
         chart_items = []
 
     aggregations = dataset.get("aggregations") if isinstance(dataset.get("aggregations"), dict) else {}
+    chart_context = dataset.get("chartContext") if isinstance(dataset.get("chartContext"), dict) else {}
     results: list[dict[str, Any]] = []
 
     for index, (chart_key, raw_chart) in enumerate(chart_items):
@@ -1221,7 +1364,7 @@ def _build_charts(config: dict[str, Any], dataset: dict[str, Any]) -> list[dict[
         chart = {
             "id": str(raw_chart.get("id") or chart_key or f"chart-{index + 1}"),
             "source": source_key,
-            "title": str(raw_chart.get("title") or "Gráfico"),
+            "title": _chart_title(source_key, raw_chart, chart_context),
             "type": chart_type,
             "labels": labels,
             "data": data,
@@ -1229,6 +1372,10 @@ def _build_charts(config: dict[str, Any], dataset: dict[str, Any]) -> list[dict[
             "h": int(raw_chart.get("h") or (300 if index >= 2 else 260)),
             "_dark": bool(raw_chart.get("dark", False)),
         }
+        source_columns = _chart_source_columns(source_key, chart_context)
+        if source_columns:
+            chart["sourceColumns"] = source_columns
+            chart["sourceDescription"] = "Colunas: " + " · ".join(source_columns)
         if "d2" in aggregation:
             chart["d2"] = aggregation.get("d2") or []
         if "totalGroups" in aggregation:
@@ -1430,8 +1577,10 @@ def _compute_kpis(config: dict[str, Any], rows: list[dict[str, Any]], columns: l
     for kpi in raw_kpis:
         if not isinstance(kpi, dict):
             continue
-        idx = _resolve_column_index(kpi.get("col"), columns)
         fmt = str(kpi.get("fmt") or "count")
+        idx = _resolve_column_index(kpi.get("col"), columns)
+        if fmt == "topval":
+            idx = _resolve_analytic_category_index(columns, rows, idx)
         label = str(kpi.get("label") or "KPI")
         icon = str(kpi.get("icon") or "📊")
         color = str(kpi.get("color") or "#3b82f6")
@@ -1480,7 +1629,7 @@ def _compute_kpis(config: dict[str, Any], rows: list[dict[str, Any]], columns: l
                 "icon": icon,
                 "color": color,
                 "fmt": fmt,
-                "col": str(kpi.get("col") or ""),
+                "col": str(idx if idx >= 0 else kpi.get("col") or ""),
                 "value": numeric_value,
                 "display": display,
             }
@@ -1803,6 +1952,9 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
 
     detail_items = _build_detail_items(metric_type, metric_rows, fields, columns)
     primary_metric = _build_primary_metric(metric_type, metric_total, metric_rows, fields, columns, metric_label)
+    category_column_name = columns[category_idx]["name"] if category_idx >= 0 else mapping.get("category")
+    entity_column_name = columns[entity_idx]["name"] if entity_idx >= 0 else category_column_name
+    date_column_name = columns[date_idx]["name"] if date_idx >= 0 else mapping.get("date")
     summary_payload = {
         "group_index": summary_group_index,
         "labels": [row["label"] for row in summary_rows],
@@ -1821,6 +1973,14 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
             "by_date": by_date,
             "top_items": top_items,
             "distribution": distribution,
+        },
+        "chartContext": {
+            "metricType": metric_type,
+            "metricLabel": metric_label,
+            "metricColumns": _metric_source_columns(metric_type, fields, columns),
+            "categoryColumn": category_column_name,
+            "entityColumn": entity_column_name,
+            "dateColumn": date_column_name,
         },
         "summary": summary_payload,
         "kpis": _compute_kpis(payload_config, metric_rows, columns),

@@ -603,6 +603,61 @@ def test_explicit_financial_identifier_names_can_still_be_monetary():
     assert result["mapping"]["monetary"] in {"Valor do contrato", "Valor anual corrigido"}
 
 
+def test_charts_and_top_kpi_use_analytic_labels_and_source_columns():
+    data = {
+        "cols": [
+            {"name": "Contrato", "type": "text"},
+            {"name": "Empresa", "type": "text"},
+            {"name": "Data", "type": "date"},
+            {"name": "Valor Original", "type": "monetary"},
+            {"name": "Economia %", "type": "percent"},
+            {"name": "Categoria", "type": "text"},
+            {"name": "Status", "type": "text"},
+        ],
+        "rows": [
+            {"cells": ["CTR-FIN-0001", "Beta", "2026-02-03", "26450", "15.50%", "Produto", "Em negociação"]},
+            {"cells": ["CTR-FIN-0002", "Gamma", "2026-03-04", "27900", "13.00%", "Contrato", "Finalizado"]},
+            {"cells": ["CTR-FIN-0003", "Delta", "2026-04-05", "29350", "10.50%", "Produto", "Em negociação"]},
+            {"cells": ["CTR-FIN-0004", "Alpha", "2026-05-06", "30800", "8.00%", "Serviço", "Finalizado"]},
+            {"cells": ["CTR-FIN-0005", "Beta", "2026-06-07", "32250", "18.00%", "Contrato", "Em negociação"]},
+            {"cells": ["CTR-FIN-0006", "Gamma", "2026-07-08", "33700", "15.50%", "Produto", "Finalizado"]},
+        ],
+    }
+    config = {
+        "saving": {
+            "metricType": "ECONOMIA",
+            "baseCol": "3",
+            "percentCol": "4",
+            "dateCol": "2",
+            "label": "Economia",
+        },
+        "kpis": [
+            {"label": "Top Categoria", "col": "0", "fmt": "topval", "icon": "trophy", "color": "#f59e0b"},
+        ],
+        "charts": {
+            "g1": {"on": True, "source": "distribution", "title": "Distribuição por Status", "type": "doughnut"},
+            "g2": {"on": True, "source": "by_category", "title": "Contratos por Categoria", "type": "bar"},
+            "g3": {"on": True, "source": "by_date", "title": "Evolução Mensal", "type": "line"},
+            "g4": {"on": True, "source": "top_items", "title": "Top 10 por ", "type": "hbar"},
+        },
+    }
+
+    artifact = build_metric_report_data(data, config)
+
+    assert artifact["kpis"][0]["display"] == "Produto (3)"
+    assert artifact["kpis"][0]["col"] == "5"
+    assert [chart["title"] for chart in artifact["charts"]] == [
+        "Distribuição da Economia",
+        "Economia por Empresa",
+        "Evolução Mensal da Economia",
+        "Top 10 por Empresa",
+    ]
+    assert artifact["charts"][0]["sourceDescription"] == "Colunas: Valor Original · Economia %"
+    assert artifact["charts"][1]["sourceDescription"] == "Colunas: Empresa · Valor Original · Economia %"
+    assert artifact["charts"][2]["sourceDescription"] == "Colunas: Data · Valor Original · Economia %"
+    assert artifact["charts"][3]["sourceDescription"] == "Colunas: Empresa · Valor Original · Economia %"
+
+
 def test_low_confidence_classification_emits_warning():
     data = {
         "cols": [
