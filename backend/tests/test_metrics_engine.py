@@ -131,6 +131,67 @@ def test_economia_metric_uses_base_times_percent():
     _assert_all_numbers_finite(result)
 
 
+def test_economia_metric_rejects_operational_sheet_without_financial_shape():
+    data = {
+        "cols": [
+            {"name": "Contrato", "type": "number"},
+            {"name": "Status", "type": "text"},
+        ],
+        "rows": [
+            {"cells": ["138491", "Aberto"]},
+            {"cells": ["161769", "Finalizado"]},
+        ],
+    }
+    config = {"saving": {"metricType": "ECONOMIA"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert result["mapping"]["monetary"] is None
+    assert result["analysis"]["columns"]["Contrato"]["kind"] == "identifier"
+    assert result["validation"]["errors"] == ["Esta aba não possui dados suficientes para calcular Economia."]
+    assert result["dataset"] == []
+
+
+def test_economia_metric_uses_original_minus_final_pair():
+    data = {
+        "cols": [
+            {"name": "Valor Original", "type": "monetary"},
+            {"name": "Valor Final", "type": "monetary"},
+        ],
+        "rows": [
+            {"cells": ["1000", "800"]},
+            {"cells": ["500", "450"]},
+        ],
+    }
+    config = {"saving": {"metricType": "ECONOMIA"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert sum(row["metric_value"] for row in result["dataset"]) == 250.0
+    assert all(row["formula"] == "original_minus_final" for row in result["dataset"])
+    assert result["validation"]["errors"] == []
+
+
+def test_economia_metric_uses_explicit_saving_value_column():
+    data = {
+        "cols": [
+            {"name": "Economia", "type": "number"},
+            {"name": "Categoria", "type": "text"},
+        ],
+        "rows": [
+            {"cells": ["120", "A"]},
+            {"cells": ["80", "B"]},
+        ],
+    }
+    config = {"saving": {"metricType": "ECONOMIA"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert sum(row["metric_value"] for row in result["dataset"]) == 200.0
+    assert all(row["formula"] == "explicit_saving_value" for row in result["dataset"])
+    assert result["validation"]["errors"] == []
+
+
 def test_total_metric_sums_values():
     data = {
         "cols": [

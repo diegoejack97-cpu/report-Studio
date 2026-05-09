@@ -383,6 +383,64 @@ def _analysis_by_name(analysis: dict[str, dict[str, Any]], column_name: str) -> 
     return (analysis.get("columns") or {}).get(column_name)
 
 
+def _looks_like_percent_only_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(percent|percentual|pct|taxa|%)", name))
+
+
+def _looks_like_saving_value_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(saving|economia|desconto)", name)) and not _looks_like_percent_only_name(name)
+
+
+def _looks_like_initial_value_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(inicial|original|anterior|atual|base)", name))
+
+
+def _looks_like_final_value_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(final|negociado|corrigido|reajustado|novo)", name))
+
+
+def _sample_values_for_column(analysis: dict[str, dict[str, Any]], column_name: str) -> list[Any]:
+    payload = _analysis_by_name(analysis, column_name) or {}
+    evidence = payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {}
+    values = evidence.get("sample_values")
+    return values if isinstance(values, list) else []
+
+
+def _samples_are_numeric_values(analysis: dict[str, dict[str, Any]], column_name: str) -> bool:
+    samples = _sample_values_for_column(analysis, column_name)
+    if not samples:
+        return False
+    if any("%" in str(value) for value in samples):
+        return False
+    return any(parse_number(value) is not None for value in samples)
+
+
+def _rank_saving_value_columns(analysis: dict[str, dict[str, Any]]) -> list[str]:
+    columns = analysis.get("columns") or {}
+    ranked: list[tuple[str, dict[str, Any]]] = []
+    for name, payload in columns.items():
+        kind = payload.get("kind")
+        if kind == "identifier":
+            continue
+        if not _looks_like_saving_value_name(name):
+            continue
+        if not _samples_are_numeric_values(analysis, name):
+            continue
+        ranked.append((name, payload))
+    ranked.sort(key=lambda item: (float(item[1].get("confidence") or 0), len(_sample_values_for_column(analysis, item[0]))), reverse=True)
+    return [name for name, _ in ranked]
+
+
+def _resolve_economia_value_pair(analysis: dict[str, dict[str, Any]], columns: list[dict[str, Any]]) -> tuple[str | None, str | None]:
+    ranked_monetary = _rank_columns_by_kind(analysis, "monetary")
+    names = {column["name"] for column in columns}
+    initial_candidates = [name for name in ranked_monetary if name in names and _looks_like_initial_value_name(name)]
+    final_candidates = [name for name in ranked_monetary if name in names and _looks_like_final_value_name(name)]
+    if initial_candidates and final_candidates:
+        return initial_candidates[0], final_candidates[0]
+    return None, None
+
+
 def _resolve_primary_mapping(metric_type: str, analysis: dict[str, dict[str, Any]], columns: list[dict[str, Any]]) -> dict[str, str | None]:
     ranked_monetary = _rank_columns_by_kind(analysis, "monetary")
     ranked_percent = _rank_columns_by_kind(analysis, "percent")
@@ -466,16 +524,18 @@ def _resolve_effective_mapping(
     return effective
 
 
-def _build_validation(metric_type: str, analysis: dict[str, dict[str, Any]], mapping: dict[str, str | None]) -> dict[str, list[str]]:
+def _build_validation(metric_type: str, analysis: dict[str, dict[str, Any]], mapping: dict[str, str | None], fields: dict[str, int] | None = None) -> dict[str, list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
     rules = METRIC_RULES.get(metric_type, {})
+    fields = fields or {}
 
     if metric_type == "ECONOMIA":
-        if not mapping.get("monetary"):
-            errors.append(rules["errors"]["monetary_missing"])
-        if not mapping.get("percent"):
-            errors.append(rules["errors"]["percent_missing"])
+        has_base_percent = fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0
+        has_value_pair = fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0
+        has_saving_value = fields.get("value", -1) >= 0
+        if not (has_base_percent or has_value_pair or has_saving_value):
+            errors.append("Esta aba não possui dados suficientes para calcular Economia.")
     elif metric_type == "TOTAL":
         if not mapping.get("monetary"):
             errors.append(rules["errors"]["monetary_missing"])
@@ -513,17 +573,30 @@ def _build_runtime_fields(metric_type: str, columns: list[dict[str, Any]], analy
         return -1
 
     if metric_type == "ECONOMIA":
-        active_fields["base"] = _pick_index(
+        base_idx = _pick_index(
             mapping.get("monetary") or "",
             fallback_keys=("base", "value", "initial"),
         )
-        active_fields["percent"] = _pick_index(
+        percent_idx = _pick_index(
             mapping.get("percent") or "",
             fallback_keys=("percent",),
         )
-        if active_fields["base"] < 0 and active_fields["percent"] < 0:
-            active_fields["initial"] = _pick_index(fallback_keys=("initial",))
-            active_fields["final"] = _pick_index(fallback_keys=("final",))
+        if base_idx >= 0 and percent_idx >= 0:
+            active_fields["base"] = base_idx
+            active_fields["percent"] = percent_idx
+            return active_fields
+
+        saving_value = _pick_index(
+            *(_rank_saving_value_columns(analysis)[:1] or [""]),
+            fallback_keys=("value",),
+        )
+        if saving_value >= 0:
+            active_fields["value"] = saving_value
+            return active_fields
+
+        initial_name, final_name = _resolve_economia_value_pair(analysis, columns)
+        active_fields["initial"] = _pick_index(initial_name or "", fallback_keys=("initial",))
+        active_fields["final"] = _pick_index(final_name or "", fallback_keys=("final",))
     elif metric_type == "TOTAL":
         active_fields["value"] = _pick_index(
             mapping.get("monetary") or "",
@@ -551,6 +624,7 @@ def _runtime_fields_valid_for_metric(metric_type: str, fields: dict[str, int]) -
         return (
             (fields.get("base", -1) >= 0 and fields.get("percent", -1) >= 0)
             or (fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0)
+            or fields.get("value", -1) >= 0
         )
     if metric_type == "TOTAL":
         return fields.get("value", -1) >= 0
@@ -699,6 +773,20 @@ def _validate_column_type(field: str, column: dict[str, Any] | None, expected: s
         f"A coluna selecionada para {field} precisa ser do tipo {expected}; recebido {received}.",
         field=field,
         expected=expected,
+        received=received,
+    )
+
+
+def _validate_numeric_value_column(field: str, column: dict[str, Any] | None) -> None:
+    if column is None:
+        return
+    received = str(column.get("type") or "text").lower()
+    if received in {"monetary", "number"}:
+        return
+    raise MetricsValidationError(
+        f"A coluna selecionada para {field} precisa ser numérica; recebido {received}.",
+        field=field,
+        expected="number",
         received=received,
     )
 
@@ -1248,6 +1336,9 @@ def _build_detail_items(metric_type: str, metric_rows: list[dict[str, Any]], fie
                 {"kind": "currency", "label": columns[fields["initial"]]["name"], "value": initial_total},
                 {"kind": "currency", "label": columns[fields["final"]]["name"], "value": final_total, "accent": True},
             ]
+        if fields.get("value", -1) >= 0:
+            value_name = columns[fields["value"]]["name"]
+            return [{"kind": "currency", "label": value_name, "value": round(_sum(_number(row, value_name) for row in metric_rows), 2), "accent": True}]
     if metric_type == "TOTAL":
         value_name = columns[fields["value"]]["name"]
         return [{"kind": "currency", "label": value_name, "value": round(_sum(_number(row, value_name) for row in metric_rows), 2)}]
@@ -1296,6 +1387,10 @@ def _build_primary_metric(
     elif metric_type == "ECONOMIA" and fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0:
         breakdown = {
             "formula": "valor_inicial - valor_final",
+        }
+    elif metric_type == "ECONOMIA" and fields.get("value", -1) >= 0:
+        breakdown = {
+            "formula": "coluna_explicita_economia",
         }
     elif metric_type == "VARIACAO":
         breakdown = {
@@ -1427,7 +1522,7 @@ def _has_explicit_metric_field(config: dict[str, Any], metric_type: str) -> bool
         return any(saving_cfg.get(key) not in (None, "") for key in keys)
 
     if metric_type == "ECONOMIA":
-        return _has_value("baseCol", "savingBaseCol", "percentCol", "savingPercentCol", "initialCol", "originalCol", "v1Col", "finalCol", "negotiatedCol", "v2Col")
+        return _has_value("baseCol", "savingBaseCol", "percentCol", "savingPercentCol", "initialCol", "originalCol", "v1Col", "finalCol", "negotiatedCol", "v2Col", "valueCol", "savingCol")
     if metric_type == "TOTAL":
         return _has_value("valueCol", "savingCol")
     if metric_type == "VARIACAO":
@@ -1447,10 +1542,13 @@ def _validate_metric_config(metric_type: str, fields: dict[str, int], columns: l
             _validate_column_type("initialCol", columns[fields["initial"]], "monetary")
             _validate_column_type("finalCol", columns[fields["final"]], "monetary")
             return
+        if fields.get("value", -1) >= 0:
+            _validate_numeric_value_column("valueCol", columns[fields["value"]])
+            return
         raise MetricsValidationError(
-            "A métrica ECONOMIA precisa de Base+Percentual ou Valor Inicial+Valor Final.",
+            "A métrica ECONOMIA precisa de Base+Percentual, Valor Inicial+Valor Final ou uma coluna explícita de economia.",
             field="saving",
-            expected="base+percent ou initial+final",
+            expected="base+percent, initial+final ou saving",
         )
     if metric_type == "TOTAL":
         value_idx = fields.get("value", -1)
@@ -1491,14 +1589,14 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
     analysis = _classify_columns(rows, columns)
     auto_mapping = _resolve_primary_mapping(metric_type, analysis, columns)
     mapping = _resolve_effective_mapping(auto_mapping, columns, payload_config, metric_type)
-    validation = _build_validation(metric_type, analysis, mapping)
     legacy_fields = _metric_field_config(payload_config, columns, metric_type)
     explicit_metric_config = isinstance(payload_config.get("saving"), dict) and (payload_config["saving"].get("metricType") not in (None, ""))
     explicit_metric_fields = _has_explicit_metric_field(payload_config, metric_type)
     fields = _build_runtime_fields(metric_type, columns, analysis, legacy_fields, mapping)
+    validation = _build_validation(metric_type, analysis, mapping, fields)
 
     if validation["errors"] and not any(index >= 0 for index in legacy_fields.values()) and not any(value is not None for value in auto_mapping.values()):
-        if explicit_metric_config:
+        if explicit_metric_config and metric_type != "ECONOMIA":
             _validate_metric_config(metric_type, fields, columns)
         artifact = _empty_metric_response(analysis, validation, mapping)
         artifact["schemaVersion"] = SCHEMA_VERSION
@@ -1560,7 +1658,14 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
                 metric_value = base_value * percent_value
                 formula = "percent_x_base"
                 row["percent_value"] = percent_value
-            else:
+            elif fields.get("value", -1) >= 0:
+                value = parse_number(row.get(columns[fields["value"]]["name"]))
+                if value is None:
+                    skipped_rows += 1
+                    continue
+                metric_value = value
+                formula = "explicit_saving_value"
+            elif fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0:
                 initial_value = parse_number(row.get(columns[fields["initial"]]["name"]))
                 final_value = parse_number(row.get(columns[fields["final"]]["name"]))
                 if initial_value is None or final_value is None:
@@ -1568,6 +1673,9 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
                     continue
                 metric_value = initial_value - final_value
                 formula = "original_minus_final"
+            else:
+                skipped_rows += 1
+                continue
         elif metric_type == "TOTAL":
             value = parse_number(row.get(columns[fields["value"]]["name"]))
             if value is None:

@@ -59,6 +59,52 @@ function getMetricDisplayMode(metricType) {
   return 'currency'
 }
 
+function formatMetricList(metrics) {
+  return metrics
+    .filter(metric => METRIC_LABELS[metric])
+    .map(metric => METRIC_LABELS[metric])
+    .join(', ')
+}
+
+function fallbackMetricsForSheet(sheet) {
+  const recommended = Array.isArray(sheet?.recommendedMetrics) ? sheet.recommendedMetrics : []
+  const alternatives = recommended.filter(metric => metric !== 'ECONOMIA' && METRIC_LABELS[metric])
+  if (alternatives.length > 0) return alternatives
+
+  if (sheet?.detectedKind === 'financial') return ['TOTAL']
+  if (sheet?.detectedKind === 'mixed') return ['TOTAL', 'VOLUME', 'TAXA']
+  if (sheet?.detectedKind === 'summary') return ['TOTAL', 'VOLUME']
+  return ['VOLUME', 'TAXA']
+}
+
+function buildMetricCompatibilityHint(metricType, workbook, selectedSheetIndex) {
+  if (metricType !== 'ECONOMIA') return ''
+
+  const sheets = Array.isArray(workbook?.sheets)
+    ? workbook.sheets.filter(sheet => sheet?.useful !== false)
+    : []
+  if (sheets.length === 0) {
+    return 'Tente uma métrica operacional como Volume ou Taxa.'
+  }
+
+  const activeIndex = selectedSheetIndex ?? workbook?.selectedSheetIndex ?? workbook?.workbookMeta?.selectedSheetIndex
+  const currentSheet = sheets.find(sheet => sheet.sheetIndex === activeIndex) || sheets[0]
+  const alternativeSheet = sheets
+    .filter(sheet => sheet.sheetIndex !== currentSheet?.sheetIndex)
+    .filter(sheet => Array.isArray(sheet.recommendedMetrics) && sheet.recommendedMetrics.includes('ECONOMIA'))
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0]
+
+  if (alternativeSheet?.sheetName) {
+    return `A aba "${alternativeSheet.sheetName}" parece mais adequada para Economia.`
+  }
+
+  const alternatives = fallbackMetricsForSheet(currentSheet)
+  const label = formatMetricList(alternatives)
+  return label
+    ? `Para esta aba, tente uma métrica genérica como ${label}.`
+    : 'Tente uma métrica operacional como Volume ou Taxa.'
+}
+
 function formatMetricValue(metricType, value) {
   const mode = getMetricDisplayMode(metricType)
   const numeric = Number(value ?? 0)
@@ -367,7 +413,7 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
 }
 
 // Step 2: Saving Banner
-function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previewError, previewLoading }) {
+function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previewError, previewLoading, workbook, selectedSheetIndex }) {
   const [enabled, setEnabled] = useState(data.savingEnabled !== false)
   const [metricType, setMetricType] = useState(data.metricType || data.type || 'ECONOMIA')
   const [customLabel, setCustomLabel] = useState(data.label || '')
@@ -397,6 +443,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
   const validationErrors = Array.isArray(previewData?.validation?.errors) ? previewData.validation.errors : []
   const validationWarnings = Array.isArray(previewData?.validation?.warnings) ? previewData.validation.warnings : []
   const validationMessage = previewError || validationErrors[0] || ''
+  const compatibilityHint = validationMessage ? buildMetricCompatibilityHint(metricType, workbook, selectedSheetIndex) : ''
   const hasValidationErrors = validationErrors.length > 0
   const hasBlockingValidation = Boolean(validationMessage) || isWaitingPreview
   const hasValidSaving = hasValidValue(saving)
@@ -467,7 +514,8 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
 
             {!isWaitingPreview && validationMessage && (
               <div className="rounded-lg border border-rose-500/35 bg-rose-950/30 px-3 py-2 text-[11px] text-rose-200">
-                Não foi possível calcular essa métrica com os dados atuais. {validationMessage}
+                <div>Não foi possível calcular essa métrica com os dados atuais. {validationMessage}</div>
+                {compatibilityHint && <div className="mt-1 text-rose-100/85">{compatibilityHint}</div>}
               </div>
             )}
 
@@ -973,7 +1021,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
             <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
               {hasSheetStep && step === sheetStep && <StepSheetSelection workbook={workbook} selectedSheetIndex={selectedSheetIndex} onSelect={onSheetSelect} onChange={update} onNext={next} />}
               {step === identityStep && <StepIdentity      {...stepProps} onNext={next} />}
-              {step === savingStep && <StepSaving        {...stepProps} previewData={previewData} previewError={previewError} previewLoading={previewLoading} onNext={next} onBack={back} onSkip={skip} />}
+              {step === savingStep && <StepSaving        {...stepProps} workbook={workbook} selectedSheetIndex={selectedSheetIndex} previewData={previewData} previewError={previewError} previewLoading={previewLoading} onNext={next} onBack={back} onSkip={skip} />}
               {step === kpiStep && <StepKPIs          {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
               {step === chartsStep && <StepChartsDist    {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
               {step === advancedStep && (
