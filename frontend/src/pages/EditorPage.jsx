@@ -266,10 +266,22 @@ export default function EditorPage() {
           type: col.type || 'text',
           vis: true,
         }))
+        const selectedSheetHash = wizardDraft.selectedSheetHash || (
+          wizardDraft.selectedSheetName
+            ? simpleSheetHash(wizardDraft.selectedSheetName, wizardDraft.rows, wizardDraft.cols)
+            : null
+        )
         const wizardMetricType = wizardDraft.metricType || wizardDraft.type || 'ECONOMIA'
         const previewConfig = buildPreviewConfig(
           {
             ...wizardDraft,
+            ...(selectedSheetHash ? { selectedSheetHash } : {}),
+            ...(wizardDraft.workbookMeta ? {
+              workbookMeta: {
+                ...wizardDraft.workbookMeta,
+                ...(selectedSheetHash ? { selectedSheetHash } : {}),
+              },
+            } : {}),
             reportSchemaVersion: 1,
             usesAutomaticMetrics: true,
             saving: {
@@ -481,6 +493,7 @@ export default function EditorPage() {
   const handleSheetSelect = useCallback((sheetIndex) => {
     const sheet = pendingWorkbook?.sheetData?.find(item => item.sheetIndex === sheetIndex)
     if (!sheet) return
+    const selectedSheetHash = simpleSheetHash(sheet.sheetName, sheet.rows, sheet.cols)
     setPendingRows(sheet.rows)
     setPendingCols(sheet.cols)
     setPendingWorkbook(prev => ({
@@ -489,9 +502,11 @@ export default function EditorPage() {
         ...prev.workbookMeta,
         selectedSheetName: sheet.sheetName,
         selectedSheetIndex: sheet.sheetIndex,
+        selectedSheetHash,
       },
       selectedSheetName: sheet.sheetName,
       selectedSheetIndex: sheet.sheetIndex,
+      selectedSheetHash,
     }))
     setWizardDraft(null)
     setPreviewData(null)

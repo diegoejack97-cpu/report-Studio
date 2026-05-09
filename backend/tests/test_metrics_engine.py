@@ -400,6 +400,53 @@ def test_metric_report_data_contains_persisted_metadata():
     assert artifact["validation"]["warnings"] == []
 
 
+def test_selected_sheet_identity_changes_source_hash_and_is_persisted():
+    data = {
+        "cols": [
+            {"name": "valor_pago", "type": "monetary"},
+        ],
+        "rows": [
+            {"cells": ["1000"]},
+            {"cells": ["2500"]},
+        ],
+    }
+    config_a = {
+        "saving": {"metricType": "TOTAL"},
+        "workbookMeta": {
+            "fileName": "workbook.xlsx",
+            "selectedSheetName": "Aba A",
+            "selectedSheetIndex": 0,
+            "selectedSheetHash": "sheet_a",
+        },
+        "selectedSheetName": "Aba A",
+        "selectedSheetIndex": 0,
+        "selectedSheetHash": "sheet_a",
+    }
+    config_b = {
+        **config_a,
+        "workbookMeta": {
+            **config_a["workbookMeta"],
+            "selectedSheetName": "Aba B",
+            "selectedSheetIndex": 1,
+            "selectedSheetHash": "sheet_b",
+        },
+        "selectedSheetName": "Aba B",
+        "selectedSheetIndex": 1,
+        "selectedSheetHash": "sheet_b",
+    }
+
+    hash_a = resolve_source_hash(data, config_a)
+    hash_b = resolve_source_hash(data, config_b)
+    artifact = build_metric_report_data(data, config_b)
+
+    assert hash_a != hash_b
+    assert artifact["sourceHash"] == hash_b
+    assert artifact["selectedSheetName"] == "Aba B"
+    assert artifact["selectedSheetIndex"] == 1
+    assert artifact["selectedSheetHash"] == "sheet_b"
+    assert artifact["workbookMeta"]["selectedSheetHash"] == "sheet_b"
+
+
 def test_auto_mapping_takes_precedence_over_manual_config():
     data = {
         "cols": [

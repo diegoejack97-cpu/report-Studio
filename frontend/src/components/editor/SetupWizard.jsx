@@ -864,9 +864,10 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
       analyzed,
       selectedSheetName: workbook?.selectedSheetName,
       selectedSheetIndex: workbook?.selectedSheetIndex,
+      selectedSheetHash: workbook?.selectedSheetHash || workbook?.workbookMeta?.selectedSheetHash,
       workbookMeta: workbook?.workbookMeta,
     })
-  }, [rows, cols, wdata, analyzed, onDraftChange, workbook?.selectedSheetName, workbook?.selectedSheetIndex, workbook?.workbookMeta])
+  }, [rows, cols, wdata, analyzed, onDraftChange, workbook?.selectedSheetName, workbook?.selectedSheetIndex, workbook?.selectedSheetHash, workbook?.workbookMeta])
 
   const finish = () => {
     // Monta estado final do editor a partir das respostas do wizard

@@ -39,3 +39,28 @@ def test_preview_cache_lookup_uses_effective_config_prefix():
     assert cached_a is not None
     assert cached_a["mapping"]["percent"] == "pct_a"
 
+
+def test_preview_effective_config_includes_selected_sheet_identity():
+    config_a = {
+        "saving": {"metricType": "TOTAL"},
+        "selectedSheetName": "Resumo",
+        "selectedSheetIndex": 0,
+        "selectedSheetHash": "sheet_a",
+    }
+    config_b = {
+        "saving": {"metricType": "TOTAL"},
+        "selectedSheetName": "Dados",
+        "selectedSheetIndex": 1,
+        "selectedSheetHash": "sheet_b",
+    }
+
+    effective_a = reports._preview_effective_config(config_a)
+    effective_b = reports._preview_effective_config(config_b)
+
+    assert effective_a["sheet"] == {
+        "selectedSheetName": "Resumo",
+        "selectedSheetIndex": 0,
+        "selectedSheetHash": "sheet_a",
+    }
+    assert effective_b["sheet"]["selectedSheetHash"] == "sheet_b"
+    assert reports._stable_digest(effective_a) != reports._stable_digest(effective_b)

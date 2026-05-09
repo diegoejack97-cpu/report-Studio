@@ -114,6 +114,8 @@ def _preview_effective_config(config: dict[str, Any] | None) -> dict[str, Any]:
     saving = (config or {}).get("saving")
     saving_cfg = saving if isinstance(saving, dict) else {}
     override_cfg = saving_cfg.get("override") if isinstance(saving_cfg.get("override"), dict) else {}
+    workbook_meta = (config or {}).get("workbookMeta")
+    workbook_meta = workbook_meta if isinstance(workbook_meta, dict) else {}
     mapping_inputs = {
         key: saving_cfg.get(key)
         for key in (
@@ -131,10 +133,20 @@ def _preview_effective_config(config: dict[str, Any] | None) -> dict[str, Any]:
         )
         if saving_cfg.get(key) not in (None, "")
     }
+    sheet_inputs = {
+        key: value
+        for key, value in {
+            "selectedSheetName": (config or {}).get("selectedSheetName") or workbook_meta.get("selectedSheetName"),
+            "selectedSheetIndex": (config or {}).get("selectedSheetIndex") if (config or {}).get("selectedSheetIndex") is not None else workbook_meta.get("selectedSheetIndex"),
+            "selectedSheetHash": (config or {}).get("selectedSheetHash") or workbook_meta.get("selectedSheetHash"),
+        }.items()
+        if value not in (None, "")
+    }
     return {
         "metricType": _extract_metric_type(config),
         "mappingInputs": mapping_inputs,
         "override": override_cfg,
+        "sheet": sheet_inputs,
     }
 
 

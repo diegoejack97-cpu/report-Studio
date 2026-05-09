@@ -181,8 +181,22 @@ def _stable_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
-def _compute_source_hash(rows: list[dict[str, Any]], cols: list[dict[str, Any]]) -> str:
+def _sheet_identity(config: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(config, dict):
+        return {}
+    workbook_meta = config.get("workbookMeta") if isinstance(config.get("workbookMeta"), dict) else {}
+    identity = {
+        "selectedSheetName": config.get("selectedSheetName") or workbook_meta.get("selectedSheetName"),
+        "selectedSheetIndex": config.get("selectedSheetIndex") if config.get("selectedSheetIndex") is not None else workbook_meta.get("selectedSheetIndex"),
+        "selectedSheetHash": config.get("selectedSheetHash") or workbook_meta.get("selectedSheetHash"),
+    }
+    return {key: value for key, value in identity.items() if value not in (None, "")}
+
+
+def _compute_source_hash(rows: list[dict[str, Any]], cols: list[dict[str, Any]], sheet_identity: dict[str, Any] | None = None) -> str:
     payload = {"rows": rows, "cols": cols}
+    if sheet_identity:
+        payload["sheet"] = sheet_identity
     return hashlib.sha256(_stable_json(payload).encode("utf-8")).hexdigest()
 
 
@@ -548,9 +562,9 @@ def _runtime_fields_valid_for_metric(metric_type: str, fields: dict[str, int]) -
 
 
 def resolve_source_hash(data: Any, config: dict[str, Any] | None = None) -> str:
-    rows, cols, _ = _resolve_payload(data, config)
+    rows, cols, payload_config = _resolve_payload(data, config)
     columns = _normalize_columns(cols)
-    return _compute_source_hash(rows, columns)
+    return _compute_source_hash(rows, columns, _sheet_identity(payload_config))
 
 
 def _empty_metric_response(
@@ -1472,7 +1486,8 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
     rows, cols, payload_config = _resolve_payload(data, config)
     metric_type = normalize_metric_type((payload_config.get("saving") or {}).get("metricType") if isinstance(payload_config.get("saving"), dict) else payload_config.get("metricType"))
     columns = _normalize_columns(cols)
-    source_hash = _compute_source_hash(rows, columns)
+    sheet_identity = _sheet_identity(payload_config)
+    source_hash = _compute_source_hash(rows, columns, sheet_identity)
     analysis = _classify_columns(rows, columns)
     auto_mapping = _resolve_primary_mapping(metric_type, analysis, columns)
     mapping = _resolve_effective_mapping(auto_mapping, columns, payload_config, metric_type)
@@ -1488,6 +1503,13 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
         artifact = _empty_metric_response(analysis, validation, mapping)
         artifact["schemaVersion"] = SCHEMA_VERSION
         artifact["sourceHash"] = source_hash
+        if sheet_identity:
+            artifact.update(sheet_identity)
+            if isinstance(payload_config.get("workbookMeta"), dict):
+                artifact["workbookMeta"] = {
+                    **payload_config["workbookMeta"],
+                    **sheet_identity,
+                }
         return artifact
 
     if explicit_metric_fields:
@@ -1497,6 +1519,13 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
         artifact = _empty_metric_response(analysis, validation, mapping)
         artifact["schemaVersion"] = SCHEMA_VERSION
         artifact["sourceHash"] = source_hash
+        if sheet_identity:
+            artifact.update(sheet_identity)
+            if isinstance(payload_config.get("workbookMeta"), dict):
+                artifact["workbookMeta"] = {
+                    **payload_config["workbookMeta"],
+                    **sheet_identity,
+                }
         return artifact
 
     named_rows = [_build_named_row(row, columns, index) for index, row in enumerate(rows)]
@@ -1734,6 +1763,13 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
         "charts": charts,
         "insights": insights,
     }
+    if sheet_identity:
+        artifact.update(sheet_identity)
+        if isinstance(payload_config.get("workbookMeta"), dict):
+            artifact["workbookMeta"] = {
+                **payload_config["workbookMeta"],
+                **sheet_identity,
+            }
     return artifact
 
 
