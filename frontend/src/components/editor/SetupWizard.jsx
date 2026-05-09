@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ChevronRight, ChevronLeft, X, Sparkles, DollarSign, BarChart3, TrendingUp, AlertTriangle, ClipboardList, CalendarDays, Tag } from 'lucide-react'
+import { ChevronRight, ChevronLeft, X, Sparkles, DollarSign, BarChart3, TrendingUp, AlertTriangle, ClipboardList, CalendarDays, Tag, FileSpreadsheet } from 'lucide-react'
 
 const METRIC_LABELS = {
   ECONOMIA: 'Economia',
@@ -134,7 +134,7 @@ function ProgressBar({ current, total }) {
           transition={{ duration: 0.5 }}
         />
       </div>
-      <div className="mt-2 grid grid-cols-5 gap-1.5">
+      <div className="mt-2 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}>
         {steps.map(step => (
           <div
             key={step}
@@ -207,6 +207,104 @@ function NavButtons({ onBack, onNext, nextLabel = 'Próximo', nextDisabled, onSk
 }
 
 // ── STEPS ─────────────────────────────────────────────────────────
+
+const KIND_LABELS = {
+  financial: 'Financeira',
+  operational: 'Operacional',
+  mixed: 'Mista',
+  summary: 'Resumo',
+  empty: 'Vazia',
+}
+
+function StepSheetSelection({ workbook, selectedSheetIndex, onSelect, onChange, onNext }) {
+  const sheets = Array.isArray(workbook?.sheets) ? workbook.sheets : []
+  const activeIndex = selectedSheetIndex ?? workbook?.selectedSheetIndex ?? sheets[0]?.sheetIndex
+
+  const choose = (sheet) => {
+    onSelect?.(sheet.sheetIndex)
+    onChange?.({
+      selectedSheetName: sheet.sheetName,
+      selectedSheetIndex: sheet.sheetIndex,
+      workbookMeta: {
+        ...workbook?.workbookMeta,
+        selectedSheetName: sheet.sheetName,
+        selectedSheetIndex: sheet.sheetIndex,
+      },
+    })
+  }
+
+  return (
+    <>
+      <StepTitle Icon={FileSpreadsheet} title="Escolha a aba para análise" desc="Selecione qual aba do workbook será usada para gerar este relatório" />
+      <div className="px-6 pb-2 space-y-3 max-h-[56vh] overflow-y-auto">
+        {sheets.map(sheet => {
+          const active = sheet.sheetIndex === activeIndex
+          const kindLabel = KIND_LABELS[sheet.detectedKind] || sheet.detectedKind || 'Dados'
+          const columns = (sheet.cols || []).filter(Boolean).slice(0, 5)
+          const metrics = Array.isArray(sheet.recommendedMetrics) ? sheet.recommendedMetrics : []
+          const warnings = Array.isArray(sheet.warnings) ? sheet.warnings : []
+
+          return (
+            <button
+              type="button"
+              key={`${sheet.sheetIndex}-${sheet.sheetName}`}
+              onClick={() => choose(sheet)}
+              className={`rf-panel w-full p-4 text-left transition-all hover:border-[color:var(--bdh)] ${active ? 'border-brand-500/60 bg-brand-900/15 shadow-[0_0_0_1px_rgba(59,130,246,0.25)]' : ''}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-bold text-[color:var(--tp)] truncate">{sheet.sheetName}</span>
+                    {active && <span className="rf-badge text-[10px] text-brand-300">Selecionada</span>}
+                  </div>
+                  <div className="mt-1 text-[11px] text-[color:var(--tm)]">
+                    {Number(sheet.rowCount || 0).toLocaleString('pt-BR')} linhas · {Number(sheet.colCount || 0).toLocaleString('pt-BR')} colunas
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-brand-300">{kindLabel}</div>
+                  <div className="mt-1 font-mono text-sm font-bold text-[color:var(--tp)]">{Math.round(Number(sheet.score || 0))}</div>
+                </div>
+              </div>
+
+              {columns.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {columns.map(column => (
+                    <span key={column} className="rounded-full border border-theme bg-[var(--s2)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--ts)]">
+                      {column}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {metrics.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {metrics.map(metric => (
+                    <span key={metric} className="rounded-full border px-2 py-0.5 text-[10px] font-bold" style={{ borderColor: `${METRIC_COLORS[metric] || '#3b82f6'}55`, color: METRIC_COLORS[metric] || '#3b82f6', background: `${METRIC_COLORS[metric] || '#3b82f6'}18` }}>
+                      {metric}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {warnings.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  {warnings.slice(0, 2).map((warning, index) => (
+                    <div key={`${warning}-${index}`} className="inline-flex items-start gap-1.5 text-[10px] text-amber-300">
+                      <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                      <span>{warning}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+      <NavButtons onNext={onNext} nextLabel="Usar esta aba" />
+    </>
+  )
+}
 
 // Step 1: Identificação do relatório
 function StepIdentity({ data, analyzed, onChange, onNext }) {
@@ -711,12 +809,20 @@ function StepChartsAdvanced({ data, analyzed, onChange, onNext, onBack, onSkip }
 }
 
 // ── WIZARD PRINCIPAL ───────────────────────────────────────────────
-const TOTAL_STEPS = 5
+const BASE_TOTAL_STEPS = 5
 
-export default function SetupWizard({ rows, cols, onComplete, onDismiss, previewData, previewError, previewLoading, onDraftChange }) {
+export default function SetupWizard({ rows, cols, onComplete, onDismiss, previewData, previewError, previewLoading, onDraftChange, workbook, selectedSheetIndex, onSheetSelect }) {
   const [step, setStep]     = useState(1)
   const [wdata, setWdata]   = useState({})
   const [finishing, setFinishing] = useState(false)
+  const hasSheetStep = (workbook?.sheets || []).filter(sheet => sheet?.useful !== false).length > 1
+  const totalSteps = BASE_TOTAL_STEPS + (hasSheetStep ? 1 : 0)
+  const sheetStep = hasSheetStep ? 1 : 0
+  const identityStep = hasSheetStep ? 2 : 1
+  const savingStep = hasSheetStep ? 3 : 2
+  const kpiStep = hasSheetStep ? 4 : 3
+  const chartsStep = hasSheetStep ? 5 : 4
+  const advancedStep = hasSheetStep ? 6 : 5
   const analyzed            = useMemo(() => detectColumns(cols, rows), [cols, rows])
 
   const update = useCallback((patch) => {
@@ -727,7 +833,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
   const skip   = ()    => setStep(s => s + 1)
 
   useEffect(() => {
-    if (step !== 2) return
+    if (step !== savingStep) return
     const seedMetricType = wdata.metricType || wdata.type || 'ECONOMIA'
     const seedLabel = wdata.label || METRIC_LABELS[seedMetricType] || METRIC_LABELS.ECONOMIA
     setWdata(prev => {
@@ -748,11 +854,19 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
         label: seedLabel,
       }
     })
-  }, [step, wdata.metricType, wdata.type, wdata.label])
+  }, [step, savingStep, wdata.metricType, wdata.type, wdata.label])
 
   useEffect(() => {
-    onDraftChange?.({ rows, cols, ...wdata, analyzed })
-  }, [rows, cols, wdata, analyzed, onDraftChange])
+    onDraftChange?.({
+      rows,
+      cols,
+      ...wdata,
+      analyzed,
+      selectedSheetName: workbook?.selectedSheetName,
+      selectedSheetIndex: workbook?.selectedSheetIndex,
+      workbookMeta: workbook?.workbookMeta,
+    })
+  }, [rows, cols, wdata, analyzed, onDraftChange, workbook?.selectedSheetName, workbook?.selectedSheetIndex, workbook?.workbookMeta])
 
   const finish = () => {
     // Monta estado final do editor a partir das respostas do wizard
@@ -852,15 +966,16 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
   return (
     <AnimatePresence>
       <ModalBackdrop onClose={onDismiss}>
-        <WizardCard wide={step >= 3}>
-          <ProgressBar current={step} total={TOTAL_STEPS} />
+        <WizardCard wide={step >= kpiStep || step === sheetStep}>
+          <ProgressBar current={step} total={totalSteps} />
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-              {step === 1 && <StepIdentity      {...stepProps} onNext={next} />}
-              {step === 2 && <StepSaving        {...stepProps} previewData={previewData} previewError={previewError} previewLoading={previewLoading} onNext={next} onBack={back} onSkip={skip} />}
-              {step === 3 && <StepKPIs          {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
-              {step === 4 && <StepChartsDist    {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
-              {step === 5 && (
+              {hasSheetStep && step === sheetStep && <StepSheetSelection workbook={workbook} selectedSheetIndex={selectedSheetIndex} onSelect={onSheetSelect} onChange={update} onNext={next} />}
+              {step === identityStep && <StepIdentity      {...stepProps} onNext={next} />}
+              {step === savingStep && <StepSaving        {...stepProps} previewData={previewData} previewError={previewError} previewLoading={previewLoading} onNext={next} onBack={back} onSkip={skip} />}
+              {step === kpiStep && <StepKPIs          {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
+              {step === chartsStep && <StepChartsDist    {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
+              {step === advancedStep && (
                 <>
                   <StepChartsAdvanced {...stepProps} onNext={handleFinish} onBack={back} onSkip={handleFinish} />
                   <AnimatePresence>

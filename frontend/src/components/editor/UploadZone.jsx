@@ -68,6 +68,12 @@ function buildWorkbookPayload(file, wb) {
   }
 
   const sheets = usefulSheets.map(({ rows, ...sheet }) => sheet)
+  const sheetData = usefulSheets.map(sheet => ({
+    sheetName: sheet.sheetName,
+    sheetIndex: sheet.sheetIndex,
+    rows: sheet.rows,
+    cols: sheet.cols,
+  }))
   const workbookMeta = {
     fileName: file.name,
     sheetCount: wb.SheetNames.length,
@@ -82,6 +88,7 @@ function buildWorkbookPayload(file, wb) {
     workbook: {
       workbookMeta,
       sheets,
+      sheetData,
       selectedSheetName: activeSheet.sheetName,
       selectedSheetIndex: activeSheet.sheetIndex,
     },

@@ -18,6 +18,16 @@ import SetupWizard from '@/components/editor/SetupWizard'
 import { buildReportHTML } from '@/lib/reportExport'
 import { normalizeReportColumns, normalizeSavingConfig } from '@/lib/saving'
 
+function simpleSheetHash(sheetName = '', rows = [], cols = []) {
+  const payload = JSON.stringify({ sheetName, rows, cols })
+  let hash = 0
+  for (let index = 0; index < payload.length; index += 1) {
+    hash = ((hash << 5) - hash) + payload.charCodeAt(index)
+    hash |= 0
+  }
+  return `sheet_${Math.abs(hash).toString(36)}`
+}
+
 const TABS = [
   { id: 'data',    label: 'Dados', icon: BarChart3 },
   { id: 'layout',  label: 'Layout', icon: Palette },
@@ -468,6 +478,26 @@ export default function EditorPage() {
     toast.success(`${rows.length.toLocaleString('pt-BR')} linhas carregadas! Configure o relatório.`)
   }
 
+  const handleSheetSelect = useCallback((sheetIndex) => {
+    const sheet = pendingWorkbook?.sheetData?.find(item => item.sheetIndex === sheetIndex)
+    if (!sheet) return
+    setPendingRows(sheet.rows)
+    setPendingCols(sheet.cols)
+    setPendingWorkbook(prev => ({
+      ...prev,
+      workbookMeta: {
+        ...prev.workbookMeta,
+        selectedSheetName: sheet.sheetName,
+        selectedSheetIndex: sheet.sheetIndex,
+      },
+      selectedSheetName: sheet.sheetName,
+      selectedSheetIndex: sheet.sheetIndex,
+    }))
+    setWizardDraft(null)
+    setPreviewData(null)
+    setPreviewError('')
+  }, [pendingWorkbook])
+
   const handleWizardComplete = (wizardState) => {
     // Monta colunas com tipo detectado
     const detectedCols = pendingCols.map((name, i) => {
@@ -484,15 +514,20 @@ export default function EditorPage() {
       cols: detectedCols,
       rows: detectedRows,
       ...(pendingWorkbook ? {
-        workbookMeta: pendingWorkbook.workbookMeta,
+        workbookMeta: {
+          ...pendingWorkbook.workbookMeta,
+          selectedSheetHash: simpleSheetHash(pendingWorkbook.selectedSheetName, pendingRows, pendingCols),
+        },
         sheets: pendingWorkbook.sheets || [],
         selectedSheetName: pendingWorkbook.selectedSheetName,
         selectedSheetIndex: pendingWorkbook.selectedSheetIndex,
+        selectedSheetHash: simpleSheetHash(pendingWorkbook.selectedSheetName, pendingRows, pendingCols),
       } : {
         workbookMeta: null,
         sheets: [],
         selectedSheetName: null,
         selectedSheetIndex: null,
+        selectedSheetHash: null,
       }),
       reportData: previewData || (previewError ? { error: previewError } : {}),
       reportSchemaVersion: getReportSchemaVersion(previewData),
@@ -540,6 +575,9 @@ export default function EditorPage() {
               previewError={previewError}
               previewLoading={previewLoading}
               onDraftChange={setWizardDraft}
+              workbook={pendingWorkbook}
+              selectedSheetIndex={pendingWorkbook?.selectedSheetIndex}
+              onSheetSelect={handleSheetSelect}
             />
           )}
         </AnimatePresence>
