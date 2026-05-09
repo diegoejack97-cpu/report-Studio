@@ -17,6 +17,24 @@ function normalizeSheetMatrix(ws) {
   return matrix.filter(row => Array.isArray(row) && row.some(isCellFilled))
 }
 
+function isHeaderLikeCell(value) {
+  const text = String(value || '').trim()
+  if (!text || text.length > 80) return false
+  return /[A-Za-zÀ-ÿ]/.test(text) || /[%$€£¥]/.test(text)
+}
+
+function detectHeaderRowIndex(matrix) {
+  const scanLimit = Math.min(matrix.length, 20)
+  for (let index = 0; index < scanLimit; index += 1) {
+    const row = matrix[index] || []
+    const filled = row.filter(isCellFilled)
+    if (filled.length < 2) continue
+    const labelCount = filled.filter(isHeaderLikeCell).length
+    if (labelCount / filled.length >= 0.5) return index
+  }
+  return 0
+}
+
 function parseSheet(ws, sheetName, sheetIndex) {
   const matrix = normalizeSheetMatrix(ws)
   if (matrix.length < 2) {
@@ -32,9 +50,10 @@ function parseSheet(ws, sheetName, sheetIndex) {
     }
   }
 
-  const headers = matrix[0].map(h => String(h || '').trim())
+  const headerRowIndex = detectHeaderRowIndex(matrix)
+  const headers = matrix[headerRowIndex].map(h => String(h || '').trim())
   const colCount = headers.length
-  const rows = matrix.slice(1)
+  const rows = matrix.slice(headerRowIndex + 1)
     .filter(row => row.some(isCellFilled))
     .map(row => headers.map((_, index) => String(row[index] ?? '')))
   const useful = colCount > 0 && rows.length > 0

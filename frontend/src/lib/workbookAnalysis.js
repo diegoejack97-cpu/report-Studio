@@ -6,6 +6,7 @@ const CATEGORY_RE = /(categoria|category|tipo|fornecedor|empresa|cliente|grupo|s
 const SAVING_RE = /(saving|economia|desconto)/i
 const COMPARE_RE = /(inicial|original|final|negociado|atual|reajustado|corrigido|anterior|novo)/i
 const CURRENCY_RE = /(r\$|us\$|brl|usd|eur|gbp|jpy|[$€£¥])/i
+const SUMMARY_RE = /(indicador|indicator|m[eé]trica|metric|resumo|summary|coment[aá]rio|comment|observa[cç][aã]o|nota|descri[cç][aã]o)/i
 
 function normalizeText(value) {
   return String(value || '').trim().toLowerCase()
@@ -73,6 +74,7 @@ function analyzeColumn(name, values) {
   const categoryName = CATEGORY_RE.test(normalizedName)
   const savingName = SAVING_RE.test(normalizedName)
   const comparableName = COMPARE_RE.test(normalizedName)
+  const summaryName = SUMMARY_RE.test(normalizedName)
   const identifier = identifierName && !moneyName
   const monetary = !identifier && (moneyName || currencyRate >= 0.25) && numericRate >= 0.4
   const percent = percentName && numericRate >= 0.4
@@ -93,11 +95,13 @@ function analyzeColumn(name, values) {
     category,
     savingName,
     comparableName,
+    summaryName,
   }
 }
 
 function buildRecommendedMetrics(kind, signals) {
   if (kind === 'empty') return []
+  if (kind === 'summary') return ['VOLUME']
 
   const metrics = []
   if (signals.monetaryColumns > 0) metrics.push('TOTAL')
@@ -120,7 +124,14 @@ function buildRecommendedMetrics(kind, signals) {
 
 function classifySheet({ rowCount, colCount, density, signals }) {
   if (rowCount <= 0 || colCount <= 0 || density < 0.05) return 'empty'
-  if (rowCount <= 8 && colCount <= 8 && signals.monetaryColumns === 0) return 'summary'
+  if (rowCount <= 8 && colCount <= 8) {
+    const compactManualSummary =
+      signals.summaryColumns > 0 &&
+      signals.monetaryColumns <= 1 &&
+      signals.percentColumns === 0 &&
+      signals.comparableFinancialColumns < 2
+    if (signals.monetaryColumns === 0 || compactManualSummary) return 'summary'
+  }
   if (signals.monetaryColumns > 0 && signals.operationalSignals >= 2) return 'mixed'
   if (signals.monetaryColumns > 0) return 'financial'
   return 'operational'
@@ -169,6 +180,7 @@ export function analyzeWorkbookSheet(sheet) {
     identifierColumns: columns.filter(column => column.identifier).length,
     savingColumns: columns.filter(column => column.savingName && (column.monetary || column.percent || column.numericRate >= 0.4)).length,
     comparableFinancialColumns: columns.filter(column => column.monetary && column.comparableName).length,
+    summaryColumns: columns.filter(column => column.summaryName).length,
   }
   signals.operationalSignals = signals.categoryColumns + signals.dateColumns + signals.identifierColumns
 
