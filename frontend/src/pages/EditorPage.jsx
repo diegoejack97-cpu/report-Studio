@@ -158,6 +158,7 @@ export default function EditorPage() {
   const [showWizard, setShowWizard] = useState(false)
   const [pendingRows, setPendingRows] = useState(null)
   const [pendingCols, setPendingCols] = useState(null)
+  const [pendingWorkbook, setPendingWorkbook] = useState(null)
   const [wizardDraft, setWizardDraft] = useState(null)
   const [previewData, setPreviewData] = useState(null)
   const [previewError, setPreviewError] = useState('')
@@ -455,10 +456,11 @@ export default function EditorPage() {
     }
   }
 
-  const handleFileLoad = (rows, cols) => {
+  const handleFileLoad = (rows, cols, workbook = null) => {
     // Guarda os dados brutos e abre o wizard
     setPendingRows(rows)
     setPendingCols(cols)
+    setPendingWorkbook(workbook)
     setWizardDraft(null)
     setPreviewData(null)
     setPreviewError('')
@@ -481,6 +483,17 @@ export default function EditorPage() {
       ...wizardState,
       cols: detectedCols,
       rows: detectedRows,
+      ...(pendingWorkbook ? {
+        workbookMeta: pendingWorkbook.workbookMeta,
+        sheets: pendingWorkbook.sheets || [],
+        selectedSheetName: pendingWorkbook.selectedSheetName,
+        selectedSheetIndex: pendingWorkbook.selectedSheetIndex,
+      } : {
+        workbookMeta: null,
+        sheets: [],
+        selectedSheetName: null,
+        selectedSheetIndex: null,
+      }),
       reportData: previewData || (previewError ? { error: previewError } : {}),
       reportSchemaVersion: getReportSchemaVersion(previewData),
       usesAutomaticMetrics: getReportSchemaVersion(previewData) >= 1,
@@ -491,6 +504,7 @@ export default function EditorPage() {
     setHasData(true)
     setShowWizard(false)
     setWizardDraft(null)
+    setPendingWorkbook(null)
     setTab('layout')
     void autoSave(nextState)
     toast.success('Relatório configurado! ✨')

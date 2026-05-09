@@ -216,6 +216,19 @@ def _looks_like_money_name(name: str) -> bool:
     return bool(re.search(r"(?i)(valor|price|custo|amount|receita|despesa|gasto|money|currency|total|base|pago|negociado)", name))
 
 
+def _looks_like_explicit_money_name(name: str) -> bool:
+    return bool(re.search(r"(?i)(valor|price|custo|amount|receita|despesa|gasto|money|currency|base|pago|negociado)", name))
+
+
+def _looks_like_identifier_name(name: str) -> bool:
+    return bool(
+        re.search(
+            r"(?i)(contrato|c[oó]digo|codigo|\bid\b|n[uú]mero|numero|processo|protocolo|ap[oó]lice|apolice|cpf|cnpj|matr[ií]cula|matricula|pedido|ordem|\bscd\b|\bssj\b)",
+            name,
+        )
+    )
+
+
 def _looks_like_date_name(name: str) -> bool:
     return bool(re.search(r"(?i)(data|date|venc|mes|mês|ano|period)", name))
 
@@ -262,6 +275,8 @@ def _classify_column(name: str, values: list[Any]) -> dict[str, Any]:
     date_matches = _count_matches(non_empty, _parse_date_like)
     percent_hint = _looks_like_percent_name(normalized_name)
     money_hint = _looks_like_money_name(normalized_name)
+    explicit_money_hint = _looks_like_explicit_money_name(normalized_name)
+    identifier_hint = _looks_like_identifier_name(normalized_name)
     date_hint = _looks_like_date_name(normalized_name)
     score_hint = _looks_like_score_name(normalized_name)
     category_hint = _looks_like_category_name(normalized_name)
@@ -289,6 +304,11 @@ def _classify_column(name: str, values: list[Any]) -> dict[str, Any]:
         kind = "percent"
         confidence = 0.88
         name_pattern = "percent_keyword"
+        numeric_pattern = f"numeric_rate={len(numeric_values) / max(len(non_empty), 1):.2f}"
+    elif identifier_hint and not explicit_money_hint:
+        kind = "identifier"
+        confidence = 0.9
+        name_pattern = "identifier_keyword"
         numeric_pattern = f"numeric_rate={len(numeric_values) / max(len(non_empty), 1):.2f}"
     elif money_hint or (numeric_values and sum(1 for value in numeric_values if abs(value) >= 1000) / len(numeric_values) >= 0.4):
         kind = "monetary"

@@ -5,6 +5,84 @@ import { Upload, FileSpreadsheet, Sparkles } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 
+const SAMPLE_ROW_LIMIT = 5
+
+function isCellFilled(value) {
+  return value !== '' && value != null
+}
+
+function normalizeSheetMatrix(ws) {
+  const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' })
+  return matrix.filter(row => Array.isArray(row) && row.some(isCellFilled))
+}
+
+function parseSheet(ws, sheetName, sheetIndex) {
+  const matrix = normalizeSheetMatrix(ws)
+  if (matrix.length < 2) {
+    return {
+      sheetName,
+      sheetIndex,
+      rowCount: 0,
+      colCount: 0,
+      cols: [],
+      sampleRows: [],
+      useful: false,
+      isEmpty: matrix.length === 0,
+    }
+  }
+
+  const headers = matrix[0].map(h => String(h || '').trim())
+  const colCount = headers.length
+  const rows = matrix.slice(1)
+    .filter(row => row.some(isCellFilled))
+    .map(row => headers.map((_, index) => String(row[index] ?? '')))
+  const useful = colCount > 0 && rows.length > 0
+
+  return {
+    sheetName,
+    sheetIndex,
+    rowCount: rows.length,
+    colCount,
+    cols: headers,
+    rows,
+    sampleRows: rows.slice(0, SAMPLE_ROW_LIMIT),
+    useful,
+    isEmpty: !useful,
+  }
+}
+
+function buildWorkbookPayload(file, wb) {
+  const parsedSheets = wb.SheetNames.map((sheetName, sheetIndex) => (
+    parseSheet(wb.Sheets[sheetName], sheetName, sheetIndex)
+  ))
+  const usefulSheets = parsedSheets.filter(sheet => sheet.useful)
+  const activeSheet = usefulSheets[0]
+
+  if (!activeSheet) {
+    throw new Error('Planilha vazia')
+  }
+
+  const sheets = usefulSheets.map(({ rows, ...sheet }) => sheet)
+  const workbookMeta = {
+    fileName: file.name,
+    sheetCount: wb.SheetNames.length,
+    usefulSheetCount: usefulSheets.length,
+    selectedSheetName: activeSheet.sheetName,
+    selectedSheetIndex: activeSheet.sheetIndex,
+  }
+
+  return {
+    rows: activeSheet.rows,
+    cols: activeSheet.cols,
+    workbook: {
+      workbookMeta,
+      sheets,
+      selectedSheetName: activeSheet.sheetName,
+      selectedSheetIndex: activeSheet.sheetIndex,
+    },
+  }
+}
+
 export default function UploadZone({ onLoad }) {
   const [loading, setLoading] = useState(false)
 
@@ -15,14 +93,8 @@ export default function UploadZone({ onLoad }) {
       if (['xlsx', 'xls'].includes(ext)) {
         const buf = await file.arrayBuffer()
         const wb = XLSX.read(buf, { type: 'array', cellDates: true })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const mx = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' })
-        if (mx.length < 2) throw new Error('Planilha vazia')
-        const headers = mx[0].map(h => String(h || '').trim())
-        const rows = mx.slice(1)
-          .filter(r => r.some(c => c !== '' && c != null))
-          .map(r => headers.map((_, i) => String(r[i] ?? '')))
-        onLoad(rows, headers)
+        const workbookPayload = buildWorkbookPayload(file, wb)
+        onLoad(workbookPayload.rows, workbookPayload.cols, workbookPayload.workbook)
       } else {
         const text = await file.text()
         const sep = text.includes('\t') ? '\t' : ','

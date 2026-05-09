@@ -426,6 +426,75 @@ def test_auto_mapping_takes_precedence_over_manual_config():
     assert result["dataset"][0]["percent_value"] == 0.15
 
 
+def test_identifier_columns_are_not_classified_as_monetary_by_numeric_magnitude():
+    data = {
+        "cols": [
+            {"name": "Contrato", "type": "number"},
+            {"name": "Código", "type": "number"},
+            {"name": "CPF", "type": "number"},
+            {"name": "CNPJ", "type": "number"},
+            {"name": "Apólice", "type": "number"},
+        ],
+        "rows": [
+            {"cells": ["138491", "987654", "12345678901", "12345678000199", "555001"]},
+            {"cells": ["161769", "987655", "12345678902", "12345678000270", "555002"]},
+            {"cells": ["137683", "987656", "12345678903", "12345678000350", "555003"]},
+        ],
+    }
+    config = {"saving": {"metricType": "VOLUME"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert result["mapping"]["monetary"] is None
+    for column in ["Contrato", "Código", "CPF", "CNPJ", "Apólice"]:
+        assert result["analysis"]["columns"][column]["kind"] == "identifier"
+
+
+def test_identifier_phrases_are_not_classified_as_monetary():
+    data = {
+        "cols": [
+            {"name": "Número do contrato", "type": "number"},
+            {"name": "processo", "type": "number"},
+            {"name": "protocolo", "type": "number"},
+            {"name": "matrícula", "type": "number"},
+            {"name": "pedido", "type": "number"},
+            {"name": "ordem", "type": "number"},
+            {"name": "SCD", "type": "number"},
+            {"name": "SSJ", "type": "number"},
+        ],
+        "rows": [
+            {"cells": ["100001", "200001", "300001", "400001", "500001", "600001", "700001", "800001"]},
+            {"cells": ["100002", "200002", "300002", "400002", "500002", "600002", "700002", "800002"]},
+        ],
+    }
+    config = {"saving": {"metricType": "VOLUME"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert result["mapping"]["monetary"] is None
+    assert all(column["kind"] == "identifier" for column in result["analysis"]["columns"].values())
+
+
+def test_explicit_financial_identifier_names_can_still_be_monetary():
+    data = {
+        "cols": [
+            {"name": "Valor do contrato", "type": "monetary"},
+            {"name": "Valor anual corrigido", "type": "monetary"},
+        ],
+        "rows": [
+            {"cells": ["1000", "12000"]},
+            {"cells": ["2500", "30000"]},
+        ],
+    }
+    config = {"saving": {"metricType": "TOTAL"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert result["analysis"]["columns"]["Valor do contrato"]["kind"] == "monetary"
+    assert result["analysis"]["columns"]["Valor anual corrigido"]["kind"] == "monetary"
+    assert result["mapping"]["monetary"] in {"Valor do contrato", "Valor anual corrigido"}
+
+
 def test_low_confidence_classification_emits_warning():
     data = {
         "cols": [
