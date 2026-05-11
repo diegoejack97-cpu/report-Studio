@@ -232,6 +232,51 @@ def test_variacao_handles_division_by_zero():
     _assert_all_numbers_finite(result)
 
 
+def test_variacao_rejects_identifier_as_comparable_column():
+    data = {
+        "cols": [
+            {"name": "Valor anual corrigido", "type": "monetary"},
+            {"name": "SC", "type": "number"},
+        ],
+        "rows": [
+            {"cells": ["27764.88", "6865"]},
+            {"cells": ["215985.41", "2191"]},
+        ],
+    }
+    config = {"saving": {"metricType": "VARIACAO"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert result["analysis"]["columns"]["Valor anual corrigido"]["kind"] == "monetary"
+    assert result["analysis"]["columns"]["SC"]["kind"] == "identifier"
+    assert result["validation"]["errors"] == [
+        "Esta aba não possui duas colunas financeiras comparáveis para calcular Variação."
+    ]
+    assert result["dataset"] == []
+
+
+def test_variacao_accepts_comparable_financial_pair():
+    data = {
+        "cols": [
+            {"name": "Valor Anual", "type": "monetary"},
+            {"name": "Anual Reajustado", "type": "monetary"},
+        ],
+        "rows": [
+            {"cells": ["58790.04", "58790.04"]},
+            {"cells": ["61653.11", "64279.04"]},
+        ],
+    }
+    config = {"saving": {"metricType": "VARIACAO"}}
+
+    result = build_metric_dataset(data, config)
+
+    assert result["validation"]["errors"] == []
+    assert result["mapping"]["monetary"] in {"Valor Anual", "Anual Reajustado"}
+    assert len(result["dataset"]) == 2
+    assert all(row["formula"] == "variation_rate" for row in result["dataset"])
+    _assert_all_numbers_finite(result)
+
+
 def test_taxa_and_volume_metrics():
     taxa_data = {
         "cols": [
@@ -567,12 +612,13 @@ def test_identifier_phrases_are_not_classified_as_monetary():
             {"name": "matrícula", "type": "number"},
             {"name": "pedido", "type": "number"},
             {"name": "ordem", "type": "number"},
+            {"name": "SC", "type": "number"},
             {"name": "SCD", "type": "number"},
             {"name": "SSJ", "type": "number"},
         ],
         "rows": [
-            {"cells": ["100001", "200001", "300001", "400001", "500001", "600001", "700001", "800001"]},
-            {"cells": ["100002", "200002", "300002", "400002", "500002", "600002", "700002", "800002"]},
+            {"cells": ["100001", "200001", "300001", "400001", "500001", "600001", "650001", "700001", "800001"]},
+            {"cells": ["100002", "200002", "300002", "400002", "500002", "600002", "650002", "700002", "800002"]},
         ],
     }
     config = {"saving": {"metricType": "VOLUME"}}

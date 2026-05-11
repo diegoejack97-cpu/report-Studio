@@ -60,7 +60,7 @@ METRIC_RULES = {
         "formula": "(final_value - initial_value) / initial_value * 100",
         "errors": {
             "monetary_missing": "Nenhuma coluna monetária encontrada",
-            "monetary_pair_missing": "Nenhuma segunda coluna monetária encontrada",
+            "monetary_pair_missing": "Esta aba não possui duas colunas financeiras comparáveis para calcular Variação.",
         },
         "warnings": {},
     },
@@ -247,7 +247,7 @@ def _looks_like_explicit_money_name(name: str) -> bool:
 def _looks_like_identifier_name(name: str) -> bool:
     return bool(
         re.search(
-            r"(?i)(contrato|c[oó]digo|codigo|\bid\b|n[uú]mero|numero|processo|protocolo|ap[oó]lice|apolice|cpf|cnpj|matr[ií]cula|matricula|pedido|ordem|\bscd\b|\bssj\b)",
+            r"(?i)(contrato|c[oó]digo|codigo|\bid\b|n[uú]mero|numero|processo|protocolo|ap[oó]lice|apolice|cpf|cnpj|matr[ií]cula|matricula|pedido|ordem|\bsc\b|\bscd\b|\bssj\b)",
             name,
         )
     )
@@ -467,6 +467,44 @@ def _looks_like_final_value_name(name: str) -> bool:
     return bool(re.search(r"(?i)(final|negociado|corrigido|reajustado|novo)", name))
 
 
+def _financial_dimension(name: str) -> str:
+    normalized = _normalize_text(name)
+    if re.search(r"(?i)(mensal|m[eê]s)", normalized):
+        return "mensal"
+    if re.search(r"(?i)(anual|ano)", normalized):
+        return "anual"
+    if re.search(r"(?i)valor", normalized):
+        return "valor"
+    return ""
+
+
+def _variacao_role(name: str) -> str:
+    normalized = _normalize_text(name)
+    if _looks_like_initial_value_name(normalized):
+        return "base"
+    if _looks_like_final_value_name(normalized):
+        return "final"
+    return ""
+
+
+def _columns_form_variacao_pair(initial_name: str, final_name: str) -> bool:
+    left_role = _variacao_role(initial_name)
+    right_role = _variacao_role(final_name)
+    left_dimension = _financial_dimension(initial_name)
+    right_dimension = _financial_dimension(final_name)
+
+    if not left_role and right_role == "final" and left_dimension:
+        left_role = "base"
+    if not right_role and left_role == "base" and right_dimension:
+        right_role = "final"
+
+    if {left_role, right_role} != {"base", "final"}:
+        return False
+    if left_dimension and right_dimension and left_dimension != right_dimension:
+        return False
+    return True
+
+
 def _sample_values_for_column(analysis: dict[str, dict[str, Any]], column_name: str) -> list[Any]:
     payload = _analysis_by_name(analysis, column_name) or {}
     evidence = payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {}
@@ -506,6 +544,18 @@ def _resolve_economia_value_pair(analysis: dict[str, dict[str, Any]], columns: l
     final_candidates = [name for name in ranked_monetary if name in names and _looks_like_final_value_name(name)]
     if initial_candidates and final_candidates:
         return initial_candidates[0], final_candidates[0]
+    return None, None
+
+
+def _resolve_variacao_value_pair(analysis: dict[str, dict[str, Any]], columns: list[dict[str, Any]]) -> tuple[str | None, str | None]:
+    names = {column["name"] for column in columns}
+    ranked_monetary = [name for name in _rank_columns_by_kind(analysis, "monetary") if name in names]
+    for left_index, left_name in enumerate(ranked_monetary):
+        for right_name in ranked_monetary[left_index + 1 :]:
+            if _columns_form_variacao_pair(left_name, right_name):
+                return left_name, right_name
+            if _columns_form_variacao_pair(right_name, left_name):
+                return right_name, left_name
     return None, None
 
 
@@ -592,7 +642,7 @@ def _resolve_effective_mapping(
     return effective
 
 
-def _build_validation(metric_type: str, analysis: dict[str, dict[str, Any]], mapping: dict[str, str | None], fields: dict[str, int] | None = None) -> dict[str, list[str]]:
+def _build_validation(metric_type: str, analysis: dict[str, dict[str, Any]], mapping: dict[str, str | None], fields: dict[str, int] | None = None, columns: list[dict[str, Any]] | None = None) -> dict[str, list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
     rules = METRIC_RULES.get(metric_type, {})
@@ -611,10 +661,20 @@ def _build_validation(metric_type: str, analysis: dict[str, dict[str, Any]], map
         ranked_monetary = _rank_columns_by_kind(analysis, "monetary")
         if not ranked_monetary:
             errors.append(rules["errors"]["monetary_missing"])
-        elif len(ranked_monetary) < 2:
-            errors.append(rules["errors"]["monetary_pair_missing"])
-        elif len(ranked_monetary) >= 2:
-            warnings.append(f"Colunas monetárias usadas: {ranked_monetary[0]} e {ranked_monetary[1]}")
+        else:
+            selected_columns = columns or []
+            if fields.get("initial", -1) >= 0 and fields.get("final", -1) >= 0 and selected_columns:
+                initial_name = selected_columns[fields["initial"]]["name"]
+                final_name = selected_columns[fields["final"]]["name"]
+            else:
+                initial_name, final_name = _resolve_variacao_value_pair(analysis, selected_columns)
+
+            if not initial_name or not final_name:
+                errors.append(rules["errors"]["monetary_pair_missing"])
+            elif not _columns_form_variacao_pair(initial_name, final_name):
+                errors.append(rules["errors"]["monetary_pair_missing"])
+            else:
+                warnings.append(f"Colunas monetárias usadas: {initial_name} e {final_name}")
     elif metric_type == "TAXA":
         if not mapping.get("category"):
             errors.append(rules["errors"]["category_missing"])
@@ -671,9 +731,9 @@ def _build_runtime_fields(metric_type: str, columns: list[dict[str, Any]], analy
             fallback_keys=("value", "base"),
         )
     elif metric_type == "VARIACAO":
-        ranked_monetary = _rank_columns_by_kind(analysis, "monetary")
-        active_fields["initial"] = name_to_index.get(ranked_monetary[0], -1) if ranked_monetary else legacy_fields.get("initial", -1)
-        active_fields["final"] = name_to_index.get(ranked_monetary[1], -1) if len(ranked_monetary) >= 2 else legacy_fields.get("final", -1)
+        initial_name, final_name = _resolve_variacao_value_pair(analysis, columns)
+        active_fields["initial"] = name_to_index.get(initial_name, -1) if initial_name else legacy_fields.get("initial", -1)
+        active_fields["final"] = name_to_index.get(final_name, -1) if final_name else legacy_fields.get("final", -1)
         if active_fields["initial"] < 0:
             active_fields["initial"] = legacy_fields.get("initial", -1)
         if active_fields["final"] < 0:
@@ -1718,6 +1778,12 @@ def _validate_metric_config(metric_type: str, fields: dict[str, int], columns: l
             )
         _validate_column_type("initialCol", columns[fields["initial"]], "monetary")
         _validate_column_type("finalCol", columns[fields["final"]], "monetary")
+        if not _columns_form_variacao_pair(columns[fields["initial"]]["name"], columns[fields["final"]]["name"]):
+            raise MetricsValidationError(
+                "Esta aba não possui duas colunas financeiras comparáveis para calcular Variação.",
+                field="saving",
+                expected="comparable_monetary_pair",
+            )
         return
     if metric_type == "TAXA":
         if fields.get("category", -1) < 0:
@@ -1742,7 +1808,7 @@ def _build_metric_artifact(data: Any, config: dict[str, Any] | None) -> dict[str
     explicit_metric_config = isinstance(payload_config.get("saving"), dict) and (payload_config["saving"].get("metricType") not in (None, ""))
     explicit_metric_fields = _has_explicit_metric_field(payload_config, metric_type)
     fields = _build_runtime_fields(metric_type, columns, analysis, legacy_fields, mapping)
-    validation = _build_validation(metric_type, analysis, mapping, fields)
+    validation = _build_validation(metric_type, analysis, mapping, fields, columns)
 
     if validation["errors"] and not any(index >= 0 for index in legacy_fields.values()) and not any(value is not None for value in auto_mapping.values()):
         if explicit_metric_config and metric_type != "ECONOMIA":
