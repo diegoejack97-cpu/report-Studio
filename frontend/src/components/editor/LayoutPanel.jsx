@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react'
+import { getDefaultMetricLabel, resolveMetricLabel } from '@/lib/saving'
 
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -50,8 +51,18 @@ export default function LayoutPanel({ state, update }) {
   const setSection = (k, v) => update(s => ({ ...s, sections: { ...s.sections, [k]: v } }))
   const setColor = (k, v) => update(s => ({ ...s, colors: { ...s.colors, [k]: v } }))
   const setSav = (k, v) => update(s => ({ ...s, saving: { ...s.saving, [k]: v } }))
+  const setMetricType = v => update(s => ({
+    ...s,
+    saving: {
+      ...s.saving,
+      metricType: v,
+      type: v,
+      label: resolveMetricLabel(v, s.saving?.label),
+    },
+  }))
   const setExportOpt = (k, v) => update(s => ({ ...s, exportOptions: { ...(s.exportOptions || {}), [k]: v } }))
   const currentMetricType = savCfg.metricType || savCfg.type || 'ECONOMIA'
+  const currentMetricLabel = resolveMetricLabel(currentMetricType, savCfg.label)
 
   const addKPI = () => update(s => ({ ...s, kpis: [...s.kpis, { label: 'KPI', col: '', fmt: 'count', icon: 'bar', color: '#3b82f6' }] }))
   const updKPI = (i, k, v) => update(s => ({ ...s, kpis: s.kpis.map((kpi, idx) => idx === i ? { ...kpi, [k]: v } : kpi) }))
@@ -68,9 +79,9 @@ export default function LayoutPanel({ state, update }) {
 
       <Accordion title="Métrica principal">
         <Toggle checked={sections.saving !== false} onChange={v => setSection('saving', v)} label="Mostrar banner" />
-        <Field label="Rótulo"><input className="input-field text-xs py-2 sm:py-1.5" value={savCfg.label || ''} onChange={e => setSav('label', e.target.value)} /></Field>
+        <Field label="Rótulo"><input className="input-field text-xs py-2 sm:py-1.5" value={currentMetricLabel} placeholder={getDefaultMetricLabel(currentMetricType)} onChange={e => setSav('label', e.target.value)} /></Field>
         <Field label="Tipo de métrica">
-          <select className="input-field text-xs py-2 sm:py-1.5" value={currentMetricType} onChange={e => setSav('metricType', e.target.value)}>
+          <select className="input-field text-xs py-2 sm:py-1.5" value={currentMetricType} onChange={e => setMetricType(e.target.value)}>
             <option value="ECONOMIA">Economia</option>
             <option value="TOTAL">Total Financeiro</option>
             <option value="VARIACAO">Variação</option>

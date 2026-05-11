@@ -125,6 +125,19 @@ function normalizeMetricType(type) {
   return METRIC_TYPES[type] ? type : 'ECONOMIA'
 }
 
+export function getDefaultMetricLabel(type) {
+  return METRIC_TYPES[normalizeMetricType(type)].label
+}
+
+export function isDefaultMetricLabel(label) {
+  const normalized = String(label || '').trim()
+  return !normalized || Object.values(METRIC_TYPES).some(metric => metric.label === normalized)
+}
+
+export function resolveMetricLabel(metricType, label) {
+  return isDefaultMetricLabel(label) ? getDefaultMetricLabel(metricType) : String(label || '').trim()
+}
+
 export function normalizeSavingConfig(saving = {}, totalColumns = Infinity) {
   const legacyMode = saving.savingMode || ''
   let metricType = saving.metricType || saving.type || ''
@@ -157,7 +170,7 @@ export function normalizeSavingConfig(saving = {}, totalColumns = Infinity) {
     ...metricMeta,
     metricType,
     type: metricType,
-    label: saving.label || metricMeta.label,
+    label: resolveMetricLabel(metricType, saving.label),
     color: saving.color || metricMeta.color,
     valueCol,
     percentCol,

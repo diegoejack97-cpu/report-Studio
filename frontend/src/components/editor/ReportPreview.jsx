@@ -6,6 +6,7 @@ import { useThemeStore } from '@/store/themeStore'
 import InsightsPanel from '@/components/InsightsPanel'
 import { inferChartType, selectMetricCharts } from '@/lib/chartSelection'
 import { getPremiumChartTheme, premiumizeEChartOption } from '@/lib/chartTheme'
+import { resolveMetricLabel } from '@/lib/saving'
 
 function TableSection({ rows, visCols, dark, cardBg, bdColor, p1, p2, textColor, subText, showFilters = true }) {
   const [selectedCol, setSelectedCol] = useState('')
@@ -694,6 +695,7 @@ export default function ReportPreview({ state }) {
   const subText = dark ? '#486581' : '#94a3b8'
   const primaryMetric = summary?.primary_metric || null
   const metricType = metric?.type || primaryMetric?.type || 'ECONOMIA'
+  const metricLabel = resolveMetricLabel(metricType, state?.saving?.label || metric?.label || primaryMetric?.label)
   const breakdown = summary?.primary_metric?.breakdown || null
   const metricColor = METRIC_COLORS[metricType] || METRIC_COLORS.ECONOMIA
   const savTotal = metric?.value ?? primaryMetric?.value ?? 0
@@ -702,7 +704,7 @@ export default function ReportPreview({ state }) {
   const friendlyWarning = dedupedValidationWarnings.length > 0 ? 'Alguns dados não permitiram o cálculo completo desta métrica.' : ''
   const recordCount = summary.totals?.count ?? datasetRows.length
   const summaryLabel = summary.group_index >= 0 ? cols[summary.group_index]?.name || '—' : '—'
-  const summaryValueLabel = metric?.label || primaryMetric?.label || 'Valor'
+  const summaryValueLabel = metricLabel || 'Valor'
   const metricCharts = selectMetricCharts(charts, metricType, datasetRows.length)
   const existingLoading = Boolean(state?.loading || state?.previewLoading || report?.loading || reportData?.loading)
   const waitingInitialPayload = !previewError && !hasValidationErrors && datasetRows.length === 0 && (!Array.isArray(charts) || charts.length === 0)
@@ -955,7 +957,7 @@ export default function ReportPreview({ state }) {
                   <span className="rounded-full border border-white/25 bg-white/[0.12] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90">Métrica principal</span>
                   <span className="rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90" style={{ borderColor: `${metricColor}66`, background: `${metricColor}28` }}>{primaryMetric.type || metricType}</span>
                 </div>
-                <div className="text-xs opacity-78 uppercase tracking-widest mb-2">{primaryMetric.label || 'Métrica principal'}</div>
+                <div className="text-xs opacity-78 uppercase tracking-widest mb-2">{metricLabel || 'Métrica principal'}</div>
                 <div className="text-4xl sm:text-6xl font-extrabold font-mono leading-[1.02] break-words" style={{ color: '#f8fafc', textShadow: `0 0 34px ${metricColor}72` }}>
                   {hasInvalidMetricValue ? 'Dados insuficientes para cálculo desta métrica' : (primaryMetric.formatted_value || '—')}
                 </div>

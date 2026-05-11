@@ -1,5 +1,6 @@
 import { selectMetricCharts } from './chartSelection.js'
 import { premiumizeEChartOption } from './chartTheme.js'
+import { resolveMetricLabel } from './saving.js'
 
 export function escapeHtml(str) {
   return String(str ?? '')
@@ -149,6 +150,7 @@ export function buildReportHTML(state, options = {}) {
     return isNaN(n) || n < 0 || n >= cols.length ? -1 : n
   }
   const metricType = metric.type || 'ECONOMIA'
+  const metricLabel = resolveMetricLabel(metricType, state?.saving?.label || metric.label || summary?.primary_metric?.label)
   const savTotal = metric.value ?? summary?.primary_metric?.value ?? 0
 
   const kpiHTML = sections?.kpi && kpis.length ? `<div class="kpi-row">${kpis.map(k => {
@@ -175,14 +177,14 @@ export function buildReportHTML(state, options = {}) {
         <span>Métrica principal</span>
         <span>${escapeHtml(metricType)} · ${escapeHtml(metricDisplayType)}</span>
       </div>
-      <div class="sav-lbl">${escapeHtml(metric.label || summary?.primary_metric?.label || 'Métrica principal')}</div>
+      <div class="sav-lbl">${escapeHtml(metricLabel || 'Métrica principal')}</div>
       <div class="sav-val">${escapeHtml(savDisplay)}</div>
       ${savDetailsHTML ? `<div class="sav-det">${savDetailsHTML}</div>` : ''}
     </div>
     <div class="sav-mark">METRICA</div>
   </div>` : ''
   const insightsHTML = renderInsightsHTML(insights)
-  const summaryValueLabel = metric.label || summary?.primary_metric?.label || 'Valor'
+  const summaryValueLabel = metricLabel || 'Valor'
   const showSummaryValue = Array.isArray(summary.rows) && summary.rows.some(row => row?.value != null && Number.isFinite(Number(row.value)))
 
   const summaryHTML = sections?.summary && summary.rows.length ? `

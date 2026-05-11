@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronRight, ChevronLeft, X, Sparkles, DollarSign, BarChart3, TrendingUp, AlertTriangle, ClipboardList, CalendarDays, Tag, FileSpreadsheet } from 'lucide-react'
+import { getDefaultMetricLabel, isDefaultMetricLabel, resolveMetricLabel } from '@/lib/saving'
 
 const METRIC_LABELS = {
   ECONOMIA: 'Economia',
@@ -18,7 +19,6 @@ const METRIC_COLORS = {
   VOLUME: '#6B7280',
 }
 
-const DEFAULT_LABELS = new Set(Object.values(METRIC_LABELS))
 const DEFAULT_REPORT_TITLES = new Set(['', 'Novo Relatório', 'Novo Relatorio', 'Relatório', 'Relatorio'])
 const labelClass = 'text-[10px] font-bold text-[color:var(--ts)] uppercase tracking-wider block mb-1.5'
 const fieldClass = 'rf-control'
@@ -65,11 +65,6 @@ function formatMetricList(metrics) {
     .filter(metric => METRIC_LABELS[metric])
     .map(metric => METRIC_LABELS[metric])
     .join(', ')
-}
-
-function isDefaultMetricLabel(value) {
-  const normalized = String(value || '').trim()
-  return !normalized || DEFAULT_LABELS.has(normalized)
 }
 
 function isDefaultReportTitle(value) {
@@ -439,17 +434,10 @@ function StepIdentity({ data, analyzed, onChange, onNext, workbook }) {
 function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previewError, previewLoading, workbook, selectedSheetIndex }) {
   const [enabled, setEnabled] = useState(data.savingEnabled !== false)
   const [metricType, setMetricType] = useState(data.metricType || data.type || 'ECONOMIA')
-  const [customLabel, setCustomLabel] = useState(data.label || METRIC_LABELS[data.metricType || data.type || 'ECONOMIA'] || METRIC_LABELS.ECONOMIA)
+  const [customLabel, setCustomLabel] = useState(resolveMetricLabel(data.metricType || data.type || 'ECONOMIA', data.label))
   const manualLabelRef = useRef(!isDefaultMetricLabel(data.label))
-  const labelMap = {
-    ECONOMIA: 'Economia',
-    TOTAL: 'Total Financeiro',
-    VARIACAO: 'Variação',
-    TAXA: 'Taxa',
-    VOLUME: 'Volume',
-  }
-  const defaultLabel = labelMap[metricType] || labelMap.ECONOMIA
-  const label = customLabel || defaultLabel
+  const defaultLabel = getDefaultMetricLabel(metricType)
+  const label = resolveMetricLabel(metricType, customLabel)
 
   const hasValidValue = value => value !== null && value !== undefined && Number.isFinite(Number(value))
   const fmtBRL = v => hasValidValue(v) ? Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }) : '—'
@@ -484,7 +472,13 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
   const canRenderMetric = !isWaitingPreview && !hasValidationErrors && hasValidSaving && hasMeaningfulValue
 
   useEffect(() => {
-    if (!manualLabelRef.current) setCustomLabel(defaultLabel)
+    setCustomLabel(prev => {
+      if (!manualLabelRef.current || isDefaultMetricLabel(prev)) {
+        manualLabelRef.current = false
+        return defaultLabel
+      }
+      return prev
+    })
   }, [defaultLabel])
 
   useEffect(() => {
@@ -601,7 +595,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
                     <span className="rounded-full border border-white/25 bg-white/[0.12] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90">Métrica principal</span>
                     <span className="rounded-full border border-emerald-200/30 bg-emerald-400/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-100">Validada</span>
                   </div>
-                  <div className="text-[10px] text-white/72 uppercase tracking-wider mb-1">{primaryMetric?.label || label}</div>
+                  <div className="text-[10px] text-white/72 uppercase tracking-wider mb-1">{label}</div>
                   <div className="text-4xl sm:text-5xl font-extrabold font-mono leading-[1.02] break-words" style={{ color: '#f8fafc', textShadow: `0 0 30px ${metricColor}72` }}>
                     {hasValidSaving
                       ? (primaryMetric?.formatted_value ?? (displayMode === 'percent' ? fmtPct(saving) : displayMode === 'number' ? fmtN(saving) : fmtBRL(saving)))
@@ -922,7 +916,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
   useEffect(() => {
     if (step !== savingStep) return
     const seedMetricType = wdata.metricType || wdata.type || 'ECONOMIA'
-    const seedLabel = wdata.label || METRIC_LABELS[seedMetricType] || METRIC_LABELS.ECONOMIA
+    const seedLabel = resolveMetricLabel(seedMetricType, wdata.label)
     setWdata(prev => {
       const nextSavingEnabled = prev.savingEnabled !== false
       if (
@@ -975,7 +969,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
       saving: {
         metricType:       wdata.metricType || 'ECONOMIA',
         type:             wdata.metricType || 'ECONOMIA',
-        label:            wdata.label || METRIC_LABELS[wdata.metricType || 'ECONOMIA'] || 'Economia',
+        label:            resolveMetricLabel(wdata.metricType || 'ECONOMIA', wdata.label),
       },
 
       sections: {

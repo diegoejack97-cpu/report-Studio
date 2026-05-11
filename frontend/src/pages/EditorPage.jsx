@@ -16,7 +16,7 @@ import ColumnsPanel from '@/components/editor/ColumnsPanel'
 import ReportPreview from '@/components/editor/ReportPreview'
 import SetupWizard from '@/components/editor/SetupWizard'
 import { buildReportHTML } from '@/lib/reportExport'
-import { normalizeReportColumns, normalizeSavingConfig } from '@/lib/saving'
+import { normalizeReportColumns, normalizeSavingConfig, resolveMetricLabel } from '@/lib/saving'
 
 function simpleSheetHash(sheetName = '', rows = [], cols = []) {
   const payload = JSON.stringify({ sheetName, rows, cols })
@@ -87,12 +87,12 @@ function resolveLegacyColumns(columns = [], reportConfig = {}) {
 function buildAutomaticSavingConfig(baseConfig = {}) {
   const metricType = baseConfig?.saving?.metricType || baseConfig?.metricType || 'ECONOMIA'
   const override = baseConfig?.saving?.override || null
-  const label = baseConfig?.saving?.label || ''
+  const label = resolveMetricLabel(metricType, baseConfig?.saving?.label || baseConfig?.label || '')
 
   return {
     metricType,
     type: metricType,
-    ...(label ? { label } : {}),
+    label,
     ...(override ? { override } : {}),
   }
 }
