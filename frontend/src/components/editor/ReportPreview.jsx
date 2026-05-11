@@ -708,6 +708,16 @@ export default function ReportPreview({ state }) {
   const waitingInitialPayload = !previewError && !hasValidationErrors && datasetRows.length === 0 && (!Array.isArray(charts) || charts.length === 0)
   const showSkeleton = existingLoading || waitingInitialPayload
   const requiresBreakdownWarning = ['ECONOMIA', 'VARIACAO', 'TAXA'].includes(metricType)
+  const workbookMeta = state?.workbookMeta || reportData?.workbookMeta || {}
+  const selectedSheetName = state?.selectedSheetName || reportData?.selectedSheetName || workbookMeta?.selectedSheetName || ''
+  const sourceFileName = workbookMeta?.fileName || reportData?.fileName || ''
+  const sourceRowCount = Array.isArray(state?.rows) ? state.rows.length : datasetRows.length
+  const sparseMetricRows = sourceRowCount > 0 && datasetRows.length > 0 && datasetRows.length / sourceRowCount < 0.25
+  const noChartsMessage = sparseMetricRows
+    ? 'A coluna financeira detectada está muito esparsa, então o sistema gerou o cálculo principal e omitiu os gráficos para evitar visualizações enganosas.'
+    : datasetRows.length > 0
+      ? 'Esta aba possui poucos dados suficientes para gerar gráficos confiáveis. O cálculo principal foi gerado, mas os gráficos foram omitidos.'
+      : 'Não há dados suficientes para gerar gráficos confiáveis com a configuração atual.'
 
   if (previewError) {
     return (
@@ -808,7 +818,7 @@ export default function ReportPreview({ state }) {
       <div className="p-4" style={{ background: bgColor, minHeight: '100%', color: textColor }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           <div className="rounded-2xl p-5" style={{ background: cardBg, border: `1px solid ${bdColor}` }}>
-            O backend não enviou `reportData.charts` para este relatório.
+            {noChartsMessage}
           </div>
           <DiagnosticsPanel reportData={diagnosticsReportData} dark={dark} cardBg={cardBg} bdColor={bdColor} textColor={textColor} subText={subText} p2={p2} />
         </div>
@@ -828,6 +838,20 @@ export default function ReportPreview({ state }) {
                 {state.title || 'Relatorio'}
               </h1>
               {state.subtitle && <p style={{ fontSize: '0.8rem', fontWeight: 400, color: subText, margin: 0 }}>{state.subtitle}</p>}
+              {(selectedSheetName || sourceFileName) && (
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px]" style={{ color: subText }}>
+                  {selectedSheetName && (
+                    <span className="rounded-full border px-2 py-1" style={{ borderColor: bdColor, background: dark ? 'rgba(255,255,255,0.035)' : 'rgba(15,23,42,0.035)' }}>
+                      Aba analisada: {selectedSheetName}
+                    </span>
+                  )}
+                  {sourceFileName && (
+                    <span className="rounded-full border px-2 py-1" style={{ borderColor: bdColor, background: dark ? 'rgba(255,255,255,0.035)' : 'rgba(15,23,42,0.035)' }}>
+                      Arquivo: {sourceFileName}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               {state.period && <span className="rf-badge">{state.period}</span>}
@@ -1008,7 +1032,7 @@ export default function ReportPreview({ state }) {
             </div>
           ) : (
             <div className="rf-panel p-5 mb-5" style={{ color: subText }}>
-              Não há gráficos suficientes do backend para este tipo de métrica.
+              {noChartsMessage}
             </div>
           )
         )}

@@ -15,6 +15,9 @@ export function buildReportHTML(state, options = {}) {
   const { title, subtitle, period, company, cols = [], colors, sections, footer } = state
   const reportData = state.reportData || {}
   const safeReportData = reportData || {}
+  const workbookMeta = state.workbookMeta || safeReportData.workbookMeta || {}
+  const selectedSheetName = state.selectedSheetName || safeReportData.selectedSheetName || workbookMeta.selectedSheetName || ''
+  const sourceFileName = workbookMeta.fileName || safeReportData.fileName || ''
   const dataset = safeReportData.dataset
   const rows = Array.isArray(dataset)
     ? dataset
@@ -75,6 +78,13 @@ export function buildReportHTML(state, options = {}) {
   const fmtN = v => Number(v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
   const recordCount = summary?.totals?.count ?? rows.length
+  const sourceRows = Array.isArray(state.rows) ? state.rows : []
+  const sparseMetricRows = sourceRows.length > 0 && rows.length > 0 && rows.length / sourceRows.length < 0.25
+  const noChartsMessage = sparseMetricRows
+    ? 'A coluna financeira detectada está muito esparsa, então o sistema gerou o cálculo principal e omitiu os gráficos para evitar visualizações enganosas.'
+    : rows.length > 0
+      ? 'Esta aba possui poucos dados suficientes para gerar gráficos confiáveis. O cálculo principal foi gerado, mas os gráficos foram omitidos.'
+      : 'Não há dados suficientes para gerar gráficos confiáveis com a configuração atual.'
   const metricColor = {
     ECONOMIA: '#16A34A',
     TOTAL: '#2563EB',
@@ -354,6 +364,8 @@ body{background:radial-gradient(circle at top,${isDark ? 'rgba(37,99,235,.12)' :
 .hd-kicker{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:${p2};margin-bottom:.45rem;}
 .hd-title{font-size:clamp(1.65rem,3vw,2.2rem);font-weight:800;letter-spacing:-.03em;line-height:1.08;}
 .hd-sub{font-size:.88rem;color:${subTxt};margin-top:.35rem;}
+.hd-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+.hd-meta span{border:1px solid ${bdColor};background:${isDark ? 'rgba(255,255,255,0.035)' : 'rgba(15,23,42,0.035)'};color:${subTxt};border-radius:999px;padding:5px 8px;font-size:11px;}
 .hd-badges{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;}
 .badge{font-size:.7rem;font-weight:600;color:${subTxt};background:${cardBg};border:1px solid ${bdColor};border-radius:999px;padding:.2rem .7rem;box-shadow:inset 0 1px 0 ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.95)'};}
 .badge-blue{color:${p2};background:${p1}22;border-color:${p1}55;font-weight:600;}
@@ -462,6 +474,10 @@ table#mt td{padding:8px 12px;border-bottom:1px solid ${bdColor};color:${txt};whi
       <div class="hd-kicker">Report Flow · Relatório executivo</div>
       <div class="hd-title">${escapeHtml(title || 'Relatório')}</div>
       ${subtitle ? `<div class="hd-sub">${escapeHtml(subtitle)}</div>` : ''}
+      ${(selectedSheetName || sourceFileName) ? `<div class="hd-meta">
+        ${selectedSheetName ? `<span>Aba analisada: ${escapeHtml(selectedSheetName)}</span>` : ''}
+        ${sourceFileName ? `<span>Arquivo: ${escapeHtml(sourceFileName)}</span>` : ''}
+      </div>` : ''}
     </div>
     <div class="hd-badges">
       ${period ? `<span class="badge">${escapeHtml(period)}</span>` : ''}
@@ -489,7 +505,7 @@ const _emptyText = ${JSON.stringify(subTxt)};
 const cg = document.getElementById('charts');
 if (!Array.isArray(_charts) || !_charts.length || !cg || !window.echarts) {
   if (cg) {
-    cg.innerHTML = '<div style="grid-column:1/-1;padding:18px 16px;border:1px solid ' + _emptyBorder + ';border-radius:9px;background:' + _emptyBg + ';color:' + _emptyText + ';font-size:13px;">O backend não enviou charts para este relatório.</div>';
+    cg.innerHTML = '<div style="grid-column:1/-1;padding:18px 16px;border:1px solid ' + _emptyBorder + ';border-radius:9px;background:' + _emptyBg + ';color:' + _emptyText + ';font-size:13px;">${escapeHtml(noChartsMessage)}</div>';
   }
   return;
 }

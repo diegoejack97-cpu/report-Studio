@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronRight, ChevronLeft, X, Sparkles, DollarSign, BarChart3, TrendingUp, AlertTriangle, ClipboardList, CalendarDays, Tag, FileSpreadsheet } from 'lucide-react'
 
@@ -19,6 +19,7 @@ const METRIC_COLORS = {
 }
 
 const DEFAULT_LABELS = new Set(Object.values(METRIC_LABELS))
+const DEFAULT_REPORT_TITLES = new Set(['', 'Novo Relatório', 'Novo Relatorio', 'Relatório', 'Relatorio'])
 const labelClass = 'text-[10px] font-bold text-[color:var(--ts)] uppercase tracking-wider block mb-1.5'
 const fieldClass = 'rf-control'
 const compactFieldClass = 'rf-control text-xs py-2'
@@ -64,6 +65,25 @@ function formatMetricList(metrics) {
     .filter(metric => METRIC_LABELS[metric])
     .map(metric => METRIC_LABELS[metric])
     .join(', ')
+}
+
+function isDefaultMetricLabel(value) {
+  const normalized = String(value || '').trim()
+  return !normalized || DEFAULT_LABELS.has(normalized)
+}
+
+function isDefaultReportTitle(value) {
+  return DEFAULT_REPORT_TITLES.has(String(value || '').trim())
+}
+
+function selectedSheetTitle(data, workbook) {
+  return (
+    data?.selectedSheetName ||
+    data?.workbookMeta?.selectedSheetName ||
+    workbook?.selectedSheetName ||
+    workbook?.workbookMeta?.selectedSheetName ||
+    ''
+  )
 }
 
 function fallbackMetricsForSheet(sheet) {
@@ -353,13 +373,16 @@ function StepSheetSelection({ workbook, selectedSheetIndex, onSelect, onChange, 
 }
 
 // Step 1: Identificação do relatório
-function StepIdentity({ data, analyzed, onChange, onNext }) {
-  const [title, setTitle]   = useState(data.title   || '')
+function StepIdentity({ data, analyzed, onChange, onNext, workbook }) {
+  const defaultSheetTitle = selectedSheetTitle(data, workbook)
+  const [title, setTitle] = useState(() => (
+    isDefaultReportTitle(data.title) && defaultSheetTitle ? defaultSheetTitle : (data.title || '')
+  ))
   const [company, setCompany] = useState(data.company || '')
   const [period, setPeriod] = useState(data.period  || '')
 
   const next = () => {
-    onChange({ title: title || 'Novo Relatório', company, period })
+    onChange({ title: title || defaultSheetTitle || 'Novo Relatório', company, period })
     onNext()
   }
 
@@ -416,7 +439,8 @@ function StepIdentity({ data, analyzed, onChange, onNext }) {
 function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previewError, previewLoading, workbook, selectedSheetIndex }) {
   const [enabled, setEnabled] = useState(data.savingEnabled !== false)
   const [metricType, setMetricType] = useState(data.metricType || data.type || 'ECONOMIA')
-  const [customLabel, setCustomLabel] = useState(data.label || '')
+  const [customLabel, setCustomLabel] = useState(data.label || METRIC_LABELS[data.metricType || data.type || 'ECONOMIA'] || METRIC_LABELS.ECONOMIA)
+  const manualLabelRef = useRef(!isDefaultMetricLabel(data.label))
   const labelMap = {
     ECONOMIA: 'Economia',
     TOTAL: 'Total Financeiro',
@@ -424,7 +448,8 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
     TAXA: 'Taxa',
     VOLUME: 'Volume',
   }
-  const label = labelMap[metricType] || labelMap.ECONOMIA
+  const defaultLabel = labelMap[metricType] || labelMap.ECONOMIA
+  const label = customLabel || defaultLabel
 
   const hasValidValue = value => value !== null && value !== undefined && Number.isFinite(Number(value))
   const fmtBRL = v => hasValidValue(v) ? Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }) : '—'
@@ -459,12 +484,17 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
   const canRenderMetric = !isWaitingPreview && !hasValidationErrors && hasValidSaving && hasMeaningfulValue
 
   useEffect(() => {
+    if (!manualLabelRef.current) setCustomLabel(defaultLabel)
+  }, [defaultLabel])
+
+  useEffect(() => {
     onChange({
       savingEnabled: enabled,
       metricType,
       type: metricType,
+      label,
     })
-  }, [enabled, metricType, onChange])
+  }, [enabled, metricType, label, onChange])
 
   const next = () => {
     onChange({
@@ -503,7 +533,16 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
             </div>
             <div>
               <label className={labelClass}>Rótulo da métrica</label>
-              <input value={customLabel} onChange={e => setCustomLabel(e.target.value)} placeholder={`Ex: ${metricTitle}`} className={fieldClass} style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}22 inset` }} />
+              <input
+                value={customLabel}
+                onChange={e => {
+                  manualLabelRef.current = true
+                  setCustomLabel(e.target.value)
+                }}
+                placeholder={`Ex: ${metricTitle}`}
+                className={fieldClass}
+                style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}22 inset` }}
+              />
             </div>
 
             {isWaitingPreview && (
@@ -927,7 +966,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
     }
 
     const finalState = {
-      title:   wdata.title   || 'Novo Relatório',
+      title:   isDefaultReportTitle(wdata.title) ? (selectedSheetTitle(wdata, workbook) || 'Novo Relatório') : wdata.title,
       subtitle: wdata.subtitle || '',
       period:  wdata.period  || '',
       company: wdata.company || '',
@@ -936,7 +975,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
       saving: {
         metricType:       wdata.metricType || 'ECONOMIA',
         type:             wdata.metricType || 'ECONOMIA',
-        label:            wdata.label || 'Economia',
+        label:            wdata.label || METRIC_LABELS[wdata.metricType || 'ECONOMIA'] || 'Economia',
       },
 
       sections: {
@@ -1020,7 +1059,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
               {hasSheetStep && step === sheetStep && <StepSheetSelection workbook={workbook} selectedSheetIndex={selectedSheetIndex} onSelect={onSheetSelect} onChange={update} onNext={next} />}
-              {step === identityStep && <StepIdentity      {...stepProps} onNext={next} />}
+              {step === identityStep && <StepIdentity      {...stepProps} workbook={workbook} onNext={next} />}
               {step === savingStep && <StepSaving        {...stepProps} workbook={workbook} selectedSheetIndex={selectedSheetIndex} previewData={previewData} previewError={previewError} previewLoading={previewLoading} onNext={next} onBack={back} onSkip={skip} />}
               {step === kpiStep && <StepKPIs          {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
               {step === chartsStep && <StepChartsDist    {...stepProps} onNext={next} onBack={back} onSkip={skip} />}
