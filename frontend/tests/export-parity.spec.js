@@ -243,6 +243,10 @@ test.describe('Export strict parity snapshots', () => {
     expect(html).toContain('<tbody id="tbl-body"><tr')
     expect(html).toContain('Fornecedor 1')
     expect(html).toContain('Carregar mais linhas')
+    expect(html).toContain('const _rowRenderLimit = 20;')
+    expect(html).toContain('let _visibleLimit = _rowRenderLimit;')
+    expect(html).not.toContain('<tbody id="tbl-body"></tbody>')
+    expect(html).not.toContain('https://cdn.jsdelivr.net/npm/echarts')
 
     await page.setContent(html, { waitUntil: 'domcontentloaded' })
 
