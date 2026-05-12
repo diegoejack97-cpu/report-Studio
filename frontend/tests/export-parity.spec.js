@@ -183,6 +183,12 @@ test.describe('Chart selection heuristic', () => {
 test.describe('Export strict parity snapshots', () => {
   test('export renders the same selected charts used by preview', async ({ page }) => {
     const html = buildReportHTML(fixtureWithCharts, { isDark: false, strictParity: true })
+    expect(html).toContain('https://cdn.jsdelivr.net/npm/echarts')
+    expect(html).toContain('class="cw chart-canvas-wrap"')
+    expect(html).toContain('class="chart-fallback" style="display:none;"')
+    expect(html).toContain('echarts.init')
+    expect(html).toContain('inst.setOption')
+
     await page.setContent(html, { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('.cg .cc', { timeout: 15000 })
 
@@ -246,7 +252,9 @@ test.describe('Export strict parity snapshots', () => {
     expect(html).toContain('const _rowRenderLimit = 20;')
     expect(html).toContain('let _visibleLimit = _rowRenderLimit;')
     expect(html).not.toContain('<tbody id="tbl-body"></tbody>')
-    expect(html).not.toContain('https://cdn.jsdelivr.net/npm/echarts')
+    expect(html).toContain('https://cdn.jsdelivr.net/npm/echarts')
+    expect(html).toContain('echarts.init')
+    expect(html).toContain('inst.setOption')
 
     await page.setContent(html, { waitUntil: 'domcontentloaded' })
 

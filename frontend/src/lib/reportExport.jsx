@@ -68,8 +68,10 @@ export function buildReportHTML(state, options = {}) {
   const charts = selectedCharts.map((chart, index) => {
     const type = chartTypeOf(chart)
     const sameTypeIndex = selectedCharts.slice(0, index).filter(item => chartTypeOf(item) === type).length
+    const rawId = String(chart?.id || `chart-${index}`).replace(/[^a-zA-Z0-9_-]/g, '-')
     return {
       ...chart,
+      domId: `chart-${index}-${rawId}`,
       option: chart?.option ? premiumizeEChartOption(chart.option, { isDark, chart, chartIndex: index, sameTypeIndex }) : chart?.option,
     }
   })
@@ -253,19 +255,28 @@ export function buildReportHTML(state, options = {}) {
       return { label, value }
     }).filter(item => String(item.label ?? '').trim() || String(item.value ?? '').trim())
   }
-  const chartFallbackHTML = charts.map((chart) => {
+  const chartFallbackContentHTML = chart => {
     const items = chartFallbackItems(chart)
     const source = 'Não foi possível carregar este gráfico neste visualizador. Abra o relatório em um navegador completo para visualizar os gráficos.'
-    return `<div class="cc${chart.full ? ' full' : ''}">
+    return `<div class="chart-fallback" style="display:none;">
+      <div class="ct-source">${escapeHtml(source)}</div>
+      ${items.length ? `<div class="chart-fallback-list">${items.map(item => `<div><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(formatFallbackValue(item.value))}</strong></div>`).join('')}</div>` : `<div class="chart-fallback-empty">${escapeHtml(noChartsMessage)}</div>`}
+    </div>`
+  }
+  const chartCardsHTML = charts.map((chart) => {
+    return `<div class="cc${chart.full ? ' full' : ''}" data-chart-card="${escapeHtml(chart.domId)}">
       <div class="ch">
         <div>
           <div class="ct">${escapeHtml(chart.title || 'Gráfico')}</div>
           ${chart.selectionReason ? `<div class="ct-reason">${escapeHtml(chart.selectionReason)}</div>` : ''}
-          <div class="ct-source">${escapeHtml(source)}</div>
+          ${chart.sourceDescription ? `<div class="ct-source">${escapeHtml(chart.sourceDescription)}</div>` : ''}
         </div>
-        <span class="ct-badge">Resumo</span>
+        <span class="ct-badge">Gráfico</span>
       </div>
-      ${items.length ? `<div class="chart-fallback-list">${items.map(item => `<div><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(formatFallbackValue(item.value))}</strong></div>`).join('')}</div>` : `<div class="chart-fallback-empty">${escapeHtml(noChartsMessage)}</div>`}
+      <div class="cw chart-canvas-wrap" style="height:${Number(chart.h || 260)}px;">
+        <div id="${escapeHtml(chart.domId)}" class="chart-canvas" style="width:100%;height:100%;"></div>
+      </div>
+      ${chartFallbackContentHTML(chart)}
     </div>`
   }).join('')
 
@@ -434,6 +445,7 @@ window.addEventListener('keydown', (e) => {
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title || 'Relatório')}</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"><\/script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 html{background:${bg};}
@@ -580,7 +592,7 @@ table#mt td{padding:8px 12px;border-bottom:1px solid ${bdColor};color:${txt};whi
 </div>
 ${insightsHTML}
 ${savHTML}${kpiHTML}
-${showCharts ? `<div class="cg" id="charts">${chartFallbackHTML || `<div class="cc full"><div class="chart-fallback-empty">${escapeHtml(noChartsMessage)}</div></div>`}</div>` : ''}
+${showCharts ? `<div class="cg" id="charts">${chartCardsHTML || `<div class="cc full"><div class="chart-fallback-empty">${escapeHtml(noChartsMessage)}</div></div>`}</div>` : ''}
 ${summaryHTML}
 ${tblHTML}
 ${sections?.footer ? `<div class="footer">${escapeHtml(footer || '')} · ${new Date().toLocaleDateString('pt-BR')}</div>` : ''}
@@ -598,48 +610,8 @@ if (!Array.isArray(_charts) || !_charts.length || !cg) {
   return;
 }
 if (!window.echarts) {
+  _charts.forEach(showFallback);
   return;
-}
-cg.innerHTML = '';
-function mk(id, full, title, h, reason, sourceDescription){
-  const card = document.createElement('div');
-  card.className = 'cc' + (full ? ' full' : '');
-  const header = document.createElement('div');
-  header.className = 'ch';
-  const titleWrap = document.createElement('div');
-  const titleText = document.createElement('div');
-  titleText.className = 'ct';
-  titleText.textContent = title || 'Gráfico';
-  titleWrap.appendChild(titleText);
-  if (reason) {
-    const reasonEl = document.createElement('div');
-    reasonEl.className = 'ct-reason';
-    reasonEl.textContent = reason;
-    titleWrap.appendChild(reasonEl);
-  }
-  if (sourceDescription) {
-    const sourceEl = document.createElement('div');
-    sourceEl.className = 'ct-source';
-    sourceEl.textContent = sourceDescription;
-    titleWrap.appendChild(sourceEl);
-  }
-  const badge = document.createElement('span');
-  badge.className = 'ct-badge';
-  badge.textContent = 'Gráfico';
-  header.appendChild(titleWrap);
-  header.appendChild(badge);
-  const cw = document.createElement('div');
-  cw.className = 'cw';
-  cw.style.height = (h || 260) + 'px';
-  const target = document.createElement('div');
-  target.id = id;
-  target.style.width = '100%';
-  target.style.height = '100%';
-  cw.appendChild(target);
-  card.appendChild(header);
-  card.appendChild(cw);
-  cg.appendChild(card);
-  return target;
 }
 function fmtBRL(v){
   return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -656,17 +628,38 @@ function htmlEsc(v){
     .replace(/'/g,'&#39;');
 }
 function fallbackCard(item){
-  const card = document.createElement('div');
-  card.className = 'cc' + (item?.full ? ' full' : '');
-  card.innerHTML = '<div class="ch"><div><div class="ct">' + htmlEsc(item?.title || 'Gráfico') + '</div><div class="ct-source">Não foi possível carregar este gráfico neste visualizador. Abra o relatório em um navegador completo para visualizar os gráficos.</div></div><span class="ct-badge">Resumo</span></div><div class="chart-fallback-empty">${escapeHtml(noChartsMessage)}</div>';
-  cg.appendChild(card);
+  showFallback(item);
+}
+function showFallback(item){
+  const target = document.getElementById(item?.domId || item?.id);
+  const card = target?.closest('.cc') || document.querySelector('[data-chart-card="' + htmlEsc(item?.domId || '') + '"]');
+  if (!card) return;
+  const fallback = card.querySelector('.chart-fallback');
+  const canvasWrap = card.querySelector('.chart-canvas-wrap');
+  const badge = card.querySelector('.ct-badge');
+  if (fallback) fallback.style.display = 'block';
+  if (canvasWrap) canvasWrap.style.display = 'none';
+  if (badge) badge.textContent = 'Resumo';
+}
+function showChart(item){
+  const target = document.getElementById(item?.domId || item?.id);
+  const card = target?.closest('.cc');
+  if (!card) return;
+  const fallback = card.querySelector('.chart-fallback');
+  const canvasWrap = card.querySelector('.chart-canvas-wrap');
+  const badge = card.querySelector('.ct-badge');
+  if (fallback) fallback.style.display = 'none';
+  if (canvasWrap) canvasWrap.style.display = 'block';
+  if (badge) badge.textContent = 'Gráfico';
 }
 function render(item){
   try {
-    const el = mk(item.id, !!item.full, item.title, item.h || 260, item.selectionReason, item.sourceDescription);
+    const el = document.getElementById(item.domId || item.id);
+    if (!el) throw new Error('Container do gráfico não encontrado');
     const inst = echarts.init(el);
     if (!item?.option) return;
     inst.setOption(item.option, true);
+    showChart(item);
     setTimeout(() => inst.resize(), 40);
   } catch (err) {
     fallbackCard(item);
