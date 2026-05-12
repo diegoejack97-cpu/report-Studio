@@ -54,7 +54,7 @@ export function buildReportHTML(state, options = {}) {
   const showCharts = sections?.charts !== false
   const rowRenderLimit = Number.isFinite(Number(options.tableRenderLimit))
     ? Math.max(1, Number(options.tableRenderLimit))
-    : 500
+    : 20
   const rawCharts = Array.isArray(safeReportData.charts) ? safeReportData.charts : []
   const chartTypeOf = chart => {
     const firstSeries = Array.isArray(chart?.option?.series) ? chart.option.series[0] : chart?.option?.series
@@ -80,6 +80,8 @@ export function buildReportHTML(state, options = {}) {
   const fmtPct = v => `${Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
   const recordCount = summary?.totals?.count ?? rows.length
   const sourceRows = Array.isArray(state.rows) ? state.rows : []
+  const tableRows = sourceRows.length ? sourceRows : rows
+  const tableTitle = sourceRows.length ? 'Todos os Registros' : 'Amostra de registros analisados'
   const sparseMetricRows = sourceRows.length > 0 && rows.length > 0 && rows.length / sourceRows.length < 0.25
   const noChartsMessage = sparseMetricRows
     ? 'A coluna financeira detectada está muito esparsa, então o sistema gerou o cálculo principal e omitiu os gráficos para evitar visualizações enganosas.'
@@ -216,22 +218,61 @@ export function buildReportHTML(state, options = {}) {
 
   const visCols = cols.map((c, i) => ({ ...c, i })).filter(c => c.vis !== false)
   const catCols = visCols.filter(vc => {
-    const vals = new Set(rows.map(r => String(r?.cells?.[vc.i] ?? r?.[vc.i] ?? '').trim()).filter(Boolean))
+    const vals = new Set(tableRows.map(r => String(r?.cells?.[vc.i] ?? r?.[vc.i] ?? '').trim()).filter(Boolean))
     return vals.size >= 2 && vals.size <= 40
   }).map(vc => ({
     i: vc.i,
     name: vc.name,
-    vals: [...new Set(rows.map(r => String(r?.cells?.[vc.i] ?? r?.[vc.i] ?? '').trim()).filter(Boolean))].sort(),
+    vals: [...new Set(tableRows.map(r => String(r?.cells?.[vc.i] ?? r?.[vc.i] ?? '').trim()).filter(Boolean))].sort(),
   }))
 
-  const rowsJSON = JSON.stringify(rows.map(r => visCols.map(vc => r?.cells?.[vc.i] ?? r?.[vc.i] ?? '')))
+  const tableMatrix = tableRows.map(r => visCols.map(vc => r?.cells?.[vc.i] ?? r?.[vc.i] ?? ''))
+  const staticTableRowsHTML = tableMatrix.slice(0, rowRenderLimit).map((r, ri) =>
+    `<tr style="background:${ri % 2 === 0 ? (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc') : 'transparent'}">${r.map(v => `<td>${escapeHtml(v)}</td>`).join('')}</tr>`
+  ).join('')
+  const rowsJSON = JSON.stringify(tableMatrix)
   const catJSON = JSON.stringify(catCols.map(c => ({ i: visCols.findIndex(vc => vc.i === c.i), name: c.name, vals: c.vals })))
   const filterInputStyle = `background:${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'};border:1px solid ${bdColor};border-radius:999px;color:${txt};font-size:12px;padding:7px 12px;outline:none;width:100%;font-family:inherit;`
+
+  const formatFallbackValue = value => {
+    const numeric = Number(value)
+    if (!Number.isFinite(numeric)) return String(value ?? '')
+    return Math.abs(numeric) >= 1000 ? fmtN(numeric) : numeric.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  }
+  const chartFallbackItems = chart => {
+    const labels = Array.isArray(chart?.labels)
+      ? chart.labels
+      : (Array.isArray(chart?.option?.xAxis?.data) ? chart.option.xAxis.data : Array.isArray(chart?.option?.yAxis?.data) ? chart.option.yAxis.data : [])
+    const firstSeries = Array.isArray(chart?.option?.series) ? chart.option.series[0] : chart?.option?.series
+    const data = Array.isArray(chart?.data)
+      ? chart.data
+      : (Array.isArray(firstSeries?.data) ? firstSeries.data : [])
+    return labels.slice(0, 5).map((label, index) => {
+      const rawValue = data[index]
+      const value = typeof rawValue === 'object' && rawValue !== null ? (rawValue.value ?? rawValue.name ?? '') : rawValue
+      return { label, value }
+    }).filter(item => String(item.label ?? '').trim() || String(item.value ?? '').trim())
+  }
+  const chartFallbackHTML = charts.map((chart) => {
+    const items = chartFallbackItems(chart)
+    const source = 'Não foi possível carregar este gráfico neste visualizador. Abra o relatório em um navegador completo para visualizar os gráficos.'
+    return `<div class="cc${chart.full ? ' full' : ''}">
+      <div class="ch">
+        <div>
+          <div class="ct">${escapeHtml(chart.title || 'Gráfico')}</div>
+          ${chart.selectionReason ? `<div class="ct-reason">${escapeHtml(chart.selectionReason)}</div>` : ''}
+          <div class="ct-source">${escapeHtml(source)}</div>
+        </div>
+        <span class="ct-badge">Resumo</span>
+      </div>
+      ${items.length ? `<div class="chart-fallback-list">${items.map(item => `<div><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(formatFallbackValue(item.value))}</strong></div>`).join('')}</div>` : `<div class="chart-fallback-empty">${escapeHtml(noChartsMessage)}</div>`}
+    </div>`
+  }).join('')
 
   const tblHTML = sections?.table && visCols.length ? `
 <div class="tbl-section">
   <div class="tbl-header">
-    <span class="st" id="tbl-title">Todos os Registros — ${rows.length.toLocaleString('pt-BR')}</span>
+    <span class="st" id="tbl-title">${escapeHtml(tableTitle)} — ${tableRows.length.toLocaleString('pt-BR')}</span>
     <span id="tbl-active" class="tbl-active" style="display:none"></span>
     <button id="tbl-clear" onclick="clearFilters()" style="display:none;font-size:11px;color:#f87171;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:5px;padding:3px 10px;cursor:pointer;">✕ Limpar filtros</button>
   </div>
@@ -251,10 +292,11 @@ export function buildReportHTML(state, options = {}) {
   <div class="table-scroll">
     <table id="mt">
       <thead><tr>${visCols.map(c => `<th>${escapeHtml(c.name)}</th>`).join('')}</tr></thead>
-      <tbody id="tbl-body"></tbody>
+      <tbody id="tbl-body">${staticTableRowsHTML}</tbody>
     </table>
   </div>
-  <div id="tbl-limit" class="tbl-limit" style="display:none"></div>
+  <div id="tbl-limit" class="tbl-limit">${tableRows.length ? `Exibindo ${Math.min(rowRenderLimit, tableRows.length).toLocaleString('pt-BR')} de ${tableRows.length.toLocaleString('pt-BR')} registros.` : ''}</div>
+  <button id="tbl-more" class="tbl-more" type="button" onclick="loadMoreRows()" style="${tableRows.length > rowRenderLimit ? '' : 'display:none;'}">Carregar mais linhas</button>
   <div id="tbl-empty" style="display:none;text-align:center;padding:32px;color:${subTxt}">Nenhum registro encontrado</div>
 </div>
 <script>
@@ -263,7 +305,9 @@ const _cats = ${catJSON};
 const _isDark = ${isDark ? 'true' : 'false'};
 const _enableFilters = ${showFilters ? 'true' : 'false'};
 const _rowRenderLimit = ${rowRenderLimit};
-const _totalRows = ${rows.length};
+const _totalRows = ${tableRows.length};
+const _tableTitle = ${JSON.stringify(tableTitle)};
+let _visibleLimit = _rowRenderLimit;
 function esc(v){
   return String(v ?? '')
     .replace(/&/g,'&amp;')
@@ -272,18 +316,20 @@ function esc(v){
     .replace(/\"/g,'&quot;')
     .replace(/'/g,'&#39;');
 }
-function applyFilters(){
+function getFilteredRows(){
   const q = _enableFilters ? (document.getElementById('tbl-search')?.value || '').toLowerCase().trim() : '';
   const fieldIdxRaw = _enableFilters ? (document.getElementById('tbl-field')?.value || '') : '';
   const fieldIdx = fieldIdxRaw === '' ? -1 : parseInt(fieldIdxRaw);
   const selectedVal = _enableFilters ? (document.getElementById('tbl-value')?.value || '') : '';
-  const filtered = _rows.filter(r => {
+  return _rows.filter(r => {
     if (_enableFilters && q && !r.some(v => String(v).toLowerCase().includes(q))) return false;
     if (fieldIdx >= 0 && selectedVal && String(r[_cats[fieldIdx].i]) !== selectedVal) return false;
     return true;
   });
+}
+function renderTable(filtered){
   const tbody = document.getElementById('tbl-body');
-  const visibleRows = filtered.slice(0, _rowRenderLimit);
+  const visibleRows = filtered.slice(0, _visibleLimit);
   tbody.innerHTML = visibleRows.map((r, ri) =>
     '<tr style="background:' + (ri % 2 === 0 ? (_isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc') : 'transparent') + '">' +
     r.map(v => '<td>' + esc(v) + '</td>').join('') + '</tr>'
@@ -291,15 +337,34 @@ function applyFilters(){
   document.getElementById('tbl-empty').style.display = filtered.length === 0 ? 'block' : 'none';
   const limitNotice = document.getElementById('tbl-limit');
   if (limitNotice) {
-    const isLimited = filtered.length > _rowRenderLimit;
-    limitNotice.style.display = isLimited ? 'block' : 'none';
-    limitNotice.textContent = isLimited
-      ? 'Exibindo as primeiras ' + _rowRenderLimit.toLocaleString('pt-BR') + ' linhas de ' + filtered.length.toLocaleString('pt-BR') + ' registros.'
+    const hasFilters = _enableFilters && hasActiveFilters();
+    limitNotice.style.display = filtered.length ? 'block' : 'none';
+    limitNotice.textContent = filtered.length
+      ? 'Exibindo ' + visibleRows.length.toLocaleString('pt-BR') + ' de ' + filtered.length.toLocaleString('pt-BR') + (hasFilters ? ' registros filtrados.' : ' registros.')
       : '';
   }
+  const moreBtn = document.getElementById('tbl-more');
+  if (moreBtn) moreBtn.style.display = filtered.length > visibleRows.length ? 'block' : 'none';
+}
+function hasActiveFilters(){
+  if (!_enableFilters) return false;
+  const q = (document.getElementById('tbl-search')?.value || '').trim();
+  const fieldIdxRaw = document.getElementById('tbl-field')?.value || '';
+  const fieldIdx = fieldIdxRaw === '' ? -1 : parseInt(fieldIdxRaw);
+  const selectedVal = document.getElementById('tbl-value')?.value || '';
+  return !!(q || (fieldIdx >= 0 && selectedVal));
+}
+function applyFilters(){
+  _visibleLimit = _rowRenderLimit;
+  const q = _enableFilters ? (document.getElementById('tbl-search')?.value || '').toLowerCase().trim() : '';
+  const fieldIdxRaw = _enableFilters ? (document.getElementById('tbl-field')?.value || '') : '';
+  const fieldIdx = fieldIdxRaw === '' ? -1 : parseInt(fieldIdxRaw);
+  const selectedVal = _enableFilters ? (document.getElementById('tbl-value')?.value || '') : '';
+  const filtered = getFilteredRows();
+  renderTable(filtered);
   document.getElementById('tbl-title').textContent = (_enableFilters && (q || (fieldIdx >= 0 && selectedVal)))
-    ? 'Todos os Registros — ' + filtered.length + ' de ' + _totalRows.toLocaleString('pt-BR')
-    : 'Todos os Registros — ' + _totalRows.toLocaleString('pt-BR');
+    ? _tableTitle + ' — ' + filtered.length.toLocaleString('pt-BR') + ' de ' + _totalRows.toLocaleString('pt-BR')
+    : _tableTitle + ' — ' + _totalRows.toLocaleString('pt-BR');
   const activeCount = (q ? 1 : 0) + ((fieldIdx >= 0 && selectedVal) ? 1 : 0);
   const activeBadge = document.getElementById('tbl-active');
   if (activeBadge) {
@@ -308,6 +373,10 @@ function applyFilters(){
   }
   const clearBtn = document.getElementById('tbl-clear');
   if (clearBtn) clearBtn.style.display = (_enableFilters && (q || (fieldIdx >= 0 && selectedVal))) ? 'inline-block' : 'none';
+}
+function loadMoreRows(){
+  _visibleLimit += _rowRenderLimit;
+  renderTable(getFilteredRows());
 }
 function onFieldChange(){
   if (!_enableFilters) return;
@@ -340,6 +409,19 @@ function clearFilters(){
 }
 onFieldChange();
 applyFilters();
+const tableSection = document.querySelector('.tbl-section');
+let _autoLoading = false;
+function maybeAutoLoadMore(){
+  const moreBtn = document.getElementById('tbl-more');
+  if (!moreBtn || moreBtn.style.display === 'none' || _autoLoading || !tableSection) return;
+  const rect = tableSection.getBoundingClientRect();
+  if (rect.bottom > window.innerHeight + 180) return;
+  _autoLoading = true;
+  loadMoreRows();
+  setTimeout(() => { _autoLoading = false; }, 150);
+}
+window.addEventListener('scroll', maybeAutoLoadMore, { passive: true });
+window.addEventListener('resize', maybeAutoLoadMore);
 window.addEventListener('keydown', (e) => {
   if (!_enableFilters || e.key !== '/') return;
   const tag = (document.activeElement?.tagName || '').toLowerCase();
@@ -407,6 +489,11 @@ body{background:radial-gradient(circle at top,${isDark ? 'rgba(37,99,235,.12)' :
 .ct-source{font-size:10px;font-weight:500;color:${subTxt};text-transform:none;letter-spacing:0;margin-top:3px;opacity:.92;}
 .ct-badge{font-size:10px;font-weight:700;color:${p2};background:${p1}1f;border:1px solid ${p1}55;border-radius:999px;padding:3px 8px;white-space:nowrap;}
 .cw{position:relative;border-radius:12px;padding:8px;background:${isDark ? 'rgba(255,255,255,0.012)' : 'rgba(15,23,42,0.018)'};}
+.chart-fallback-list{display:grid;gap:8px;margin-top:4px;}
+.chart-fallback-list div{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid ${bdColor};border-radius:9px;padding:8px 10px;background:${isDark ? 'rgba(255,255,255,0.025)' : 'rgba(15,23,42,0.025)'};}
+.chart-fallback-list span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:${txt};}
+.chart-fallback-list strong{font-size:12px;font-family:'DM Mono',monospace;color:${p2};white-space:nowrap;}
+.chart-fallback-empty{padding:14px 12px;border:1px solid ${bdColor};border-radius:9px;background:${isDark ? 'rgba(255,255,255,0.025)' : '#f8fafc'};color:${subTxt};font-size:13px;line-height:1.5;}
 .summary{margin-top:22px;background:${cardBg};background-image:${expPanelSubtle};border:1px solid ${bdColor};border-radius:14px;padding:16px;box-shadow:${expElev1};}
 .summary-title{font-size:12px;font-weight:800;color:${p2};margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid ${bdColor};text-transform:uppercase;letter-spacing:.06em;}
 .summary-scroll,.table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
@@ -423,6 +510,8 @@ body{background:radial-gradient(circle at top,${isDark ? 'rgba(37,99,235,.12)' :
 .tbl-filters{padding:12px 16px;border-bottom:1px solid ${bdColor};background:${isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)'};}
 .tbl-compact-row{display:grid;grid-template-columns:minmax(180px,240px) minmax(220px,1fr);gap:10px;}
 .tbl-limit{padding:10px 14px;border-top:1px solid ${bdColor};font-size:12px;color:${subTxt};background:${isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc'};}
+.tbl-more{display:block;margin:12px auto 14px;border:1px solid ${p1}66;background:${p1}1f;color:${p2};border-radius:999px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
+.tbl-more:hover{background:${p1}2e;}
 table#mt{width:100%;border-collapse:collapse;font-size:12px;}
 table#mt th{background:linear-gradient(180deg,${p1},${p2});color:#fff;padding:10px 12px;font-size:11px;font-weight:800;text-transform:uppercase;white-space:nowrap;letter-spacing:.03em;}
 table#mt td{padding:8px 12px;border-bottom:1px solid ${bdColor};color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
@@ -458,6 +547,7 @@ table#mt td{padding:8px 12px;border-bottom:1px solid ${bdColor};color:${txt};whi
   .summary-table,table#mt{font-size:11px;}
   table#mt{min-width:max-content;}
   table#mt th,table#mt td{padding:7px 9px;max-width:160px;}
+  .tbl-more{width:calc(100% - 24px);margin:10px 12px 12px;}
   .footer{margin-top:18px;padding:10px 12px;}
 }
 @media(max-width:420px){
@@ -491,7 +581,7 @@ table#mt td{padding:8px 12px;border-bottom:1px solid ${bdColor};color:${txt};whi
 </div>
 ${insightsHTML}
 ${savHTML}${kpiHTML}
-${showCharts ? '<div class="cg" id="charts"></div>' : ''}
+${showCharts ? `<div class="cg" id="charts">${chartFallbackHTML || `<div class="cc full"><div class="chart-fallback-empty">${escapeHtml(noChartsMessage)}</div></div>`}</div>` : ''}
 ${summaryHTML}
 ${tblHTML}
 ${sections?.footer ? `<div class="footer">${escapeHtml(footer || '')} · ${new Date().toLocaleDateString('pt-BR')}</div>` : ''}
@@ -505,12 +595,13 @@ const _emptyBorder = ${JSON.stringify(bdColor)};
 const _emptyBg = ${JSON.stringify(cardBg)};
 const _emptyText = ${JSON.stringify(subTxt)};
 const cg = document.getElementById('charts');
-if (!Array.isArray(_charts) || !_charts.length || !cg || !window.echarts) {
-  if (cg) {
-    cg.innerHTML = '<div style="grid-column:1/-1;padding:18px 16px;border:1px solid ' + _emptyBorder + ';border-radius:9px;background:' + _emptyBg + ';color:' + _emptyText + ';font-size:13px;">${escapeHtml(noChartsMessage)}</div>';
-  }
+if (!Array.isArray(_charts) || !_charts.length || !cg) {
   return;
 }
+if (!window.echarts) {
+  return;
+}
+cg.innerHTML = '';
 function mk(id, full, title, h, reason, sourceDescription){
   const card = document.createElement('div');
   card.className = 'cc' + (full ? ' full' : '');
@@ -557,18 +648,42 @@ function fmtBRL(v){
 function baseGrid(horizontal){
   return horizontal ? { left:'22%', right:'4%', top:'8%', bottom:'12%', containLabel:false } : { left:'3%', right:'4%', top:'8%', bottom:'12%', containLabel:true };
 }
+function htmlEsc(v){
+  return String(v ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/\"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+function fallbackCard(item){
+  const card = document.createElement('div');
+  card.className = 'cc' + (item?.full ? ' full' : '');
+  card.innerHTML = '<div class="ch"><div><div class="ct">' + htmlEsc(item?.title || 'Gráfico') + '</div><div class="ct-source">Não foi possível carregar este gráfico neste visualizador. Abra o relatório em um navegador completo para visualizar os gráficos.</div></div><span class="ct-badge">Resumo</span></div><div class="chart-fallback-empty">${escapeHtml(noChartsMessage)}</div>';
+  cg.appendChild(card);
+}
 function render(item){
-  const el = mk(item.id, !!item.full, item.title, item.h || 260, item.selectionReason, item.sourceDescription);
-  const inst = echarts.init(el);
-  if (!item?.option) return;
-  inst.setOption(item.option, true);
+  try {
+    const el = mk(item.id, !!item.full, item.title, item.h || 260, item.selectionReason, item.sourceDescription);
+    const inst = echarts.init(el);
+    if (!item?.option) return;
+    inst.setOption(item.option, true);
+    setTimeout(() => inst.resize(), 40);
+  } catch (err) {
+    fallbackCard(item);
+  }
 }
 _charts.forEach(render);
-window.addEventListener('resize', () => {
+function resizeCharts(){
   document.querySelectorAll('.cw > div').forEach((el) => {
     const instance = echarts.getInstanceByDom(el);
     if (instance) instance.resize();
   });
-});
+}
+window.addEventListener('load', resizeCharts);
+window.addEventListener('resize', resizeCharts);
+window.addEventListener('orientationchange', () => setTimeout(resizeCharts, 120));
+setTimeout(resizeCharts, 80);
+setTimeout(resizeCharts, 400);
 })();<\/script></body></html>`
 }

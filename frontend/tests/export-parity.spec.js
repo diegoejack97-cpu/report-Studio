@@ -240,10 +240,37 @@ test.describe('Export strict parity snapshots', () => {
       },
     }, { isDark: false, strictParity: true })
 
+    expect(html).toContain('<tbody id="tbl-body"><tr')
+    expect(html).toContain('Fornecedor 1')
+    expect(html).toContain('Carregar mais linhas')
+
     await page.setContent(html, { waitUntil: 'domcontentloaded' })
 
-    await expect(page.locator('#tbl-body tr')).toHaveCount(500)
-    await expect(page.locator('#tbl-limit')).toContainText('Exibindo as primeiras 500 linhas de 650 registros.')
+    await expect(page.locator('#tbl-body tr')).toHaveCount(20)
+    await expect(page.locator('#tbl-limit')).toContainText('Exibindo 20 de 650 registros.')
+    await expect(page.locator('#tbl-more')).toBeVisible()
+
+    await page.locator('#tbl-more').click()
+    await expect(page.locator('#tbl-body tr')).toHaveCount(40)
+    await expect(page.locator('#tbl-limit')).toContainText('Exibindo 40 de 650 registros.')
+
+    await page.locator('#tbl-search').fill('Software')
+    await expect(page.locator('#tbl-body tr')).toHaveCount(20)
+    await expect(page.locator('#tbl-limit')).toContainText('Exibindo 20 de 325 registros filtrados.')
+  })
+
+  test('export keeps chart fallback content when ECharts is unavailable', async ({ page }) => {
+    const html = buildReportHTML(fixtureWithCharts, { isDark: false, strictParity: true })
+      .replace(
+        "const cg = document.getElementById('charts');",
+        "window.echarts = undefined; const cg = document.getElementById('charts');",
+      )
+
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
+
+    await expect(page.locator('.cg .cc')).toHaveCount(selectedFixtureCharts.length)
+    await expect(page.locator('.ct-source').first()).toContainText('Não foi possível carregar este gráfico neste visualizador.')
+    await expect(page.locator('.chart-fallback-list').first()).toBeVisible()
   })
 
   test('mobile layout keeps charts stacked and prevents global overflow', async ({ page }) => {
