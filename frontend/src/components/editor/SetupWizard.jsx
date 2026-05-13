@@ -171,7 +171,7 @@ function WizardCard({ children, wide }) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: -10 }}
       transition={{ type: 'spring', stiffness: 300, damping: 26 }}
-      className={`rf-panel-glass surface-3d relative max-h-[92vh] overflow-hidden ${wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'}`}
+      className={`rf-wizard-card rf-panel-glass surface-3d relative flex max-h-[92dvh] flex-col overflow-hidden ${wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'}`}
     >
       {children}
     </motion.div>
@@ -181,7 +181,7 @@ function WizardCard({ children, wide }) {
 function ProgressBar({ current, total }) {
   const steps = Array.from({ length: total }, (_, index) => index + 1)
   return (
-    <div className="px-6 pt-5 pb-1">
+    <div className="rf-wizard-progress px-6 pt-5 pb-1">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-bold text-brand-400 uppercase tracking-wider">Configuração do relatório</span>
         <span className="rf-badge text-[11px] font-semibold">Etapa {current} de {total}</span>
@@ -215,7 +215,7 @@ function ProgressBar({ current, total }) {
 
 function StepTitle({ Icon, title, desc }) {
   return (
-    <div className="px-6 pt-4 pb-2">
+    <div className="rf-wizard-title px-6 pt-4 pb-2">
       <div className="mb-2">
         {Icon ? <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-theme bg-[var(--s2)] text-brand-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"><Icon className="w-5 h-5" /></div> : null}
       </div>
@@ -245,7 +245,7 @@ function ColSelect({ label, value, onChange, cols, filter, placeholder = '— se
 
 function NavButtons({ onBack, onNext, nextLabel = 'Próximo', nextDisabled, onSkip, isLast }) {
   return (
-    <div className="flex items-center gap-3 px-6 pb-6 pt-2">
+    <div className="rf-wizard-nav flex items-center gap-3 px-6 pb-6 pt-2">
       {onBack && (
         <button onClick={onBack} className="rf-btn-secondary flex items-center gap-1.5">
           <ChevronLeft className="w-4 h-4" /> Voltar
@@ -384,7 +384,7 @@ function StepIdentity({ data, analyzed, onChange, onNext, workbook }) {
   return (
     <>
       <StepTitle Icon={ClipboardList} title="Identificação do relatório" desc="Defina o nome e contexto do seu relatório" />
-      <div className="px-6 pb-2 space-y-3">
+      <div className="rf-wizard-content px-6 pb-2 space-y-3">
         <div>
           <label className={labelClass}>Título do relatório</label>
           <input
@@ -514,7 +514,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
         </label>
 
         {enabled && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="rf-wizard-metric-fields space-y-3">
             <div>
               <label className={labelClass}>Tipo de métrica</label>
               <select value={metricType} onChange={e => setMetricType(e.target.value)} className={fieldClass} style={{ borderColor: metricColor, boxShadow: `0 0 0 1px ${metricColor}33 inset` }}>
@@ -587,30 +587,30 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rf-metric-hero p-4 sm:p-5 flex items-start justify-between gap-4"
+                className="rf-wizard-metric-card rf-metric-hero p-4 sm:p-5 flex items-start justify-between gap-4"
                 style={{ background: cardBg, boxShadow: `0 22px 52px ${metricColor}34, inset 0 1px 0 rgba(255,255,255,0.26)` }}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <div className="rf-wizard-metric-badges mb-3 flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-white/25 bg-white/[0.12] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90">Métrica principal</span>
                     <span className="rounded-full border border-emerald-200/30 bg-emerald-400/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-100">Validada</span>
                   </div>
-                  <div className="text-[10px] text-white/72 uppercase tracking-wider mb-1">{label}</div>
-                  <div className="text-4xl sm:text-5xl font-extrabold font-mono leading-[1.02] break-words" style={{ color: '#f8fafc', textShadow: `0 0 30px ${metricColor}72` }}>
+                  <div className="rf-wizard-metric-label text-[10px] text-white/72 uppercase tracking-wider mb-1">{label}</div>
+                  <div className="rf-wizard-metric-value text-4xl sm:text-5xl font-extrabold font-mono leading-[1.02] break-words" style={{ color: '#f8fafc', textShadow: `0 0 30px ${metricColor}72` }}>
                     {hasValidSaving
                       ? (primaryMetric?.formatted_value ?? (displayMode === 'percent' ? fmtPct(saving) : displayMode === 'number' ? fmtN(saving) : fmtBRL(saving)))
                       : '—'}
                   </div>
-                  <div className="mt-3 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" style={{ borderColor: 'rgba(255,255,255,0.26)', background: 'rgba(255,255,255,0.12)' }}>
+                  <div className="rf-wizard-metric-type mt-3 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" style={{ borderColor: 'rgba(255,255,255,0.26)', background: 'rgba(255,255,255,0.12)' }}>
                     Tipo: {metricType} · {primaryMetric?.type || (displayMode === 'percent' ? 'percentual' : displayMode === 'number' ? 'quantidade' : 'monetário')}
                   </div>
                   {breakdown?.formula && (
-                    <div className="mt-2 text-[10px] text-white/70">
+                    <div className="rf-wizard-metric-formula mt-2 text-[10px] text-white/70">
                       Fórmula: {previewData?.summary?.primary_metric?.breakdown?.formula}
                     </div>
                   )}
                   {hasMeaningfulBreakdown && (
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="rf-wizard-metric-breakdown mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {hasBaseValue && (
                         <div className="rounded-lg border border-white/20 bg-white/[0.10] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
                           <div className="text-[9px] uppercase tracking-wider text-white/60">Base</div>
@@ -626,7 +626,7 @@ function StepSaving({ data, onChange, onNext, onBack, onSkip, previewData, previ
                     </div>
                   )}
                   {detailItems.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                    <div className="rf-wizard-metric-details grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
                       {detailItems.map((item, index) => (
                         <div key={`${item.label}-${index}`} className="rounded-lg border border-white/20 bg-white/[0.09] px-3 py-2">
                           <div className={`text-xs font-bold font-mono ${item.accent ? 'text-emerald-200' : 'text-white'}`}>
@@ -1051,7 +1051,7 @@ export default function SetupWizard({ rows, cols, onComplete, onDismiss, preview
         <WizardCard wide={step >= kpiStep || step === sheetStep}>
           <ProgressBar current={step} total={totalSteps} />
           <AnimatePresence mode="wait">
-            <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+            <motion.div key={step} className="rf-wizard-step min-h-0 flex-1 overflow-y-auto overscroll-contain" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
               {hasSheetStep && step === sheetStep && <StepSheetSelection workbook={workbook} selectedSheetIndex={selectedSheetIndex} onSelect={onSheetSelect} onChange={update} onNext={next} />}
               {step === identityStep && <StepIdentity      {...stepProps} workbook={workbook} onNext={next} />}
               {step === savingStep && <StepSaving        {...stepProps} workbook={workbook} selectedSheetIndex={selectedSheetIndex} previewData={previewData} previewError={previewError} previewLoading={previewLoading} onNext={next} onBack={back} onSkip={skip} />}

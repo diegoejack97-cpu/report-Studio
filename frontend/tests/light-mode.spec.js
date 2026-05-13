@@ -127,6 +127,47 @@ async function setupApiMocks(page) {
       return
     }
 
+    if (method === 'POST' && path === '/reports/preview') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          summary: {
+            rows: [],
+            totals: { count: 60, value: 215430.32 },
+            primary_metric: {
+              type: 'monetario',
+              label: 'Economia',
+              value: 215430.32,
+              formatted_value: 'R$ 215.430,32',
+              breakdown: {
+                base_value: 1450000,
+                percent: 14.86,
+                formula: 'valor_pago * saving_percent',
+              },
+            },
+          },
+          metric: {
+            type: 'ECONOMIA',
+            label: 'Economia',
+            value: 215430.32,
+            unit: 'currency',
+            formatted_value: 'R$ 215.430,32',
+          },
+          detail_items: [
+            { kind: 'currency', label: 'Base analisada', value: 1450000 },
+            { kind: 'percent', label: 'Percentual médio', value: 14.86, accent: true },
+            { kind: 'currency', label: 'Impacto validado', value: 215430.32 },
+          ],
+          validation: { errors: [], warnings: [] },
+          charts: [],
+          kpis: [],
+          insights: [],
+        }),
+      })
+      return
+    }
+
     await route.continue()
   })
 }
@@ -304,5 +345,47 @@ test.describe('Light mode core screens', () => {
     await expect(page.getByRole('heading', { name: 'Configurações da conta' })).toBeVisible()
     await expectLightTheme(page)
     await expectBasicContrast(page, 'Profile')
+  })
+
+  test('Wizard metric step remains navigable on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/editor')
+
+    await page.getByRole('button', { name: /Carregar dados de exemplo/i }).click()
+    await expect(page.getByRole('heading', { name: 'Identificação do relatório' })).toBeVisible()
+    await page.locator('.rf-wizard-nav').getByRole('button', { name: /Próximo/i }).click()
+
+    await expect(page.getByRole('heading', { name: 'Configuração da métrica' })).toBeVisible()
+    await expect(page.locator('.rf-wizard-metric-card')).toBeVisible()
+
+    const nextButton = page.locator('.rf-wizard-nav').getByRole('button', { name: /Próximo/i })
+    await expect(nextButton).toBeVisible()
+
+    const audit = await page.evaluate(() => {
+      const root = document.documentElement
+      const step = document.querySelector('.rf-wizard-step')
+      const nav = document.querySelector('.rf-wizard-nav')
+      const metric = document.querySelector('.rf-wizard-metric-card')
+      const next = Array.from(document.querySelectorAll('.rf-wizard-nav button')).find(button => /Próximo/.test(button.textContent || ''))
+      const rect = next?.getBoundingClientRect()
+      const navRect = nav?.getBoundingClientRect()
+      const metricRect = metric?.getBoundingClientRect()
+      const stepEl = step
+      return {
+        noHorizontalOverflow: root.scrollWidth <= root.clientWidth + 1,
+        nextInsideViewport: !!rect && rect.bottom <= window.innerHeight + 1 && rect.top >= -1,
+        navInsideViewport: !!navRect && navRect.bottom <= window.innerHeight + 1 && navRect.top < window.innerHeight,
+        stepCanScroll: !!stepEl && stepEl.scrollHeight >= stepEl.clientHeight,
+        metricFitsWidth: !!metricRect && metricRect.left >= 0 && metricRect.right <= window.innerWidth + 1,
+      }
+    })
+
+    expect(audit).toEqual({
+      noHorizontalOverflow: true,
+      nextInsideViewport: true,
+      navInsideViewport: true,
+      stepCanScroll: true,
+      metricFitsWidth: true,
+    })
   })
 })
