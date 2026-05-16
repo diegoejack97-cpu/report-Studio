@@ -232,6 +232,29 @@ export function buildReportHTML(state, options = {}) {
   const staticTableRowsHTML = tableMatrix.slice(0, rowRenderLimit).map((r, ri) =>
     `<tr style="background:${ri % 2 === 0 ? (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc') : 'transparent'}">${r.map(v => `<td>${escapeHtml(v)}</td>`).join('')}</tr>`
   ).join('')
+  const staticMoreRowsLimit = Number.isFinite(Number(options.staticMoreRowsLimit))
+    ? Math.max(rowRenderLimit, Number(options.staticMoreRowsLimit))
+    : 200
+  const staticMoreRows = tableMatrix.slice(rowRenderLimit, staticMoreRowsLimit)
+  const staticMoreRowsHTML = staticMoreRows.map((r, ri) =>
+    `<tr style="background:${ri % 2 === 0 ? (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc') : 'transparent'}">${r.map(v => `<td>${escapeHtml(v)}</td>`).join('')}</tr>`
+  ).join('')
+  const staticMoreOmitted = Math.max(0, tableMatrix.length - staticMoreRowsLimit)
+  const noJsMoreHTML = tableRows.length > rowRenderLimit ? `
+  <details class="tbl-noscript-more">
+    <summary>Ver mais registros sem JavaScript</summary>
+    <div class="tbl-noscript-note">
+      ${staticMoreOmitted > 0
+        ? `Exibindo mais ${staticMoreRows.length.toLocaleString('pt-BR')} registros neste visualizador. Outros ${staticMoreOmitted.toLocaleString('pt-BR')} registros ficam disponíveis ao abrir em um navegador completo.`
+        : `Exibindo mais ${staticMoreRows.length.toLocaleString('pt-BR')} registros neste visualizador.`}
+    </div>
+    <div class="table-scroll">
+      <table class="mt-static-more">
+        <thead><tr>${visCols.map(c => `<th>${escapeHtml(c.name)}</th>`).join('')}</tr></thead>
+        <tbody>${staticMoreRowsHTML}</tbody>
+      </table>
+    </div>
+  </details>` : ''
   const rowsJSON = JSON.stringify(tableMatrix)
   const catJSON = JSON.stringify(catCols.map(c => ({ i: visCols.findIndex(vc => vc.i === c.i), name: c.name, vals: c.vals })))
   const filterInputStyle = `background:${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'};border:1px solid ${bdColor};border-radius:999px;color:${txt};font-size:12px;padding:7px 12px;outline:none;width:100%;font-family:inherit;`
@@ -241,24 +264,102 @@ export function buildReportHTML(state, options = {}) {
     if (!Number.isFinite(numeric)) return String(value ?? '')
     return Math.abs(numeric) >= 1000 ? fmtN(numeric) : numeric.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   }
-  const chartFallbackItems = chart => {
-    const labels = Array.isArray(chart?.labels)
-      ? chart.labels
-      : (Array.isArray(chart?.option?.xAxis?.data) ? chart.option.xAxis.data : Array.isArray(chart?.option?.yAxis?.data) ? chart.option.yAxis.data : [])
+  const chartFallbackLabelSource = chart => {
     const firstSeries = Array.isArray(chart?.option?.series) ? chart.option.series[0] : chart?.option?.series
-    const data = Array.isArray(chart?.data)
-      ? chart.data
-      : (Array.isArray(firstSeries?.data) ? firstSeries.data : [])
-    return labels.slice(0, 5).map((label, index) => {
+    if (Array.isArray(chart?.labels)) return chart.labels
+    if (Array.isArray(chart?.option?.xAxis?.data)) return chart.option.xAxis.data
+    if (Array.isArray(chart?.option?.yAxis?.data)) return chart.option.yAxis.data
+    if (Array.isArray(firstSeries?.data)) {
+      return firstSeries.data.map(item => (typeof item === 'object' && item !== null ? item.name : ''))
+    }
+    return []
+  }
+  const chartFallbackDataSource = chart => {
+    const firstSeries = Array.isArray(chart?.option?.series) ? chart.option.series[0] : chart?.option?.series
+    if (Array.isArray(chart?.data)) return chart.data
+    if (Array.isArray(firstSeries?.data)) return firstSeries.data
+    return []
+  }
+  const chartFallbackItems = chart => {
+    const labels = chartFallbackLabelSource(chart)
+    const data = chartFallbackDataSource(chart)
+    return labels.slice(0, 8).map((label, index) => {
       const rawValue = data[index]
-      const value = typeof rawValue === 'object' && rawValue !== null ? (rawValue.value ?? rawValue.name ?? '') : rawValue
-      return { label, value }
+      const labelFromValue = typeof rawValue === 'object' && rawValue !== null ? rawValue.name : ''
+      const value = typeof rawValue === 'object' && rawValue !== null ? (rawValue.value ?? '') : rawValue
+      return { label: label || labelFromValue || `Item ${index + 1}`, value }
     }).filter(item => String(item.label ?? '').trim() || String(item.value ?? '').trim())
+  }
+  const chartFallbackSvgHTML = chart => {
+    const items = chartFallbackItems(chart)
+      .map(item => ({ ...item, numericValue: Number(item.value) }))
+      .filter(item => Number.isFinite(item.numericValue))
+      .slice(0, 6)
+    const type = chartTypeOf(chart)
+    const width = 640
+    const height = 240
+    const axisColor = isDark ? '#2f4054' : '#dbe3ec'
+    const labelColor = txt
+    const mutedColor = subTxt
+    const maxValue = Math.max(...items.map(item => Math.abs(item.numericValue)), 1)
+
+    if (!items.length) {
+      return `<svg class="chart-static-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Resumo visual indisponível para ${escapeHtml(chart?.title || 'gráfico')}">
+        <rect x="0" y="0" width="${width}" height="${height}" rx="16" fill="${isDark ? '#0b1623' : '#f8fafc'}" stroke="${axisColor}" />
+        <text x="32" y="112" fill="${mutedColor}" font-size="15" font-weight="700">Resumo visual indisponível neste gráfico</text>
+        <text x="32" y="140" fill="${mutedColor}" font-size="13">Consulte a lista textual abaixo.</text>
+      </svg>`
+    }
+
+    if (type === 'line') {
+      const left = 42
+      const right = 28
+      const top = 26
+      const bottom = 46
+      const innerW = width - left - right
+      const innerH = height - top - bottom
+      const values = items.map(item => item.numericValue)
+      const minValue = Math.min(...values, 0)
+      const lineMax = Math.max(...values, 1)
+      const range = Math.max(lineMax - minValue, 1)
+      const points = items.map((item, index) => {
+        const x = left + (items.length === 1 ? innerW / 2 : (index / (items.length - 1)) * innerW)
+        const y = top + innerH - ((item.numericValue - minValue) / range) * innerH
+        return { ...item, x, y }
+      })
+      return `<svg class="chart-static-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Resumo visual estático de ${escapeHtml(chart?.title || 'gráfico')}">
+        <rect x="0" y="0" width="${width}" height="${height}" rx="16" fill="${isDark ? '#0b1623' : '#f8fafc'}" stroke="${axisColor}" />
+        <line x1="${left}" y1="${top + innerH}" x2="${width - right}" y2="${top + innerH}" stroke="${axisColor}" stroke-width="1" />
+        <polyline points="${points.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')}" fill="none" stroke="${p2}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+        ${points.map(point => `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="5" fill="${acc}" stroke="${cardBg}" stroke-width="2" />`).join('')}
+        ${points.map((point, index) => `<text x="${point.x.toFixed(1)}" y="${height - 20}" text-anchor="${index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'}" fill="${mutedColor}" font-size="11">${escapeHtml(String(point.label).slice(0, 16))}</text>`).join('')}
+      </svg>`
+    }
+
+    const barTop = 24
+    const barHeight = 22
+    const gap = 12
+    const labelX = 24
+    const barX = 180
+    const valueX = width - 24
+    const maxBarW = width - barX - 120
+    return `<svg class="chart-static-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Resumo visual estático de ${escapeHtml(chart?.title || 'gráfico')}">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="16" fill="${isDark ? '#0b1623' : '#f8fafc'}" stroke="${axisColor}" />
+      ${items.map((item, index) => {
+        const y = barTop + index * (barHeight + gap)
+        const barW = Math.max(4, Math.abs(item.numericValue) / maxValue * maxBarW)
+        const color = index === 0 ? p2 : index === 1 ? acc : p1
+        return `<text x="${labelX}" y="${y + 15}" fill="${labelColor}" font-size="12" font-weight="700">${escapeHtml(String(item.label).slice(0, 22))}</text>
+          <rect x="${barX}" y="${y}" width="${barW.toFixed(1)}" height="${barHeight}" rx="7" fill="${color}" opacity="${index < 2 ? '0.9' : '0.72'}" />
+          <text x="${valueX}" y="${y + 15}" text-anchor="end" fill="${mutedColor}" font-size="12" font-family="DM Mono, monospace">${escapeHtml(formatFallbackValue(item.value))}</text>`
+      }).join('')}
+    </svg>`
   }
   const chartFallbackContentHTML = chart => {
     const items = chartFallbackItems(chart)
     const source = 'Não foi possível carregar este gráfico neste visualizador. Abra o relatório em um navegador completo para visualizar os gráficos.'
-    return `<div class="chart-fallback" style="display:none;">
+    return `<div class="chart-fallback">
+      <div class="chart-static-visual">${chartFallbackSvgHTML(chart)}</div>
       <div class="ct-source">${escapeHtml(source)}</div>
       ${items.length ? `<div class="chart-fallback-list">${items.map(item => `<div><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(formatFallbackValue(item.value))}</strong></div>`).join('')}</div>` : `<div class="chart-fallback-empty">${escapeHtml(noChartsMessage)}</div>`}
     </div>`
@@ -273,7 +374,7 @@ export function buildReportHTML(state, options = {}) {
         </div>
         <span class="ct-badge">Gráfico</span>
       </div>
-      <div class="cw chart-canvas-wrap" style="height:${Number(chart.h || 260)}px;">
+      <div class="cw chart-canvas-wrap" style="height:${Number(chart.h || 260)}px;display:none;">
         <div id="${escapeHtml(chart.domId)}" class="chart-canvas" style="width:100%;height:100%;"></div>
       </div>
       ${chartFallbackContentHTML(chart)}
@@ -308,9 +409,11 @@ export function buildReportHTML(state, options = {}) {
   </div>
   <div id="tbl-limit" class="tbl-limit">${tableRows.length ? `Exibindo ${Math.min(rowRenderLimit, tableRows.length).toLocaleString('pt-BR')} de ${tableRows.length.toLocaleString('pt-BR')} registros.` : ''}</div>
   <button id="tbl-more" class="tbl-more" type="button" onclick="loadMoreRows()" style="${tableRows.length > rowRenderLimit ? '' : 'display:none;'}">Carregar mais linhas</button>
+  ${noJsMoreHTML}
   <div id="tbl-empty" style="display:none;text-align:center;padding:32px;color:${subTxt}">Nenhum registro encontrado</div>
 </div>
 <script>
+document.querySelectorAll('.tbl-noscript-more').forEach(el => { el.style.display = 'none'; });
 const _rows = ${rowsJSON};
 const _cats = ${catJSON};
 const _isDark = ${isDark ? 'true' : 'false'};
@@ -500,6 +603,9 @@ body{background:radial-gradient(circle at top,${isDark ? 'rgba(37,99,235,.12)' :
 .ct-source{font-size:10px;font-weight:500;color:${subTxt};text-transform:none;letter-spacing:0;margin-top:3px;opacity:.92;}
 .ct-badge{font-size:10px;font-weight:700;color:${p2};background:${p1}1f;border:1px solid ${p1}55;border-radius:999px;padding:3px 8px;white-space:nowrap;}
 .cw{position:relative;border-radius:12px;padding:8px;background:${isDark ? 'rgba(255,255,255,0.012)' : 'rgba(15,23,42,0.018)'};}
+.chart-fallback{display:block;}
+.chart-static-visual{width:100%;margin-bottom:10px;border-radius:12px;overflow:hidden;background:${isDark ? 'rgba(255,255,255,0.012)' : 'rgba(15,23,42,0.018)'};}
+.chart-static-svg{display:block;width:100%;height:auto;min-height:180px;}
 .chart-fallback-list{display:grid;gap:8px;margin-top:4px;}
 .chart-fallback-list div{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid ${bdColor};border-radius:9px;padding:8px 10px;background:${isDark ? 'rgba(255,255,255,0.025)' : 'rgba(15,23,42,0.025)'};}
 .chart-fallback-list span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:${txt};}
@@ -523,9 +629,12 @@ body{background:radial-gradient(circle at top,${isDark ? 'rgba(37,99,235,.12)' :
 .tbl-limit{padding:10px 14px;border-top:1px solid ${bdColor};font-size:12px;color:${subTxt};background:${isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc'};}
 .tbl-more{display:block;margin:12px auto 14px;border:1px solid ${p1}66;background:${p1}1f;color:${p2};border-radius:999px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
 .tbl-more:hover{background:${p1}2e;}
-table#mt{width:100%;border-collapse:collapse;font-size:12px;}
-table#mt th{background:linear-gradient(180deg,${p1},${p2});color:#fff;padding:10px 12px;font-size:11px;font-weight:800;text-transform:uppercase;white-space:nowrap;letter-spacing:.03em;}
-table#mt td{padding:8px 12px;border-bottom:1px solid ${bdColor};color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
+.tbl-noscript-more{border-top:1px solid ${bdColor};padding:12px 14px;background:${isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'};}
+.tbl-noscript-more summary{cursor:pointer;color:${p2};font-size:12px;font-weight:800;}
+.tbl-noscript-note{color:${subTxt};font-size:12px;line-height:1.45;margin:10px 0;}
+table#mt,.mt-static-more{width:100%;border-collapse:collapse;font-size:12px;}
+table#mt th,.mt-static-more th{background:linear-gradient(180deg,${p1},${p2});color:#fff;padding:10px 12px;font-size:11px;font-weight:800;text-transform:uppercase;white-space:nowrap;letter-spacing:.03em;}
+table#mt td,.mt-static-more td{padding:8px 12px;border-bottom:1px solid ${bdColor};color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
 .footer{margin-top:26px;padding:12px 16px;background:${cardBg};background-image:linear-gradient(90deg,${p1}22,transparent),${expPanelSubtle};color:${subTxt};border:1px solid ${bdColor};border-radius:12px;font-size:11px;text-align:center;box-shadow:${expElev1};}
 @media(max-width:768px){
   html,body{width:100%;max-width:100%;overflow-x:hidden;}
@@ -555,9 +664,9 @@ table#mt td{padding:8px 12px;border-bottom:1px solid ${bdColor};color:${txt};whi
   .tbl-active{margin-left:0;margin-right:0;}
   .tbl-filters{padding:12px;}
   .tbl-compact-row{grid-template-columns:1fr;gap:8px;}
-  .summary-table,table#mt{font-size:11px;}
-  table#mt{min-width:max-content;}
-  table#mt th,table#mt td{padding:7px 9px;max-width:160px;}
+  .summary-table,table#mt,.mt-static-more{font-size:11px;}
+  table#mt,.mt-static-more{min-width:max-content;}
+  table#mt th,table#mt td,.mt-static-more th,.mt-static-more td{padding:7px 9px;max-width:160px;}
   .tbl-more{width:calc(100% - 24px);margin:10px 12px 12px;}
   .footer{margin-top:18px;padding:10px 12px;}
 }
@@ -638,8 +747,22 @@ function showFallback(item){
   const canvasWrap = card.querySelector('.chart-canvas-wrap');
   const badge = card.querySelector('.ct-badge');
   if (fallback) fallback.style.display = 'block';
-  if (canvasWrap) canvasWrap.style.display = 'none';
+  if (canvasWrap) {
+    canvasWrap.style.display = 'none';
+    canvasWrap.style.visibility = 'visible';
+  }
   if (badge) badge.textContent = 'Resumo';
+}
+function prepareChart(item){
+  const target = document.getElementById(item?.domId || item?.id);
+  const card = target?.closest('.cc');
+  if (!card) return null;
+  const canvasWrap = card.querySelector('.chart-canvas-wrap');
+  if (canvasWrap) {
+    canvasWrap.style.display = 'block';
+    canvasWrap.style.visibility = 'hidden';
+  }
+  return target;
 }
 function showChart(item){
   const target = document.getElementById(item?.domId || item?.id);
@@ -649,12 +772,15 @@ function showChart(item){
   const canvasWrap = card.querySelector('.chart-canvas-wrap');
   const badge = card.querySelector('.ct-badge');
   if (fallback) fallback.style.display = 'none';
-  if (canvasWrap) canvasWrap.style.display = 'block';
+  if (canvasWrap) {
+    canvasWrap.style.display = 'block';
+    canvasWrap.style.visibility = 'visible';
+  }
   if (badge) badge.textContent = 'Gráfico';
 }
 function render(item){
   try {
-    const el = document.getElementById(item.domId || item.id);
+    const el = prepareChart(item);
     if (!el) throw new Error('Container do gráfico não encontrado');
     const inst = echarts.init(el);
     if (!item?.option) return;

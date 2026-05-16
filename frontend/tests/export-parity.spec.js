@@ -184,10 +184,15 @@ test.describe('Export strict parity snapshots', () => {
   test('export renders the same selected charts used by preview', async ({ page }) => {
     const html = buildReportHTML(fixtureWithCharts, { isDark: false, strictParity: true })
     expect(html).toContain('https://cdn.jsdelivr.net/npm/echarts')
-    expect(html).toContain('class="cw chart-canvas-wrap"')
-    expect(html).toContain('class="chart-fallback" style="display:none;"')
+    expect(html).toContain('class="cw chart-canvas-wrap" style="height:')
+    expect(html).toContain('display:none;"')
+    expect(html).toContain('class="chart-fallback"')
+    expect(html).not.toContain('class="chart-fallback" style="display:none;"')
+    expect(html).toContain('<svg class="chart-static-svg"')
+    expect(html).toContain('Não foi possível carregar este gráfico neste visualizador.')
     expect(html).toContain('echarts.init')
     expect(html).toContain('inst.setOption')
+    expect(html.indexOf('inst.setOption')).toBeLessThan(html.indexOf('showChart(item);'))
 
     await page.setContent(html, { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('.cg .cc', { timeout: 15000 })
@@ -196,6 +201,19 @@ test.describe('Export strict parity snapshots', () => {
     expect(selectedFixtureCharts).toHaveLength(3)
     await expect(page.locator('.cg .cc')).toHaveCount(selectedFixtureCharts.length)
     expect(await page.locator('.ct').allTextContents()).toEqual(selectedFixtureCharts.map(chart => chart.title))
+  })
+
+  test('export ships visible static chart fallback as progressive enhancement', () => {
+    const html = buildReportHTML(fixtureWithCharts, { isDark: false, strictParity: true })
+    const fallbackMatch = html.match(/<div class="chart-fallback"[^>]*>/)
+    expect(fallbackMatch?.[0]).toBe('<div class="chart-fallback">')
+    expect(html).toContain('<div class="chart-static-visual"><svg class="chart-static-svg"')
+    expect(html).toContain('<div class="chart-fallback-list"><div><span>')
+    expect(html).toContain('class="cw chart-canvas-wrap" style="height:')
+    expect(html).toContain('display:none;"')
+    expect(html).toContain("canvasWrap.style.visibility = 'hidden';")
+    expect(html).toContain("if (fallback) fallback.style.display = 'none';")
+    expect(html.indexOf('inst.setOption(item.option, true);')).toBeLessThan(html.indexOf('showChart(item);'))
   })
 
   test('strict dark snapshot', async ({ page }) => {
@@ -249,6 +267,8 @@ test.describe('Export strict parity snapshots', () => {
     expect(html).toContain('<tbody id="tbl-body"><tr')
     expect(html).toContain('Fornecedor 1')
     expect(html).toContain('Carregar mais linhas')
+    expect(html).toContain('<details class="tbl-noscript-more">')
+    expect(html).toContain('<summary>Ver mais registros sem JavaScript</summary>')
     expect(html).toContain('const _rowRenderLimit = 20;')
     expect(html).toContain('let _visibleLimit = _rowRenderLimit;')
     expect(html).not.toContain('<tbody id="tbl-body"></tbody>')
